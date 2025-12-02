@@ -70,10 +70,8 @@ function redirectUrl(path) {
 }
 
 function loadAdventure(adventureGUID) {
-  app.model.load(adventureGUID, () => {
-    window.location.assign(redirectUrl("admin/"));
-    return;
-  });
+  // Load adventure into editor/player without redirecting to the removed admin UI
+  app.model.load(adventureGUID);
 }
 
 function didPressNewAdventure() {
@@ -320,4 +318,3 @@ function didPressChangeDirection(link) {
   // Pass to editor
   app.editor.editLink(updatedLink, true, sourceNode, targetNode);
 }
-

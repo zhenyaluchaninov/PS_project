@@ -26,28 +26,11 @@ stages:
               export CGO_ENABLED=0
               go build -o $(Build.ArtifactStagingDirectory)/projektps -ldflags "-X main.buildnumber=$(Build.BuildId) -X main.buildgreeter=AzureDevops -X main.buildtrigger=Deploy" cmd/server/*
               go build -o $(Build.ArtifactStagingDirectory)/toolps cmd/toolps.go
+              cp -r web $(Build.ArtifactStagingDirectory)/web
             displayName: 'Build Backend'
 
           - publish: $(Build.ArtifactStagingDirectory)
             artifact: backend
-
-      - job: Build_Frontend
-        displayName: 'Build Frontend'
-        steps:
-          - task: NodeTool@0
-            inputs:
-              versionSpec: '14.x'
-
-          - script: |
-              cd react-admin
-              npm install
-              npm run deploy
-              cd ..
-              mv web $(Build.ArtifactStagingDirectory)
-            displayName: 'Build Frontend'
-
-          - publish: $(Build.ArtifactStagingDirectory)
-            artifact: frontend
 
   - stage: Deploy
     variables:
@@ -64,14 +47,12 @@ stages:
         steps:
           - download: current
             artifact: backend
-          - download: current
-            artifact: frontend
           
           - script: |
               cd $(Pipeline.Workspace)
               echo -e "$(DEV_SSH_PRIVATE_KEY)" > key.pem
               chmod 600 key.pem
-              rsync --itemize-changes --compress --verbose --archive --delete-before --update --chown=$(DEPLOY_CHOWN) --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --rsync-path="sudo rsync" --rsh "ssh -p $(DEPLOY_SSH_PORT) -i key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" backend/$(DEPLOY_BINARY) backend/toolps frontend/web $(DEV_SSH_USERHOST):$(DEV_DEPLOY_PATH)
+              rsync --itemize-changes --compress --verbose --archive --delete-before --update --chown=$(DEPLOY_CHOWN) --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --rsync-path="sudo rsync" --rsh "ssh -p $(DEPLOY_SSH_PORT) -i key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" backend/$(DEPLOY_BINARY) backend/toolps backend/web $(DEV_SSH_USERHOST):$(DEV_DEPLOY_PATH)
               ssh -p $(DEPLOY_SSH_PORT) -i key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $(DEV_SSH_USERHOST) "sudo systemctl restart $(UNIX_SERVICE_NAME)"
             displayName: 'Deploy to Test'
 
@@ -82,14 +63,11 @@ stages:
         steps:
           - download: current
             artifact: backend
-          - download: current
-            artifact: frontend
 
           - script: |
               cd $(Pipeline.Workspace)
               echo -e "$(PROD_SSH_PRIVATE_KEY)" > key.pem
               chmod 600 key.pem
-              rsync --itemize-changes --compress --verbose --archive --delete-before --update --chown=$(DEPLOY_CHOWN) --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --rsync-path="sudo rsync" --rsh "ssh -p $(DEPLOY_SSH_PORT) -i key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" backend/$(DEPLOY_BINARY) backend/toolps frontend/web $(PROD_SSH_USERHOST):$(PROD_DEPLOY_PATH)
+              rsync --itemize-changes --compress --verbose --archive --delete-before --update --chown=$(DEPLOY_CHOWN) --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --rsync-path="sudo rsync" --rsh "ssh -p $(DEPLOY_SSH_PORT) -i key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" backend/$(DEPLOY_BINARY) backend/toolps backend/web $(PROD_SSH_USERHOST):$(PROD_DEPLOY_PATH)
               ssh -p $(DEPLOY_SSH_PORT) -i key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $(PROD_SSH_USERHOST) "sudo systemctl restart $(UNIX_SERVICE_NAME)"
             displayName: 'Deploy to Production'
-

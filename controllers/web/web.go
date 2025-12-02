@@ -45,8 +45,9 @@ func (web *Web) NotFoundHandler(w http.ResponseWriter, r *http.Request) {
 	viewData := ViewData{}
 	viewData.Version = web.version
 
-	http.Redirect(w, r, "/admin/", http.StatusSeeOther)
-	//web.Process("404.html", w, viewData);
+	// Render local 404 page instead of redirecting to removed admin UI
+	w.WriteHeader(http.StatusNotFound)
+	web.Process("404.html", w, viewData)
 }
 
 // HomeHandler is the home page
@@ -100,4 +101,3 @@ func (web *Web) HowToContactHandler(w http.ResponseWriter, r *http.Request) {
 
 	web.Process("safunkardet.html", w, viewData);
 }
-
