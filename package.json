@@ -1,0 +1,24 @@
+{
+  "name": "textaventyr",
+  "version": "1.0.0",
+  "description": "Projektet består av två delar, ett REST API och en Reactbaserad webbapplikation",
+  "main": "main.go",
+  "dependencies": {
+    "markdown-it": "^10.0.0",
+    "simplemde": "^1.11.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/goteborgsregionen/textaventyr.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://gitlab.com/goteborgsregionen/textaventyr/issues"
+  },
+  "homepage": "https://gitlab.com/goteborgsregionen/textaventyr#readme"
+}

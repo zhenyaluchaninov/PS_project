@@ -1,0 +1,101 @@
+#background[data-props~="font-roboto"] {
+  font-family: "Roboto", sans-serif;
+}
+#background[data-props~="font-robotoserif"] {
+  font-family: "Roboto Serif", serif;
+}
+#background[data-props~="font-robotocondensed"] {
+  font-family: "Roboto Condensed", sans-serif;
+}
+#background[data-props~="font-conduitmedium"] {
+  font-family: "ConduitMedium", sans-serif;
+}
+#background[data-props~="font-conduitlight"] {
+  font-family: "ConduitLight", sans-serif;
+}
+#background[data-props~="font-cardo"] {
+  font-family: "Cardo", serif;
+}
+#background[data-props~="font-shadowsintolight"] {
+  font-family: "Shadows Into Light", cursive;
+}
+#background[data-props~="font-amaticsc"] {
+  font-family: "Amatic SC", cursive;
+}
+#background[data-props~="font-armata"] {
+  font-family: "Armata", sans-serif;
+}
+#background[data-props~="font-cabin"] {
+  font-family: "Cabin", sans-serif;
+}
+#background[data-props~="font-cabincondensed"] {
+  font-family: "Cabin Condensed", sans-serif;
+}
+#background[data-props~="font-cormorant"] {
+  font-family: "Cormorant", serif;
+}
+#background[data-props~="font-ebgaramond"] {
+  font-family: "EB Garamond", serif;
+}
+#background[data-props~="font-firasans"] {
+  font-family: "Fira Sans", sans-serif;
+}
+#background[data-props~="font-gabriela"] {
+  font-family: "Gabriela", serif;
+}
+#background[data-props~="font-lato"] {
+  font-family: "Lato", sans-serif;
+}
+#background[data-props~="font-librebaskerville"] {
+  font-family: "Libre Baskerville", serif;
+}
+#background[data-props~="font-librefranklin"] {
+  font-family: "Libre Franklin", sans-serif;
+}
+#background[data-props~="font-merriweather"] {
+  font-family: "Merriweather", serif;
+}
+#background[data-props~="font-nunito"] {
+  font-family: "Nunito", sans-serif;
+}
+#background[data-props~="font-opensans"] {
+  font-family: "Open Sans", sans-serif;
+}
+#background[data-props~="font-opensans-extrabold"], 
+#background[data-props~="font-opensans-extrabold"] h1 {
+  font-family: "Open Sans", sans-serif;
+  font-weight: 800;
+}
+#background[data-props~="font-opensanscondensed"] {
+  font-family: "Open Sans Condensed", sans-serif;
+}
+#background[data-props~="font-oswald"] {
+  font-family: "Oswald", sans-serif;
+}
+#background[data-props~="font-playfairdisplay"] {
+  font-family: "Playfair Display", serif;
+}
+#background[data-props~="font-poppins"] {
+  font-family: "Poppins", sans-serif;
+}
+#background[data-props~="font-rougescript"] {
+  font-family: "Rouge Script", cursive;
+}
+#background[data-props~="font-sairacondensed"] {
+  font-family: "Saira Condensed", sans-serif;
+}
+#background[data-props~="font-sriracha"] {
+  font-family: "Sriracha", cursive;
+}
+#background[data-props~="font-ubuntu"] {
+  font-family: "Ubuntu", sans-serif;
+}
+#background[data-props~="font-worksans"] {
+  font-family: "Work Sans", sans-serif;
+}
+#background[data-props~="font-zillaslab"] {
+  font-family: "Zilla Slab", serif;
+}
+#background[data-props~="font-barlow"] {
+  font-family: "Barlow", sans-serif;
+}

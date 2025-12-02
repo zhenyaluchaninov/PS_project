@@ -1,0 +1,106 @@
+trigger:
+  branches:
+    include:
+      - master
+      - develop
+
+
+variables:
+  DEPLOY_SSH_PORT: '2244'
+  DEPLOY_CHOWN: 'nginx:nginx'
+  DEV_DEPLOY_PATH: '/var/dev/www/projektps/'
+  PROD_DEPLOY_PATH: '/var/www/prod/projektps/'
+  UNIX_SERVICE_NAME: 'projektps'
+
+
+stages:
+- stage: Build
+  displayName: 'Build'
+  jobs:
+  - job: BuildBackend
+    displayName: 'Build Backend'
+    container:
+      image: golang:latest
+    steps:
+    - script: |
+         go mod download
+         export CGO_ENABLED=0
+         go build -o projektps -ldflags "-X main.buildnumber=$(Build.BuildId) -X main.buildgreeter=Azure -X main.buildtrigger=Azure" ./cmd/server
+         go build -o toolps ./cmd/toolps.go
+      displayName: 'Build Go Binaries'
+    - script: |
+         mkdir -p drop
+         cp projektps drop/
+         cp toolps drop/
+         cp -r web drop/
+      displayName: 'Collect Backend Artifacts'
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: 'drop'
+        artifact: 'backend'
+      displayName: 'Publish Backend Artifact'
+
+  - job: BuildFrontend
+    displayName: 'Build Frontend'
+    container:
+      image: node:latest
+    steps:
+    - script: |
+         cd react-admin
+         npm install
+         npm run deploy
+      displayName: 'Build Frontend'
+    - script: |
+         mkdir -p drop
+         cp -r web/admin drop/
+      displayName: 'Collect Frontend Artifacts'
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: 'drop'
+        artifact: 'frontend'
+      displayName: 'Publish Frontend Artifact'
+
+- stage: Deploy
+  displayName: 'Deploy'
+  dependsOn: Build
+  variables:
+  - group: BuildAndDeploy
+  jobs:
+  - job: DeployTest
+    displayName: 'Deploy to Test'
+    pool:
+      vmImage: 'ubuntu-latest'
+    condition: eq(variables['Build.SourceBranch'], 'refs/heads/develop')
+    steps:
+    - task: Bash@3
+      displayName: 'Setup SSH for Test'
+      inputs:
+        targetType: 'inline'
+        script: |
+          sudo apt-get update && sudo apt-get install -y rsync openssh-client
+          eval $(ssh-agent -s)
+          printf "%b" "$DEV_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - task: Bash@3
+      displayName: 'Deploy to Test Server'
+      inputs:
+        targetType: 'inline'
+        script: |
+          rsync --itemize-changes --compress --verbose --archive --delete-before --update --chown=$(DEPLOY_CHOWN) --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --rsync-path="sudo rsync" --rsh "ssh -p $(DEPLOY_SSH_PORT) -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" "projektps" "toolps" "web" "$(DEV_SSH_USERHOST):$(DEV_DEPLOY_PATH)"
+          ssh -p $(DEPLOY_SSH_PORT) -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $(DEV_SSH_USERHOST) "sudo systemctl restart $(UNIX_SERVICE_NAME)"
+
+  - job: DeployProduction
+    displayName: 'Deploy to Production'
+    container:
+      image: alpine:latest
+    condition: and(eq(variables['Build.SourceBranch'], 'refs/heads/master'), eq(variables['Build.Reason'], 'Manual'))
+    steps:
+    - script: |
+        apk add --no-cache bash
+        apk add rsync openssh-client
+        eval $(ssh-agent -s)
+        echo "$(PROD_SSH_PRIVATE_KEY)" | tr -d '\r' | ssh-add - > /dev/null
+      displayName: 'Setup SSH for Production'
+    - script: |
+        rsync --itemize-changes --compress --verbose --archive --delete-before --update --chown=$(DEPLOY_CHOWN) --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --rsync-path="sudo rsync" --rsh "ssh -p $(PROD_SSH_PORT) -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" "projektps" "toolps" "web" "$(PROD_SSH_USERHOST):$(PROD_DEPLOY_PATH)"
+        ssh -p $(DEPLOY_SSH_PORT) -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $(PROD_SSH_USERHOST) "sudo systemctl restart $(UNIX_SERVICE_NAME)"
+      displayName: 'Deploy to Production Server'

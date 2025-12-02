@@ -1,0 +1,28 @@
+{{ template "header_public.html" . }}
+
+<body id="404">
+
+  <main role="main">
+
+    <section class="jumbotron">
+      <div class="background"></div>
+      <div class="jumbotron-content text-center">
+        <div class="container">
+          <h1 class="jumbotron-heading caption animated flash">Sidan finns inte</h1>
+          <p></p>
+          <p id="txtLost" class="lead text-white"></p>
+        </div>
+      </div>
+    </section>
+
+    {{ template "footer.html" }}
+
+    <!-- Page specific JavaScript -->
+    <script src="https://unpkg.com/typewriter-effect/dist/core.js"></script>
+    <script src="/static/js/restclient.js"></script>
+    <script src="/static/js/aventyr.storage.js"></script>
+    <script src="/static/js/aventyr.nav.public.js"></script>
+    <script src="/static/js/aventyr.404.js"></script>
+</body>
+
+</html>

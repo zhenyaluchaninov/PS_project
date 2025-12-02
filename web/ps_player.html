@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="sv">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="description" content="{{.Adventure.Description}}" />
+    <meta name="author" content="Göteborgsregionens kommunalförbund" />
+    <meta name="version" content="610061677" />
+    <meta property="og:url" content="{{.Host}}" />
+    <meta property="og:image"
+      content="{{.Host}}{{if .Adventure.CoverUrl}}{{.Adventure.CoverUrl}}{{else}}/static/img/PS-default-cover.jpg{{end}}" />
+
+    {{if .IsEditable }}
+    <link rel="shortcut icon" href="static/favicon.ico" />
+    <link rel="stylesheet" href="static/css/ps_fonts.css" />
+    <link rel="stylesheet" href="static/css/ps.css" />
+    {{else}}
+    <link rel="shortcut icon" href="/static/favicon.ico" />
+    <link rel="stylesheet" href="/static/css/ps_fonts.css" />
+    <link rel="stylesheet" href="/static/css/ps.css" />
+    {{end}}
+
+    {{ template "fonts.html" . }}
+
+    <script language="javascript">
+      var standAlonePlayer = "{{if .IsEditable }}1{{else}}0{{end}}" == "1";
+      window.onload = function (e) {
+        loadAdventure("{{if .Adventure.Slug}}{{.Adventure.Slug}}{{else}}{{.Adventure.ViewSlug}}{{end}}");
+      }
+    </script>
+
+    <title id="ps_player">{{.Adventure.Title}}</title>
+  </head>
+
+<body id="background">
+  <main id="player">
+    <div id="nodeblock_before" class="node_block snapthis" hidden></div>
+    <div id="outer_container" class="snapthis">
+      <div id="media_container">
+        <video src="" id="background_video" playsinline disablepictureinpicture
+          controlslist="nodownload noplaybackrate">
+          <track id="video_subtitles" default label="Svenska" kind="subtitles" srclang="swe" src=""></track>
+        </video>
+        <div id="background_image">
+          <div id="foreground_color"></div>
+        </div>
+      </div>
+      <div id="player_container">
+        <div id="inner_container">
+          <div id="text_block"></div>
+          <audio id="audio_player" hidden controls controlslist="nodownload noplaybackrate" /></audio>
+        </div>
+      </div>
+      <div id="navigation_container">
+        <div id="progressBar" hidden><div id="progressBarBar"></div></div>
+        <div id="playerNavigation"></div>
+      </div>
+    </div>
+    <div id="nodeblock_after" class="node_block snapthis" hidden></div>
+  </main>
+
+  <div id="overlay_menu">
+    <button id="back_button" class="menu_button hidden" title="Bakåtknapp" type="button">
+      <svg viewBox="0 0 512 512">
+        <use href="#symbol_left" />
+      </svg>
+    </button>
+    <button id="left_button" class="direction_button" title="Föregående" type="button" hidden>
+      <svg viewBox="0 0 512 512">
+        <use href="#symbol_left" />
+      </svg>
+    </button>
+    <button id="right_button" class="direction_button" title="Nästa" type="button" hidden>
+      <svg viewBox="0 0 512 512">
+        <use href="#symbol_right" />
+      </svg>
+      <button id="up_button" class="direction_button" title="Föregående" type="button" hidden>
+        <svg viewBox="0 0 512 512">
+          <use href="#symbol_up" />
+        </svg>
+      </button>
+      <button id="down_button" class="direction_button" title="Nästa" type="button" hidden>
+        <svg viewBox="0 128 512 512">
+          <use id="svg_down_button" href="#symbol_down" />
+        </svg>
+      </button>
+      <br>
+      <div id="right_side_buttons">
+        <div>
+          <button id="home_button" class="menu_button" hidden title="Hemknapp" type="button">
+            <svg viewBox="0 0 457 387">
+              <use href="#symbol_home"></use>
+            </svg>
+          </button>
+        </div>
+        <div>
+          <button id="sound_button" class="menu_button" title="Ljud av/på" type="button" hidden>
+            <svg viewBox="0 0 104 102">
+              <use href="#symbol_soundon"></use>
+            </svg>
+            <svg viewBox="0 0 100 100" style="display: none">
+              <use href="#symbol_soundoff"></use>
+            </svg>
+          </button>
+        </div>
+        <div style="display: flex;">
+          <div class="backfont" id="popdown_menu" hidden>
+            <div id="popdown_links"></div>
+            <div class="submenu_div">
+              <button id="subsound_button" class="submenu_button" title="sound" type="button">
+                <svg viewBox="0 0 512 449">
+                  <use href="#symbol_sound"></use>
+                </svg>
+              </button>
+              Ljud
+            </div>
+            <div class="submenu_div">
+              <button id="letters_button" class="submenu_button" title="letters" type="button">
+                <svg viewBox="0 0 512 448">
+                  <use href="#symbol_letters"></use>
+                </svg>
+              </button>
+              Text bakgrund
+            </div>
+            <div class="submenu_div">
+              <button id="image_button" class="submenu_button" title="image" type="button">
+                <svg viewBox="0 0 512 448">
+                  <use href="#symbol_image"></use>
+                </svg>
+              </button>
+              Bakgrundsbild
+            </div>
+            <!-- <div class="submenu_div">
+              <button id="fullscreen_button" class="submenu_button" title="fullscreen" type="button">
+                <svg viewBox="0 0 448 512"><use href="#symbol_fullscreen"></use></svg>
+              </button>
+              Helskärm
+            </div> -->
+          </div>
+          <button id="menu_button" class="menu_button" hidden title="Menyknapp" type="button">
+            <svg viewBox="0 0 24 24">
+              <use href="#symbol_menu"></use>
+            </svg>
+            <svg viewBox="0 0 512 512" style="display: none;">
+              <use href="#symbol_close"></use>
+            </svg>
+          </button>
+        </div>
+      </div>
+  </div>
+  <svg style="display: none">
+    <defs>
+      <symbol id="symbol_menu">
+        <path d="M21 6H3V5h18v1zm0 5H3v1h18v-1zm0 6H3v1h18v-1z"></path>
+      </symbol>
+      <symbol id="symbol_home">
+        <path
+          d="M446.4,190.8L241,10.8c-7.2-6.3-18.8-6.3-25.9,0L9.6,190.8c-7.2,6.3-5.2,11.3,4.3,11.3h60.3l-0.1,0.7v160.7
+                                        c0,9.5,7.7,17.2,17.2,17.2h273.4c9.5,0,17.2-7.7,17.2-17.2V202.8l-0.1-0.7h60.3C451.7,202.1,453.6,197,446.4,190.8L446.4,190.8z" />
+      </symbol>
+      <symbol id="symbol_left">
+        <path
+          d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l192 192c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 278.6 86.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-192 192z" />
+      </symbol>
+      <symbol id="symbol_right">
+        <path
+          d="M310.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-192 192c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L242.7 256 73.4 86.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l192 192z" />
+      </symbol>
+      <symbol id="symbol_up">
+        <path
+          d="M233.4 105.4c12.5-12.5 32.8-12.5 45.3 0l192 192c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L256 173.3 86.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l192-192z" />
+      </symbol>
+      <symbol id="symbol_down">
+        <path
+          d="M233.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 338.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z" />
+      </symbol>
+      <symbol id="symbol_close">
+        <path d="M270.6,255.9L396.6,130c3.2-3.2,3.1-8.4-0.1-11.6s-8.4-3.3-11.6-0.1L258.9,244.2l-126-126
+                                        	c-3.2-3.2-8.4-3.1-11.6,0.1s-3.3,8.4-0.1,11.6l126,126l-126,126c-3.2,3.2-3.1,8.4,0.1,11.6c3.3,3.2,8.5,3.2,11.6,0.1l126-126
+                                        	l126,126c3.2,3.2,8.4,3.1,11.6-0.1c3.2-3.3,3.2-8.5,0.1-11.6L270.6,255.9z" />
+      </symbol>
+      <symbol id="symbol_letters">
+        <g>
+          <path d="M332.2,280.4c-4.5,2-8,4.8-10.4,8.6c-2.4,3.8-3.7,7.9-3.7,12.5c0,7,2.7,12.9,8,17.6s13.1,7,23.4,7
+            c10.2,0,19.2-2.2,27.1-6.7c7.9-4.4,13.7-10.5,17.4-18.2c2.8-6,4.2-14.7,4.2-26.4v-9.7c-9.6,3.9-23.9,7.2-43.1,10
+            C344.4,276.7,336.7,278.5,332.2,280.4z" />
+          <path
+            d="M175.8,151.1c-2.7,13.8-6.6,27.4-11.6,41l-23.6,63h72.8L191,195.6C184.2,177.6,179.1,162.7,175.8,151.1z" />
+          <path d="M448,0H64C28.7,0,0,28.7,0,64v320c0,35.3,28.7,64,64,64h384c35.3,0,64-28.7,64-64V64C512,28.7,483.3,0,448,0z
+             M247.3,343.3l-25-65h-89.8l-23.6,65H78.7l82.5-214.7h30.6l87.9,214.7H247.3z M405.7,343.3c-2.7-5.5-4.5-11.9-5.3-19.2
+            c-9.8,8.3-19.2,14.1-28.2,17.6c-9,3.4-18.7,5.1-29.1,5.1c-17.1,0-30.2-4.2-39.4-12.5c-9.2-8.3-13.8-19-13.8-32
+            c0-7.6,1.7-14.6,5.2-20.9s8-11.4,13.6-15.2c5.6-3.8,11.9-6.7,19-8.6c5.2-1.4,13-2.7,23.4-4c21.3-2.5,37-5.6,47-9.1
+            c0.1-3.6,0.1-5.9,0.1-6.9c0-10.7-2.5-18.3-7.5-22.7c-6.7-5.9-16.7-8.9-30-8.9c-12.4,0-21.5,2.2-27.5,6.5
+            c-5.9,4.3-10.3,12-13.1,23.1l-25.8-3.5c2.3-11,6.2-19.9,11.6-26.7s13.1-12,23.3-15.7c10.2-3.7,21.9-5.5,35.3-5.5
+            c13.3,0,24.1,1.6,32.4,4.7c8.3,3.1,14.4,7.1,18.3,11.8s6.6,10.7,8.2,17.9c0.9,4.5,1.3,12.6,1.3,24.3v35.2c0,24.5,0.6,40,1.7,46.5
+            s3.3,12.7,6.7,18.7H405.7z" />
+        </g>
+      </symbol>
+      <symbol id="symbol_image">
+        <path d="M0,64C0,28.7,28.7,0,64,0h384c35.3,0,64,28.7,64,64v320c0,35.3-28.7,64-64,64H64c-35.3,0-64-28.7-64-64V64z
+                  M323.8,170.5c-4.5-6.6-11.9-10.5-19.8-10.5s-15.4,3.9-19.8,10.5l-87,127.6L170.7,265c-4.6-5.7-11.5-9-18.7-9s-14.2,3.3-18.7,9
+                l-64,80c-5.8,7.2-6.9,17.1-2.9,25.4S78.8,384,88,384h96h32h208c8.9,0,17.1-4.9,21.2-12.8s3.6-17.4-1.4-24.7L323.8,170.5L323.8,170.5
+                z M112,160c26.5,0,48-21.5,48-48s-21.5-48-48-48s-48,21.5-48,48S85.5,160,112,160z" />
+      </symbol>
+      <symbol id="symbol_sound">
+        <path d="M448,1H64C28.7,1,0,29.7,0,65v320c0,35.3,28.7,64,64,64h384c35.3,0,64-28.7,64-64V65C512,29.7,483.3,1,448,1z
+              M397.7,131.8v159.7c0,26.7-26,48.4-58.1,48.4s-58.1-21.7-58.1-48.4s26-48.4,58.1-48.4c6.8,0,13.3,1,19.4,2.8v-88.1l-154.8,46.4
+             v125.9c0,26.7-26,48.4-58.1,48.4S88,356.8,88,330.1s26-48.4,58.1-48.4c6.8,0,13.3,1,19.4,2.8v-94.7v-43.5c0-8.5,5.6-16.1,13.8-18.6
+             l193.5-58.1c5.9-1.8,12.2-0.7,17.1,3c4.9,3.6,7.8,9.4,7.8,15.5L397.7,131.8L397.7,131.8z" />
+      </symbol>
+      <symbol id="symbol_fullscreen">
+        <path
+          d="M32 32C14.3 32 0 46.3 0 64v96c0 17.7 14.3 32 32 32s32-14.3 32-32V96h64c17.7 0 32-14.3 32-32s-14.3-32-32-32H32zM64 352c0-17.7-14.3-32-32-32s-32 14.3-32 32v96c0 17.7 14.3 32 32 32h96c17.7 0 32-14.3 32-32s-14.3-32-32-32H64V352zM320 32c-17.7 0-32 14.3-32 32s14.3 32 32 32h64v64c0 17.7 14.3 32 32 32s32-14.3 32-32V64c0-17.7-14.3-32-32-32H320zM448 352c0-17.7-14.3-32-32-32s-32 14.3-32 32v64H320c-17.7 0-32 14.3-32 32s14.3 32 32 32h96c17.7 0 32-14.3 32-32V352z" />
+      </symbol>
+      <symbol id="symbol_soundon">
+        <g stroke-width="4" transform="translate(2,10)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15,53 L2.99942248,53 C1.34288718,53 0,51.6526814 0,49.9999809 L0,26.0000191 L0,26.0000191 C0,24.3431543 1.34435073,23 2.99942248,23 L15,23" id="Layer-1"></path>
+          <path d="M41.1547359,0.941677165 C43.2784166,-0.827905208 45,-0.0318034532 45,2.72842698 L45,73.0157762 C45,75.7721532 43.2793189,76.5728602 41.1547359,74.802526 L15,53.0087794 L15,22.7354238 L41.1547359,0.941677165 Z" id="Layer-2"></path>
+          <path d="M73,75.1369725 C88.5904175,70.0307768 99.8510697,55.363628 99.8510697,38.0664131 C99.8510697,20.7738776 88.5965095,6.10998553 73.0126522,1" id="Layer-3"></path>
+          <path d="M67,61.4633961 C77.3361812,58.7887497 84.9700853,49.3994824 84.9700853,38.2272212 C84.9700853,27.0673922 77.3531613,17.6865911 67.0344952,15" id="Layer-4"></path>
+          <path d="M60,48 L60,48 C60.7092383,48 61.4012316,47.9261654 62.0687127,47.7857633 C66.5989154,46.8328525 70,42.8136092 70,38 C70,33.1154054 66.4978654,29.0487782 61.8675653,28.1740873 C61.2625401,28.0597945 60.6382529,28 60,28" id="Layer-5"></path>
+        </g>
+      </symbol>
+      <symbol id="symbol_soundoff">
+        <g stroke-width="4" transform="translate(2,0)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15,33 L41.1547359,10.9416772 C43.2784166,9.17209479 45,9.96819655 45,12.728427 L45,83.0157762 C45,85.7721532 43.2793189,86.5728602 41.1547359,84.802526 L15,63 L2.99942248,63 C1.34288718,63 0,61.6526814 0,59.9999809 L0,36.0000191 C0,34.3431543 1.34435073,33 2.99942248,33 L15,33 Z" id="Layer-1"></path>
+          <path d="M69,85.1369725 C84.5904175,80.0307768 95.8510697,65.363628 95.8510697,48.0664131 C95.8510697,38.1922499 92.1815283,29.1751539 86.131767,22.3044466" id="Layer-2"></path>
+          <path d="M63,71.4633961 C73.3361812,68.7887497 80.9700853,59.3994824 80.9700853,48.2272212 C80.9700853,42.2002784 78.7485221,36.6922096 75.0796046,32.4772236" id="Layer-3"></path>
+          <path d="M56,58 C56.7092383,58 57.4012316,57.9261654 58.0687127,57.7857633 C62.5989154,56.8328525 66,52.8136092 66,48 C66,46.1642034 65.5053194,44.4439456 64.641985,42.9652536" id="Layer-4"></path>
+          <path d="M95.501341,0.498658982 L0.4881588,95.5118412" id="Layer-5"></path>
+        </g>
+      </symbol>
+    </defs>
+  </svg>
+
+  <div id="debug_print" hidden>Debug:<br /></div>
+  {{if .IsEditable }}
+  <script src="static/js/aventyr.model.js"></script>
+  <script src="static/js/aventyr.viewer.js"></script>
+  <script src="static/js/markdown-it.min.js"></script>
+  <script src="static/js/markdownhelper.js"></script>
+  <script src="static/js/aventyr.player.js"></script>
+  <script src="static/js/aventyr.props.js"></script>
+  <script src="static/js/aventyr.scrollytell.js"></script>
+  {{else}}
+  <script src="/static/js/restclient.js"></script>
+  <script src="/static/js/aventyr.storage.js"></script>
+  <script src="/static/js/aventyr.model.js"></script>
+  <script src="/static/js/aventyr.viewer.js"></script>
+  <script src="/static/js/markdown-it.min.js"></script>
+  <script src="/static/js/markdownhelper.js"></script>
+  <script src="/static/js/aventyr.player.js"></script>
+  <script src="/static/js/aventyr.props.js"></script>
+  <script src="/static/js/aventyr.scrollytell.js"></script>
+  <script src="/static/js/font_stupidity.js"></script>
+  {{end}}
+</body>
+
+</html>
