@@ -19,12 +19,12 @@ type Router struct {
 }
 
 // NewRouter creates and returns a router with all handlers hooked up and ready to serve
-func NewRouter(store store.Store, version string, imgurbearer string, environment string) *Router {
+func NewRouter(store store.Store, version string, imgurbearer string, environment string, devAuthBypass bool) *Router {
 
 	// Create controllers with reference to storage
 	// Controllers contain handlers for web, api & sockets
 	web := web.NewWebController(&store, version, "./web/", environment)
-	api := api.NewAPIController(&store, version, "/upload/")
+	api := api.NewAPIController(&store, version, "/upload/", devAuthBypass)
 	// socket := socket.NewSocketServer(&store, version)
 
 	// Create the router
@@ -52,7 +52,11 @@ func NewRouter(store store.Store, version string, imgurbearer string, environmen
 	// Create secure (jwt token) API subrouter
 	secureApiRouter := router.PathPrefix("/api").Subrouter()
 	secureApiRouter.Use(CacheControlMiddleware)
-	secureApiRouter.Use(jwt.ControlMiddleware)
+	if devAuthBypass {
+		secureApiRouter.Use(jwt.DevBypassMiddleware)
+	} else {
+		secureApiRouter.Use(jwt.ControlMiddleware)
+	}
 	secureApiRouter.HandleFunc("/adventure/{id:[a-z,0-9]+}/edit", api.GetAdventureForEdit).Methods("GET")
 	secureApiRouter.HandleFunc("/adventure", api.CreateAdventure).Methods("POST")
 	secureApiRouter.HandleFunc("/adventure/{id:[a-z,0-9]+}", api.UpdateAdventureContent).Methods("PUT")
@@ -63,7 +67,11 @@ func NewRouter(store store.Store, version string, imgurbearer string, environmen
 
 	// Admin API routes, protected by requiring valid JWT token in header
 	adminapirouter := apirouter.PathPrefix("/admin").Subrouter()
-	adminapirouter.Use(jwt.ControlMiddleware)
+	if devAuthBypass {
+		adminapirouter.Use(jwt.DevBypassMiddleware)
+	} else {
+		adminapirouter.Use(jwt.ControlMiddleware)
+	}
 	adminapirouter.HandleFunc("/categories", api.GetCategories).Methods("GET")
 	adminapirouter.HandleFunc("/categories", api.CreateCategory).Methods("POST")
 	adminapirouter.HandleFunc("/category/{id:[0-9]+}", api.GetCategory).Methods("GET")

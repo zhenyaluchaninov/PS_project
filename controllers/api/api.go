@@ -13,10 +13,11 @@ type API struct {
 	version    string
 	uploadDir  string
 	systemPath string
+	devAuthBypass bool
 }
 
 // NewAPIController creates a new API controller struct
-func NewAPIController(store *store.Store, version string, uploadDir string) *API {
+func NewAPIController(store *store.Store, version string, uploadDir string, devAuthBypass bool) *API {
 	app_path, _ := os.Getwd()
 	app_path = filepath.ToSlash(app_path)
 	return &API{
@@ -24,5 +25,6 @@ func NewAPIController(store *store.Store, version string, uploadDir string) *API
 		version:    version,
 		uploadDir:  uploadDir,
 		systemPath: app_path,
+		devAuthBypass: devAuthBypass,
 	}
 }

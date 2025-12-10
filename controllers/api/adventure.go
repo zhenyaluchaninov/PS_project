@@ -71,24 +71,26 @@ func (a *API) GetAdventureForEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := a.store.GetUser(r.Context().Value("userid").(int64))
-	if err != nil {
-		fmt.Println("Error while checking user", err.Error())
-		respondWithError(w, http.StatusNotFound, err.Error())
-		return;
-	}
-
-	if user.Role > 1 {
-		found := false
-		for _, user0 := range adv.Users {
-			if user0.ID == user.ID {
-				found = true
-				break;
-			}
+	if !a.devAuthBypass {
+		user, err := a.store.GetUser(r.Context().Value("userid").(int64))
+		if err != nil {
+			fmt.Println("Error while checking user", err.Error())
+			respondWithError(w, http.StatusNotFound, err.Error())
+			return;
 		}
-		if (!found) {
-			respondWithError(w, http.StatusBadRequest, "User doesent have access to adventure")
-			return;	
+
+		if user.Role > 1 {
+			found := false
+			for _, user0 := range adv.Users {
+				if user0.ID == user.ID {
+					found = true
+					break;
+				}
+			}
+			if (!found) {
+				respondWithError(w, http.StatusBadRequest, "User doesent have access to adventure")
+				return;	
+			}
 		}
 	}
 	

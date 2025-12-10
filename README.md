@@ -77,6 +77,8 @@ $ make serve:stop
 
 > Access the site via [http://localhost:8081][-1].
 
+> Tip: set `DEV_AUTH_BYPASS=true` in your environment to bypass JWT locally when you only need quick editor/player testing.
+
 <br>
 
 #### ⬇ Database

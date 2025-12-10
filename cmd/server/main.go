@@ -33,7 +33,7 @@ func main() {
 		imagebank.Initialize(store)
 	}
 	// Create router
-	router := router.NewRouter(store, config.version, config.imgurbearer, config.environment)
+	router := router.NewRouter(store, config.version, config.imgurbearer, config.environment, config.devAuthBypass)
 
 	// Start server
 	if config.servermode == "socket" {

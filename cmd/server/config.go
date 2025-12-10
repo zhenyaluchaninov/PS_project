@@ -30,6 +30,7 @@ type Config struct {
 	socketpath  string
 	version     string
 	environment	string
+	devAuthBypass bool
 }
 
 // NewConfiguration retrieves config from OS / file
@@ -65,6 +66,7 @@ func NewConfiguration() (*Config, error) {
 		socketpath:  os.Getenv("SERVER_SOCKET_PATH"),
 		version:     buildnumber,
 		environment: serverrunner,
+		devAuthBypass: isTruthy(os.Getenv("DEV_AUTH_BYPASS")),
 	}
 
 	if len(serverrunner) > 0 {
@@ -73,4 +75,13 @@ func NewConfiguration() (*Config, error) {
 	fmt.Printf("Build: %s, Trigger: %s, Greeter: %s\n", buildnumber, buildtrigger, buildgreeter)
 
 	return config, nil
+}
+
+func isTruthy(val string) bool {
+	switch strings.ToLower(strings.TrimSpace(val)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
 }

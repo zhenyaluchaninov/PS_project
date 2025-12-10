@@ -108,3 +108,12 @@ func ControlMiddleware(h http.Handler) http.Handler {
 		h.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
+
+// DevBypassMiddleware is an opt-in middleware to skip JWT verification in local/dev mode.
+// It simply injects a fixed user id into the request context.
+func DevBypassMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), "userid", int64(1))
+		h.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
