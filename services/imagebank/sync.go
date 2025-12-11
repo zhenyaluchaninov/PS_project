@@ -1,3 +1,5 @@
+// Legacy Unsplash sync helper used by cmd/unsplash and (optionally) the server scheduler.
+// Not invoked at runtime unless explicitly wired in; keep for manual/ops-driven syncs.
 package imagebank
 
 import (
