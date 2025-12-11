@@ -1,0 +1,49 @@
+version: '3.2'
+services:
+  db:
+    build:
+      context: ./database
+    env_file:
+      - ./.env
+    volumes:
+      - ./database/dump.sql:/docker-entrypoint-initdb.d/dump.sql
+      - ./database/setup.sh:/docker-entrypoint-initdb.d/setup.sh
+    hostname: db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DOCKER_DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    container_name: ${DOCKER_DB_CONTAINER_NAME}
+    ports:
+      - "${DB_PORT}:${DB_PORT}"
+    restart: always
+    tty: true
+  app:
+    build:
+      context: .
+    env_file:
+      - ./.env
+    volumes:
+      - .:/app
+    hostname: app
+    container_name: ${DOCKER_APP_CONTAINER_NAME}
+    ports:
+      - "${DOCKER_APP_PUBLISHED_PORT}:${DOCKER_APP_PORT}"
+    tty: true
+    links:
+      - db
+    depends_on:
+      - db
+    restart: unless-stopped
+  phpmyadmin:
+    container_name: ${DOCKER_PHPMYADMIN_CONTAINER_NAME}
+    image: phpmyadmin/phpmyadmin:latest
+    links:
+      - db
+    ports:
+      - "8082:80"
+    environment:
+      - PMA_USER=root
+      - PMA_PASSWORD=password
+      - PHP_UPLOAD_MAX_FILESIZE=100MB
