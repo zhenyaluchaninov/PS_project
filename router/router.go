@@ -100,6 +100,7 @@ func NewRouter(store store.Store, version string, imgurbearer string, environmen
 	// Hook up static file server routes
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./web"))))
 	router.PathPrefix("/upload/").Handler(http.StripPrefix("/upload/", http.FileServer(http.Dir("./upload"))))
+	router.PathPrefix("/admin/").Handler(http.StripPrefix("/admin/", http.FileServer(http.Dir("./web/admin"))))
 
 	// Special. Nothing to do with projektps.
 	router.PathPrefix("/basta_valet/").Handler(http.StripPrefix("/basta_valet/", http.FileServer(http.Dir("./web/kortspel"))))

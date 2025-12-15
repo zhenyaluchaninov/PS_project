@@ -67,6 +67,19 @@ build backend:
             - toolps
             - web
     extends: .extend_except_changes
+build frontend:
+    image: node:latest
+    allow_failure: false
+    retry: 2
+    stage: build
+    script:
+        - cd react-admin
+        - npm install
+        - npm run deploy
+    artifacts:
+        paths:
+            - web/admin
+    extends: .extend_except_changes
 deploy to test:
     image: alpine:latest
     allow_failure: false
