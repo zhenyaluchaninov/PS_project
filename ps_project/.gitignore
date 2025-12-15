@@ -46,3 +46,4 @@ Temporary Items
 
 # others
 dump.sql
+!backend/database/dump.sql

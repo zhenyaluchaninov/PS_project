@@ -1,0 +1,1015 @@
+{{ template "header_editor.html" . }}
+
+<body>
+  <header>
+    <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+      <a class="navbar-brand" href="/admin/">ProjektPS</a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarCollapse"
+        aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarCollapse">
+        <ul class="navbar-nav mr-auto">
+          <li class="nav-item">
+            <a id="admin_link" class="nav-link" href="/admin/">Admin</a>
+          </li>
+          <li class="nav-item">
+            <a id="new_adventure" hidden class="nav-link" href="/skapa">Skapa nytt</a>
+          </li>
+        </ul>
+        <div class="dropdown show d-none" id="btnEdit">
+          <a class="btn btn-primary dropdown-toggle" href="#" role="button" id="dropdownMenuEdit" data-toggle="dropdown"
+            aria-haspopup="true" aria-expanded="false">
+            Redigera
+          </a>
+          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuEdit">
+            <h6 class="dropdown-header">Arkiverade &auml;ventyr</h6>
+            <span id="dropdown_adventures_edit">
+              <a class="dropdown-item" href="#">Action</a>
+              <a class="dropdown-item" href="#">Another action</a>
+              <a class="dropdown-item" href="#">Something else here</a>
+            </span>
+          </div>
+        </div>
+        <form class="form-inline mt-2 mt-md-0" onsubmit="return false;">
+          <span id="lblStatus" class="mx-3 text-light d-none">Sparar...</span>
+          <button type="button" class="btn btn-primary mx-1 my-2 my-sm-0" data-toggle="modal" data-target="#modalInfo">
+            Inst&auml;llningar
+          </button>
+          <a href="/{{ .Adventure.ViewSlug}}" id="playback_button" class="btn btn-success my-2 my-sm-0">Spela
+            upp</a>
+          &nbsp;
+          <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#modalShare">
+            Dela
+          </button>
+        </form>
+      </div>
+    </nav>
+  </header>
+
+  <main class="editor container-fluid h-100">
+    <div class="row h-100 overflow-auto">
+
+      <!-- Graph container // -->
+      <div class="col-md-6 graph" id="graph">
+      </div>
+
+      <!-- Editor container // -->
+      <div class="col-md-6 form overflow-auto" id="editor">
+
+        <!-- Adventure editor // -->
+        <div id="area_adventure" class="container h-100">
+          <div class="row align-items-center" style="height: 15%;">
+            <div class="col">
+              <h4>Redigeringsyta</h4>
+              <span class="lead">Klicka på en nod eller en l&auml;nk f&ouml;r att redigera</span>
+            </div>
+          </div>
+          <h5>Inställningar för hela ditt PS</h5>
+          <div class="row">
+            <div class="col">
+              <div class="row form-group">
+                <div class="col">
+                  <label for="menu_options" class="col-form-label">Meny:</label>
+                  <select multiple class="custom-select" id="menu_options" size="4">
+                    <option value="back">Bakåtknapp</option>
+                    <option value="home">Hemknapp</option>
+                    <option value="menu">Menyknapp</option>
+                    <option value="sound">Ljudknapp</option>
+                  </select>
+                </div>
+                <div class="col">
+                  <br>
+                  <br>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="menu_sound_override" checked>
+                    <label class="form-check-label" for="menu_sound_override">Ljud av vid menynavigation</label>
+                  </div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col">
+                  <div id="menu_shortcut_nodes" class="form-group">
+                    Genväg hemknapp:
+                    <input type="text" class="form-control mb-1" placeholder="länka till nod" required>
+                    Genväg menylänkar:
+                    <input type="text" class="form-control mb-1" placeholder="länka till nod" required>
+                    <input type="text" class="form-control mb-1" placeholder="länka till nod" required>
+                    <input type="text" class="form-control mb-1" placeholder="länka till nod" required>
+                    <input type="text" class="form-control mb-1" placeholder="länka till nod" required>
+                    <input type="text" class="form-control mb-1" placeholder="länka till nod" required>
+                    <input type="text" class="form-control mb-1" placeholder="länka till nod" required>
+                    <input type="text" class="form-control mb-1" placeholder="länka till nod" required>
+                  </div>
+                </div>
+                <div class="col">
+                  <div id="menu_shortcut_texts" class="form-group">
+                    Beskrivning hemknapp:
+                    <input type="text" class="form-control mb-1" placeholder="text" required>
+                    Beskrivning menylänkar:
+                    <input type="text" class="form-control mb-1" placeholder="text" required>
+                    <input type="text" class="form-control mb-1" placeholder="text" required>
+                    <input type="text" class="form-control mb-1" placeholder="text" required>
+                    <input type="text" class="form-control mb-1" placeholder="text" required>
+                    <input type="text" class="form-control mb-1" placeholder="text" required>
+                    <input type="text" class="form-control mb-1" placeholder="text" required>
+                    <input type="text" class="form-control mb-1" placeholder="text" required>
+                  </div>
+                </div>
+                <div id="menu_shortcut_message" class="alert alert-info" role="alert" hidden>
+                  Klicka på en nod i grafen till vänster om du vill välja den noden som länk.
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-6">
+                  Fonter:
+                  <div class="input-group mb-3"
+                    title="Du behöver manuellt hämta sidan igen för att fonten ska synas i menyer.">
+                    <label for="font_upload" id="font_upload_label"
+                      class="custom-file-label upload_label">Fontfil</label>
+                    <input type="file" id="font_upload" class="custom-file-input"
+                      accept=".ttf, .otf, .woff, .woff2"></input>
+                  </div>
+                  <div class="list-group" id="font-list" title="Klicka för att ta bort fonten.">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Link editor // -->
+        <div id="area_link" style="display:none;">
+          <div class="container">
+            <form id="formLink" class="needs-validation" novalidate>
+              <div class="form-group">
+                <label for="target_title">Fr&aring;n <span id="lblTargetLinkOrigin"
+                    class="font-weight-bold">L&auml;nkens namn</span> till <span id="lblTargetLink"
+                    class="font-weight-bold">L&auml;nkens namn</span></label>
+                <input type="text" class="form-control" id="target_title" placeholder="L&auml;nkens namn" required>
+                <div class="valid-feedback">
+                  Ser bra ut!
+                </div>
+                <div class="invalid-feedback">
+                  V&auml;nligen ange ett namn på l&auml;nken
+                </div>
+              </div>
+              <div class="form-group" id="sourcelink" style="display:none;">
+                <label for="source_title">Fr&aring;n <span id="lblSourceLinkOrigin"
+                    class="font-weight-bold">L&auml;nkens namn</span> till <span id="lblSourceLink"
+                    class="font-weight-bold">L&auml;nkens namn</span></label>
+                <input type="text" class="form-control" id="source_title" placeholder="L&auml;nkens namn" required>
+                <div class="valid-feedback">
+                  Ser bra ut!
+                </div>
+                <div class="invalid-feedback">
+                  V&auml;nligen ange ett namn på l&auml;nken
+                </div>
+              </div>
+              <div class="form-group">
+                Riktning:<br />
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="options" id="radioDefault" value="default">
+                  <label class="form-check-label" for="radioDefault">Enkel</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="options" id="radioBidirectional"
+                    value="bidirectional">
+                  <label class="form-check-label" for="radioBidirectional">Dubbelriktad</label>
+                </div>
+              </div>
+              <div class="form-group">
+                <a href="#" class="btn btn-primary" id="btnChangeDirection">Byt riktning</a>
+              </div>
+            </form>
+          </div>
+          <div class="container mt-5 w-75">
+            <h4>Nodvariabler</h4>
+            <div class="row">
+              <div class="col-md-6">
+                Visa knapp när alla besökta
+                <div class="input-group mb-3">
+                  <input type="number" class="form-control" placeholder="länka till nod" id="link-variable-input1">
+                  <div class="input-group-append">
+                    <button class="btn btn-secondary" type="button" id="link-variable-add-button1">Add</button>
+                  </div>
+                </div>
+                <div class="list-group" id="link-variable-list1">
+                </div>
+              </div>
+              <div class="col-md-6">
+                Göm knapp om alla besökta
+                <div class="input-group mb-3">
+                  <input type="number" class="form-control" placeholder="länka till nod" id="link-variable-input2">
+                  <div class="input-group-append">
+                    <button class="btn btn-secondary" type="button" id="link-variable-add-button2">Add</button>
+                  </div>
+                </div>
+                <div class="list-group" id="link-variable-list2">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="link_footer">
+            <a href="#" class="btn btn-danger" id="btnDeleteLink">Radera</a>
+          </div>
+        </div>
+
+        <!-- Node editor // -->
+        <div id="area_node" style="display:none;">
+          <div class="container" style="padding: 0;padding-bottom:56px;">
+            <form id="formNode" class="needs-validation" novalidate>
+              <div class="form-row">
+                <div class="col mb-3">
+                  <label for="node_title">Nodens namn</label>
+                  <input type="text" class="form-control" id="node_title" placeholder="Nodens namn" required>
+                  <div class="valid-feedback">
+                    Ser bra ut!
+                  </div>
+                  <div class="invalid-feedback">
+                    Vänligen ange ett namn på noden
+                  </div>
+                </div>
+              </div>
+
+              <!-- MENU ADDED -->
+              <div class="row">
+                <div class="col-2">
+                  <label for="settings_chapterType" class="col-form-label">Nodtyp:</label>
+                  <select class="custom-select prop-input" id="settings_chapterType">
+                    <option value="">Vanlig</option>
+                    <option value="start-node">Start</option>
+                    <option value="chapter-node">Kapitel</option>
+                    <option value="chapter-node-plain">Kapitel utan streck</option>
+                    <option value="ref-node">Hyperlänk</option>
+                    <option value="ref-node-tab">Nytab Hyperlänk</option>
+                    <option value="videoplayer-node">Videospelare</option>
+                    <option value="podplayer-node">Podspelare</option>
+                    <option value="random-node">Slumpnod</option>
+                  </select>
+                </div>
+
+                <div class="col-2">
+                  <label for="color_background" class="col-form-label">Bakgrund:</label>
+                  <input id="color_background" type="color" class="form-control prop-input" value="#ffffff">
+                </div>
+
+                <div class="col-2">
+                  <label for="color_foreground" class="col-form-label">Förgrund:</label>
+                  <div class="row">
+                    <div class="col input_color">
+                      <input id="color_foreground" type="color" class="form-control prop-input">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-2">
+                  <label for="color_foreground" class="col-form-label">Transparens:</label>
+                  <div class="row">
+                    <div class="col">
+                      <input id="alpha_foreground" type="number" class="form-control prop-input" value="0">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-2">
+                  <label for="node_conditions" class="col-form-label">Nodvariabel:</label>
+                  <select class="custom-select prop-input" id="node_conditions">
+                    <option selected value="">Inaktiv</option>
+                    <option value="hide_visited">Aktiv</option>
+                  </select>
+                </div>
+
+                <div class="col-2">
+                  <label for="node_statistics" class="col-form-label">Statistiknod:</label>
+                  <select class="custom-select prop-input" id="node_statistics">
+                    <option selected value="">Av</option>
+                    <option value="on">På</option>
+                  </select>
+                </div>
+
+              </div>
+              <hr>
+
+              <div class="row">
+                <div class="col-2">
+                  <label for="outer_container.textShadow" class="col-form-label">Textskugga:</label>
+                  <select class="custom-select prop-input" id="outer_container.textShadow">
+                    <option value="">Ingen</option>
+                    <option selected value="text-shadow-black">Svart</option>
+                    <option value="text-shadow-white">Vit</option>
+                  </select>
+                </div>
+
+                <div class="col-3">
+                  <label for="color_textbackground" class="col-form-label">Bakgrund text:</label>
+                  <div class="row">
+                    <div class="col input_color">
+                      <input id="color_textbackground" type="color" class="form-control prop-input">
+                    </div>
+                    <div class="col">
+                      <input id="alpha_textbackground" type="number" class="form-control prop-input" value="40">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-3">
+                  <label for="player.verticalPosition" class="col-form-label">Vertikalposition:</label>
+                  <select class="custom-select prop-input" id="player.verticalPosition">
+                    <option value="vertical-align-top">Topp</option>
+                    <option selected value="vertical-align-center">Center</option>
+                    <option value="vertical-align-bottom">Botten</option>
+                  </select>
+                </div>
+
+                <div class="col-2">
+                  <label for="player_container_marginleft" class="col-form-label">Vänstermarginal:</label>
+                  <input id="player_container_marginleft" type="number" class="form-control prop-input" value="18">
+                </div>
+
+                <div class="col-2">
+                  <label for="player_container_marginright" class="col-form-label">Högermarginal:</label>
+                  <input id="player_container_marginright" type="number" class="form-control prop-input" value="18">
+                </div>
+              </div>
+              <hr>
+              <!-- MENU ADDED-->
+
+              <div class="form-row">
+                <div class="col">
+                  <label for="node_text" id="node_text_label">Br&ouml;dtext</label>
+                  <div class="textarea-wrapper form-control">
+                    <textarea class="form-control" id="node_text" placeholder="Texten här..." rows="8"></textarea>
+                  </div>
+                  <div class="invalid-feedback">
+                    Skriv text h&auml;r....
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="col" style="align-items: center;display: flex;">
+                  Knappordning:
+                  <div class="col" id="link_order_list">
+                  </div>
+                </div>
+              </div>
+
+              <div id="projectps" style="display:none; padding: 15px;">
+                <div class="form-row">
+                  <div class="form-group col mb-3">
+                    <div class="row">
+                      <div class="col-9">
+                        <label for="node_image" id="image_loader_label" class="custom-file-label upload_label">Ladda upp
+                          bild/video</label>
+                        <input type="file" id="node_image" class="custom-file-input" accept="video/*|image/*" />
+                      </div>
+                      <div class="col-3">
+                        <a href="#" class="btn btn-danger" id="btnDeleteImagePS">Ta bort</a>
+                      </div>
+                    </div>
+                    <div class="row" id="subtitles_row">
+                      <div class="col-9">
+                        <label for="node_image" id="subtitles_label" class="custom-file-label upload_label">Ladda upp
+                          undertext</label>
+                        <input type="file" id="node_subtitles" class="custom-file-input" accept=".vtt" />
+                      </div>
+                      <div class="col-3">
+                        <a href="#" class="btn btn-danger" id="btnDeleteSubtitles">Ta bort</a>
+                      </div>
+                    </div>
+                    <div class="row mt-3 ml-1" style="justify-self: flex-start;">
+                      <div id="image_loader" class="hidden"></div>
+                      <img id="preview_image_ps" src="#" alt="" style="width:100%;max-width:196px;" class="empty" />
+                      <video id="preview_video" src="#" alt="" style="width:100%;max-width:196px;"
+                        class="empty"></video>
+                    </div>
+                  </div>
+                  <div class="form-group col mb-3">
+                    <div class="row">
+                      <div class="col-9">
+                        <label for="node_audio" id="audio_label" class="custom-file-label upload_label mx-2 pt-2">Ladda
+                          upp ljudfil</label>
+                        <input type="file" id="node_audio" class="custom-file-input" accept="audio/*" />
+                      </div>
+                      <div class="col-3">
+                        <a href="#" class="btn btn-danger" id="btnDeleteAudio">Ta bort</a>
+                      </div>
+                    </div>
+                    <div class="row">
+                      <div class="col">
+                        <label for="audio_volume">Volym:</label>
+                        <input class="mt-1 prop-input" type="range" id="audio_volume" min="0" max="100" value="100">
+                      </div>
+                    </div>
+                    <div class="row mt-1">
+                      <div class="col-9">
+                        <label for="node_audio_alt" id="audio_label_alt"
+                          class="custom-file-label upload_label mx-2 pt-2">Ladda upp extraljud</label>
+                        <input type="file" id="node_audio_alt" class="custom-file-input" accept="audio/*" />
+                      </div>
+                      <div class="col-3">
+                        <a href="#" class="btn btn-danger" id="btnDeleteAudioAlt">Ta bort</a>
+                      </div>
+                    </div>
+                    <br>
+
+                  </div>
+
+                  <!--MENU ADDED2-->
+                  <div class="row">
+                    <div class="col-2">
+                      <label for="background_image.position" class="col-form-label">Bildposition:</label>
+                      <select class="custom-select prop-input" id="background_image.position">
+                        <option value="background-center">Centrerad</option>
+                        <option value="background-bottom">Mot botten</option>
+                        <option value="background-top">Mot toppen</option>
+                        <option value="background-left">Vänster</option>
+                        <option value="background-right">Höger</option>
+                      </select>
+                    </div>
+                    <div class="col-3">
+                      <label for="background_image.animation" class="col-form-label">Bakgrundsanimation:</label>
+                      <select class="custom-select prop-input" id="background_image.animation">
+                        <option value="">Ingen animation</option>
+                        <option value="background-scroll-left">Vänster skroll</option>
+                        <option value="background-scroll-down">Nedåt skroll</option>
+                        <option value="background-scroll-up">Uppåt skroll</option>
+                        <option value="background-kenburns-in">Innåt zoom</option>
+                        <option value="background-kenburns-out">Utåt zoom</option>
+                        <option value="background-crossfade">Crossfade</option>
+                      </select>
+                    </div>
+                    <div class="col-2">
+                      <label for="settings_videoLoop" class="col-form-label">Videospelning:</label>
+                      <select class="custom-select prop-input" id="settings_videoLoop">
+                        <option value="true">Repetera</option>
+                        <option value="false">Spela en gång</option>
+                      </select>
+                    </div>
+                    <div class="col-3">
+                      <label for="settings_audioLoop" class="col-form-label">Ljudspelning:</label>
+                      <select class="custom-select prop-input" id="settings_audioLoop">
+                        <option value="true">Repetera</option>
+                        <option selected value="false">Spela en gång</option>
+                      </select>
+                    </div>
+                    <div class="col-2">
+                      <label for="settings_audioFadeOut" class="col-form-label">Ljudfade-ut:</label>
+                      <select class="custom-select prop-input" id="settings_audioFadeOut">
+                        <option value="">Ingen</option>
+                        <option value="0.0">0.0 sekunder</option>
+                        <option value="1.0">1.0 sekunder</option>
+                        <option value="2.0">2.0 sekunder</option>
+                        <option value="4.0">4.0 sekunder</option>
+                      </select>
+                    </div>
+                    <div class="col-2">
+                      <label for="settings_audioFadeIn" class="col-form-label">Ljudfade-in:</label>
+                      <select class="custom-select prop-input" id="settings_audioFadeIn">
+                        <option value="">Ingen</option>
+                        <option value="0.0">0.0 sekunder</option>
+                        <option value="1.0">1.0 sekunder</option>
+                        <option value="2.0">2.0 sekunder</option>
+                        <option value="4.0">4.0 sekunder</option>
+                      </select>
+                    </div>
+                    <div class="col-3">
+                      <label for="settings_scrollSpeed" class="col-form-label">Skrollfart:</label>
+                      <select class="custom-select prop-input" id="settings_scrollSpeed">
+                        <option value="0">Av</option>
+                        <option selected value="0.5">Pytteliten</option>
+                        <option value="0.75">Liten</option>
+                        <option value="1.0">Medel</option>
+                        <option value="1.5">Hög</option>
+                      </select>
+                    </div>
+                    <div class="col-3">
+                      <label for="background.size" class="col-form-label">Bakgrundspassning:</label>
+                      <select class="custom-select prop-input" id="background.size">
+                        <option selected value="cover">Täck hela</option>
+                        <option value="contain">Visa allt</option>
+                      </select>
+                    </div>
+                    <div class="col-2">
+                      <label for="settings_extraAudio" class="col-form-label">Extraljud:</label>
+                      <select class="custom-select prop-input" id="settings_extraAudio">
+                        <option selected value="">Spela alltid</option>
+                        <option value="play_once">En gång per nod</option>
+                      </select>
+                    </div>
+                    <div class="col-2">
+                      <label for="settings_videoAudio" class="col-form-label">Video-ljud:</label>
+                      <select class="custom-select prop-input" id="settings_videoAudio">
+                        <option selected value="">På</option>
+                        <option value="off">Av</option>
+                        <option value="off_mobile">Av om mobil</option>
+                      </select>
+                    </div>
+                    <div class="col-2">
+                      <label for="settings_grayscale" class="col-form-label">Gråskala:</label>
+                      <select class="custom-select prop-input" id="settings_grayscale">
+                        <option selected value="">Av</option>
+                        <option value="on">På</option>
+                      </select>
+                    </div>
+                    <div class="col-2">
+                      <label for="color_blur" class="col-form-label">Blur:</label>
+                      <div class="row">
+                        <div class="col">
+                          <input id="color_blur" type="number" class="form-control prop-input" value="0">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <!--MENU ADDED2-->
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <div id="node_footer" class="container">
+            <div class="row align-items-center">
+              <div class="col">
+                <div class="d-flex flex-wrap">
+                  <a href="#" class="btn btn-primary mr-2" id="btnCreateNode">Skapa ny nod</a>
+                  <a href="#" class="btn btn-primary dropdown-toggle mr-2" id="btnCreateLink" data-toggle="dropdown"
+                    aria-haspopup="true" aria-expanded="false">Länka till nod</a>
+                  <div id="linklist" class="dropdown-menu dropdown-scroll" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="#">Action</a>
+                    <a class="dropdown-item" href="#">Another action</a>
+                    <a class="dropdown-item" href="#">Something else here</a>
+                  </div>
+                  <a href="/testa/{{.Adventure.Slug}}" class="btn btn-secondary mr-2"
+                    id="btnPreviewNode">Förhandsgranska</a>
+                  <a href="#" class="btn btn-secondary mr-2" id="btnPropsEditor" data-toggle="modal"
+                    data-target="#modalProps" style="display:none">Knappar & övergångar</a>
+                  <a href="#" class="btn btn-secondary mr-2" id="btnChangeNodesModal" data-toggle="modal"
+                    data-target="#modalAlert">Ändra flera</a>
+                </div>
+              </div>
+              <div class="col-auto text-right">
+                <a href="#" class="btn btn-danger" id="btnDeleteNode">Radera nod</a>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal: Props editor -->
+  <div class="modal fade" id="modalProps" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalPropsTitle">Knappar & animationer</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="props-form">
+
+            <h5>Animationer</h5>
+
+            <div class="row">
+
+              <div class="col-2">
+                <label for="player_container.animation" class="col-form-label">Textanimation:</label>
+                <select class="custom-select prop-input" id="player_container.animation">
+                  <option value="">Ingen</option>
+                  <option value="fading-faster">Snabb</option>
+                  <option selected value="fading-paragraphs">Normal</option>
+                  <option value="fading-slower">Långsam</option>
+                  <option value="fading-slowerer">Långsammare</option>
+                  <option value="fading-slowest">Långsammast</option>
+                </select>
+              </div>
+
+              <div class="col-2">
+                <label for="animation_delay" class="col-form-label">Animationsfördröjning:</label>
+                <input id="animation_delay" type="number" class="form-control prop-input" value="0" step="0.1">
+              </div>
+
+              <div class="col-2">
+                <label for="node_timer" class="col-form-label">Automatisk nodväxling:</label>
+                <input id="node_timer" type="number" class="form-control prop-input" value="0" step="0.1" min="0">
+              </div>
+
+              <div class="col-2">
+                <label for="animation_backgroundfade" class="col-form-label">Bakgrundsfade:</label>
+                <input id="animation_backgroundfade" type="number" class="form-control prop-input" value="1.0"
+                  step="0.1">
+              </div>
+
+            </div>
+            <hr>
+            <h5>Knappar</h5>
+            <div class="row">
+
+              <div class="col-2">
+                <label for="background.font" class="col-form-label">Typsnitt knapp/meny:</label>
+                <select class="custom-select prop-input" id="background.font">
+                  <option value="font-roboto">Roboto</option>
+                  <option value="font-robotoserif">Roboto Serif</option>
+                  <option value="font-robotocondensed">Roboto Condensed</option>
+                  <option value="font-conduitmedium">Conduit Medium</option>
+                  <option value="font-conduitlight">Conduit Light</option>
+                  <option value="font-cardo">Cardo</option>
+                  <option value="font-shadowsintolight">Shadows Into Light</option>
+                  <option value="font-amaticsc">Amatic SC</option>
+                  <option value="font-armata">Armata</option>
+                  <option value="font-cabin">Cabin</option>
+                  <option value="font-cabincondensed">Cabin Condensed</option>
+                  <option value="font-cormorant">Cormorant</option>
+                  <option selected value="font-ebgaramond">EB Garamond</option>
+                  <option value="font-firasans">Fira Sans</option>
+                  <option value="font-gabriela">Gabriela</option>
+                  <option value="font-lato">Lato</option>
+                  <option value="font-librebaskerville">Libre Baskerville</option>
+                  <option value="font-librefranklin">Libre Franklin</option>
+                  <option value="font-merriweather">Merriweather</option>
+                  <option value="font-nunito">Nunito</option>
+                  <option value="font-opensans">Open Sans</option>
+                  <option value="font-opensanscondensed">Open Sans Condensed</option>
+                  <option value="font-oswald">Oswald</option>
+                  <option value="font-playfairdisplay">Playfair Display</option>
+                  <option value="font-poppins">Poppins</option>
+                  <option value="font-rougescript">Rouge Script</option>
+                  <option value="font-sairacondensed">Saira Condensed</option>
+                  <option value="font-sriracha">Sriracha</option>
+                  <option value="font-ubuntu">Ubuntu</option>
+                  <option value="font-worksans">Work Sans</option>
+                  <option value="font-zillaslab">Zilla Slab</option>
+                  <option value="font-barlow">Barlow</option>
+                </select>
+              </div>
+
+              <div class="col-2">
+                <label for="playerNavigation_textSize" class="col-form-label">Knapptextstorlek:</label>
+                <select class="custom-select prop-input" id="playerNavigation_textSize">
+                  <option value="8">8pt</option>
+                  <option value="10">10pt</option>
+                  <option value="12">12pt</option>
+                  <option selected value="14">14pt</option>
+                  <option value="16">16pt</option>
+                  <option value="18">18pt</option>
+                </select>
+              </div>
+
+              <div class="col-2">
+                <label for="playerNavigation_delay" class="col-form-label">Navigationfördröjning:</label>
+                <input id="playerNavigation_delay" type="number" class="form-control prop-input" value="0" step="0.1">
+              </div>
+
+              <div class="col-2">
+                <label for="color_buttonbackground" class="col-form-label">Bakgrund knappar:</label>
+                <div class="row">
+                  <div class="col input_color">
+                    <input id="color_buttonbackground" type="color" class="form-control prop-input">
+                  </div>
+                  <div class="col">
+                    <input id="alpha_buttonbackground" type="number" class="form-control  prop-input" value="40">
+                  </div>
+                </div>
+              </div>
+              <div class="col-2">
+                <label for="color_buttontext" class="col-form-label">Färg knapptext:</label>
+                <div class="row">
+                  <div class="col input_color">
+                    <input id="color_buttontext" type="color" class="form-control prop-input" value="#ffffff">
+                  </div>
+                  <div class="col">
+                    <input id="alpha_buttontext" type="number" class="form-control prop-input" value="100">
+                  </div>
+                </div>
+              </div>
+              <div class="col-2">
+                <label for="playerNavigation.alignment" class="col-form-label">Knappjustering:</label>
+                <select class="custom-select prop-input" id="playerNavigation.alignment">
+                  <option value="align-left">Left</option>
+                  <option selected value="align-center">Center</option>
+                  <option value="align-right">Right</option>
+                  <option value="space-between">Space Between</option>
+                  <option value="stack-vertical">Stack Vertical Center</option>
+                  <option value="stack-vertical-left">Stack Vertical Left</option>
+                  <option value="stack-vertical-right">Stack Vertical Right</option>
+                </select>
+              </div>
+              <div class="col-2">
+                <label for="playerNavigation.settings" class="col-form-label">Navigationsegenskaper:</label>
+                <select multiple class="custom-select prop-input" id="playerNavigation.settings">
+                  <option selected value="button-rounded">Rundade hörn</option>
+                  <option selected value="navigation-opaque">Bottenlåst</option>
+                  <option value="button-border-off">Utan ram</option>
+                  <option value="buttons-narrow">Samlade knappar</option>
+                  <option value="show-current-node">Knapp i bild</option>
+                </select>
+              </div>
+              <div class="col-2">
+                <label for="type_nodeconditions" class="col-form-label">Nodvariabeltyp:</label>
+                <select class="custom-select prop-input" id="type_nodeconditions">
+                  <option value="hide">Göm knapp helt</option>
+                  <option value="color">Färg</option>
+                  <option selected value="transparency">Transparens</option>
+                  <option value="colortrans">Färg & Transparens</option>
+                </select>
+              </div>
+              <div class="col-2">
+                <label for="color_nodeconditions" class="col-form-label">Nodvariabelfärg:</label>
+                <div class="row">
+                  <div class="col input_color">
+                    <input id="color_nodeconditions" type="color" class="form-control prop-input">
+                  </div>
+                  <div class="col">
+                    <input id="alpha_nodeconditions" type="number" class="form-control prop-input" value="35">
+                  </div>
+                </div>
+              </div>
+              <div class="col-2">
+                <label for="background.navigation_style" class="col-form-label">Navigationstyp:</label>
+                <select class="custom-select prop-input" id="background.navigation_style">
+                  <option selected value="">Textknappar</option>
+                  <option value="swipe">Swipe</option>
+                  <option value="swipeWithButton">Swipe med knapp</option>
+                  <option value="right">Höger</option>
+                  <option value="leftright">Vänster-höger</option>
+                  <option value="down">Nedåt</option>
+                  <option value="noButtons">Inga knappar</option>
+                </select>
+              </div>
+              <div class="col-2">
+                <label for="playerNavigation.buttonAnim" class="col-form-label">Sväva-animation:</label>
+                <select class="custom-select prop-input" id="playerNavigation.buttonAnim">
+                  <option selected value="">Ingen</option>
+                  <option value="btn-1">Rotera</option>
+                  <option value="btn-2">Streck</option>
+                  <option value="btn-3">Höj</option>
+                  <option value="btn-4">Blinka</option>
+                  <option value="btn-5">Tona</option>
+                </select>
+              </div>
+              <div class="col-2">
+                <label for="playerNavigation.buttonIdle" class="col-form-label">Vänte-animation:</label>
+                <select class="custom-select prop-input" id="playerNavigation.buttonIdle">
+                  <option selected value="">Av</option>
+                  <option value="fade">Tona-ut-in</option>
+                  <option value="invert">Invertera</option>
+                </select>
+              </div>
+
+            </div>
+            <hr>
+            <h5>Övrigt</h5>
+            <div class="row">
+              <div class="col-2">
+                <label for="color_text" class="col-form-label">Ikonfärg:</label>
+                <div class="row">
+                  <div class="col input_color">
+                    <input id="color_text" type="color" class="form-control prop-input" value="#ffffff">
+                  </div>
+                  <div class="col">
+                    <input id="alpha_text" type="number" class="form-control prop-input" value="100">
+                  </div>
+                </div>
+              </div>
+              <div class="col-2">
+                <label for="color_text" class="col-form-label">Förloppsfält:</label>
+                <select class="custom-select prop-input" id="progress_bar_type">
+                  <option selected value="">Av</option>
+                  <option value="square">Fyrkantig</option>
+                  <option value="rounded">Rundad</option>
+                </select>
+              </div>
+              <div class="col-2">
+                <label for="progress_bar_color" class="col-form-label">Förloppsfärg:</label>
+                <div class="row">
+                  <div class="col input_color">
+                    <input id="progress_bar_color" type="color" class="form-control prop-input" value="#daa520">
+                  </div>
+                </div>
+              </div>
+              <div class="col-2">
+                <label for="progress_bar_bgcolor" class="col-form-label">Förloppsbakgrund:</label>
+                <div class="row">
+                  <div class="col input_color">
+                    <input id="progress_bar_bgcolor" type="color" class="form-control prop-input" value="#000000">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-dismiss="modal">Stäng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: lockedit -->
+  <div class="modal fade" id="lockEdit" tabindex="-1" role="dialog" aria-labelledby="modalShareTitle"
+    aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalShareTitle">Äventyret låst!</h5>
+        </div>
+        <div class="modal-body">
+          <div class="container">
+            <div class="row">
+              <div class="col-md-12">
+                <p>Någon annan instans har editerat äventyret. Du behöver hämta sidan igen för att hämta ändringarna och
+                  fortsätta editera.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Alert -->
+  <div class="modal fade" id="modalAlert" tabindex="-1" role="dialog" aria-labelledby="modalAlertTitle"
+    aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content" style="background-color: #cd3141">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalAlertTitle">Varning!</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="container">
+            <p>För att ändra många egenskaper på flera noder på samma gång så behöver du först markera flera noder genom
+              att hålla nere control-
+              eller shift-knappen och klicka på noder. Alternativt kan man markera genom att hålla nere control eller
+              shift och markera ett
+              område genom att klicka och dra i grafen med musen. Efter att du har markerat flera noder så behöver du
+              ändra de egenskaper du vill ska ändras på flera noder.
+              Då kommer de att markeras med en orange färg.</p>
+            <h>Markerade egenskaper kommer att ändras på följande noder:</h>
+            <p id="alertChangeNodes"></p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btnChangeNodes" type="button" class="btn btn-primary" data-dismiss="modal">Gört!</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: share -->
+  <div class="modal fade" id="modalShare" tabindex="-1" role="dialog" aria-labelledby="modalShareTitle"
+    aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalShareTitle">Dela &auml;ventyret!</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="container">
+            <div class="row">
+              <div class="col-md-12">
+                <p>Det finns flera s&auml;tt att dela ditt &auml;ventyr med andra.</p>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-12">
+                <h5>Redigeringsl&auml;nk</h5>
+                <p>Om du vill kunna forts&auml;tta skriva p&aring; ditt &auml;ventyr senare, eller kanske l&aring;ta
+                  dina v&auml;nner eller din l&auml;rare redigera ditt &auml;ventyr, kan du anv&auml;nda dig utav
+                  f&ouml;ljande l&auml;nk:
+                  <a href="/redigera/{{.Adventure.Slug}}">{{ .Host}}/redigera/{{.Adventure.Slug}}</a>.
+                </p>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-8">
+                <h5>Visningsl&auml;nk</h5>
+                <p>Ditt &auml;ventyr har l&auml;nken:
+                  <a href="/engagera/{{ .Adventure.ViewSlug}}"
+                    target="_blank">{{.Host}}/engagera/{{.Adventure.ViewSlug}}
+                  </a>,
+                  dela l&auml;nken med de som du vill skall kunna se &auml;ventyret <u>men inte</u> redigera.
+                </p>
+              </div>
+              <div class="col-md-4">
+                <img src="/spela/{{ .Adventure.ViewSlug}}/qr" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-dismiss="modal">St&auml;ng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: info -->
+  <div class="modal fade" id="modalInfo" tabindex="-1" role="dialog" aria-labelledby="modalInfoTitle"
+    aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalInfoTitle">Inst&auml;llningar</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form>
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label for="adventure_title" class="col-form-label">Titel:</label>
+                <input type="text" class="form-control" id="adventure_title" value="{{ .Adventure.Title}}">
+              </div>
+              <div class="form-group col-md-6">
+                <label for="changeCoverImage" class="col-form-label">Omslagsbild:</label><br />
+                <input type="file" id="changeCoverImage" accept="image/*" />
+                <div id="panelReselectCoverImage" class="">
+                  <img class="img-thumbnail" style="height:45px;" id="preview_cover_image" src="" alt="" />
+                  <a href="#" class="btn btn-danger" id="deleteCoverImage">Ta bort bild</a>
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="adventure_description" class="col-form-label">Beskrivning:</label>
+              <textarea class="form-control" id="adventure_description">{{ .Adventure.Description}}</textarea>
+            </div>
+            <div class="form-group">
+              <label for="adventure_category" class="col-form-label">Kategori:</label>
+              <select class="custom-select" id="adventure_category">
+                <option value="1">- Ej kategoriserad -</option>
+              </select>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-dismiss="modal">St&auml;ng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Image bank -->
+  <div class="modal fade" id="modalImageBank" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalImageBankTitle">
+            <select id="image_categories" class="custom-select custom-select-lg mb-3">
+              <option>-</option>
+            </select>
+          </h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="container" style="min-height: 200px; max-height: 400px; overflow: auto;">
+            <div class="row grid" id="gallery">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-dismiss="modal">St&auml;ng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.23.0/cytoscape.min.js"
+    crossorigin="anonymous"></script>
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+    integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+    crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"
+    integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49"
+    crossorigin="anonymous"></script>
+  <script src="/static/tinymce/tinymce.min.js"></script>
+  <script src="/static/js/bootstrap.min.js"></script>
+  <script src="/static/js/markdown-it.min.js"></script>
+  <script src="/static/js/markdownhelper.js"></script>
+  <script src="/static/js/emoji-button-2.12.1.min.js"></script>
+  <script src="/static/js/restclient.js"></script>
+  <script src="/static/js/aventyr.model.js"></script>
+  <script src="/static/js/aventyr.storage.js"></script>
+  <script src="/static/js/aventyr.graph.js"></script>
+  <script src="/static/js/simplemde.min.js"></script>
+  <script src="/static/js/toastify.js"></script>
+  <script src="/static/js/aventyr.editor.js"></script>
+  <script src="/static/js/aventyr.app.js"></script>
+  <script src="/static/js/aventyr.props.js"></script>
+  <script src="/static/js/aventyr.nav.public.js"></script>
+  <script src="/static/js/font_stupidity.js"></script>
+</body>
+
+</html>

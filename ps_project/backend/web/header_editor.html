@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="sv">
+  <head>
+    {{ template "header.html" . }}
+    <!-- simplemde CSS -->
+    <link rel="stylesheet" href="/static/css/simplemde.min.css" />
+    <link rel="stylesheet" href="/static/css/toastify.css" />
+
+    {{ template "fonts.html" . }}
+
+    {{if .Adventure.Slug}}
+    <script language="javascript">
+      window.onload = function (e) {
+        loadAdventure("{{ .Adventure.Slug}}");
+      };
+    </script>
+    {{end}}
+    <title>Projekt PS Editor</title>
+  </head>
+</html>

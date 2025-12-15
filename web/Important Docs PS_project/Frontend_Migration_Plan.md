@@ -38,7 +38,7 @@ Blocks are just thematic groups. They do not strictly define execution order, bu
 
 ## Block A – Repo & Tech Foundation
 
-### Step 1 – Create mono-repo and copy backend
+### [done] Step 1 – Create mono-repo and copy backend
 
 **What we do**
 
@@ -59,7 +59,7 @@ No Feature Map items implemented in this step (repo scaffold only).
 
 ---
 
-### Step 2 – Scaffold Next.js app and core dependencies
+### [done] Step 2 – Scaffold Next.js app and core dependencies
 
 **What we do**
 
