@@ -523,7 +523,7 @@ web/
 
 ---
 
-### Step 10 – Interactive primitives: Dialog, Dropdown, Tooltip, Toasts, ImageZoom
+### [done] Step 10 – Interactive primitives: Dialog, Dropdown, Tooltip, Toasts, ImageZoom
 
 **What we do**
 
@@ -634,7 +634,7 @@ web/
 
 ## Block D – Player Experience
 
-### Step 12 – Basic player skeleton: data loading & simple navigation
+### [partially] Step 12 – Basic player skeleton: data loading & simple navigation
 
 **What we do**
 
