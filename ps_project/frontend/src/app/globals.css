@@ -10,8 +10,12 @@
   --muted: #9ca3af;
   --border: #1f2937;
   --accent: #7c3aed;
+  --accent-strong: #7c3aed;
   --danger: #ef4444;
   --warning: #f59e0b;
+  /* Legacy names for Tailwind tokens used across the app */
+  --background: var(--bg);
+  --foreground: var(--text);
 }
 
 * {

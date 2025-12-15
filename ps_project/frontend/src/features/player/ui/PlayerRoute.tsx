@@ -1,16 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import {
-  selectPlayerAdventure,
-  selectPlayerError,
-  selectPlayerStatus,
-  usePlayerStore,
-} from "../state/playerStore";
+import { selectPlayerError, selectPlayerStatus, usePlayerStore } from "../state/playerStore";
 import { API_BASE_URL, resolveApiUrl } from "@/features/state/api/client";
 import { PageShell } from "@/ui-core/PageShell";
 import { Panel } from "@/ui-core/Panel";
-import { LabelValue } from "@/ui-core/LabelValue";
+import { PlayerRuntime } from "./PlayerRuntime";
 
 type PlayerRouteProps = {
   viewSlug: string;
@@ -18,7 +13,6 @@ type PlayerRouteProps = {
 
 export function PlayerRoute({ viewSlug }: PlayerRouteProps) {
   const status = usePlayerStore(selectPlayerStatus);
-  const adventure = usePlayerStore(selectPlayerAdventure);
   const error = usePlayerStore(selectPlayerError);
   const loadByViewSlug = usePlayerStore((s) => s.loadByViewSlug);
 
@@ -86,47 +80,8 @@ export function PlayerRoute({ viewSlug }: PlayerRouteProps) {
     );
   }
 
-  if (status === "ready" && adventure) {
-    return (
-      <PageShell>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">
-              Player route
-            </p>
-            <h1 className="text-3xl font-semibold leading-tight text-[var(--text)]">
-              {adventure.title}
-            </h1>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Panel>
-              <LabelValue label="view slug" value={adventure.viewSlug} />
-              <LabelValue
-                label="edit slug"
-                value={adventure.slug || "n/a"}
-                className="mt-3"
-              />
-            </Panel>
-            <Panel>
-              <LabelValue
-                label="Nodes"
-                value={adventure.nodes.length}
-                inline
-              />
-              <LabelValue
-                label="Links"
-                value={adventure.links.length}
-                inline
-                className="mt-2"
-              />
-            </Panel>
-          </div>
-          <p className="text-sm text-[var(--muted)]">
-            Data fetched via validated API client (mode: play).
-          </p>
-        </div>
-      </PageShell>
-    );
+  if (status === "ready") {
+    return <PlayerRuntime />;
   }
 
   return null;

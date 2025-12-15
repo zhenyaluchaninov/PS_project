@@ -42,10 +42,13 @@ export type NodeModel = {
 export type LinkModel = {
   id: number;
   linkId: number;
-  source: number;
+  source: number; // legacy naming
   sourceTitle?: string | null;
-  target: number;
+  target: number; // legacy naming
   targetTitle?: string | null;
+  fromNodeId: number;
+  toNodeId: number;
+  label?: string | null;
   type: string;
   changed: boolean;
   props: Record<string, unknown> | null;
