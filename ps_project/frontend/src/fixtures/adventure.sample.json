@@ -1,0 +1,52 @@
+{
+  "id": 1,
+  "title": "Sample Adventure",
+  "description": "Minimal fixture for schema validation.",
+  "slug": "edit-sample",
+  "view_slug": "public-sample",
+  "locked": false,
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-02T00:00:00Z",
+  "category": {
+    "id": 2,
+    "title": "Category A",
+    "icon": "book",
+    "sort_order": 1
+  },
+  "nodes": [
+    {
+      "id": 10,
+      "node_id": 1,
+      "title": "Start",
+      "text": "<p>Hello world</p>",
+      "x": 120,
+      "y": 240,
+      "type": "root",
+      "props": "{\"audio_url\":\"/upload/sample/audio.mp3\"}"
+    }
+  ],
+  "links": [
+    {
+      "id": 20,
+      "link_id": 1,
+      "source": 1,
+      "source_title": "Go",
+      "target": 1,
+      "target_title": "Loop",
+      "type": "bidirectional",
+      "props": "{\"color\":\"blue\"}"
+    }
+  ],
+  "cover_url": "/upload/sample/cover.jpg",
+  "edit_version": 1,
+  "view_count": 5,
+  "props": "{\"font_list\":[\"Space Grotesk\"]}",
+  "users": [
+    {
+      "id": 99,
+      "username": "admin",
+      "name": "Admin User",
+      "role": 0
+    }
+  ]
+}

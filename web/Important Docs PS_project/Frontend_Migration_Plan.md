@@ -100,7 +100,7 @@ UI CORE
 
 ---
 
-### Step 3 – Setup base routing & layouts (App Router)
+### [done] Step 3 – Setup base routing & layouts (App Router)
 
 **What we do**
 
@@ -152,7 +152,7 @@ web/
 
 ## Block B – State & API Layer
 
-### Step 4 – Define DTOs and domain models (Adventure, Node, Link, etc.)
+### [done] Step 4 – Define DTOs and domain models (Adventure, Node, Link, etc.)
 
 **What we do**
 
