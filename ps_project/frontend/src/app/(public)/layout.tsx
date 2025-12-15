@@ -1,21 +1,17 @@
 import type { ReactNode } from "react";
+import { Header } from "@/features/ui-core/components/Header";
+import { Footer } from "@/features/ui-core/components/Footer";
 
 export default function PublicLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <header className="border-b border-white/10 px-6 py-4">
-        <div className="mx-auto max-w-5xl text-sm font-semibold uppercase tracking-[0.18em] text-muted">
-          Public header (placeholder)
-        </div>
-      </header>
+    <div className="flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text)]">
+      <Header />
 
       <main className="flex-1">
         <div className="mx-auto max-w-5xl px-6 py-10">{children}</div>
       </main>
 
-      <footer className="border-t border-white/10 px-6 py-4 text-sm text-muted">
-        <div className="mx-auto max-w-5xl">Public footer (placeholder)</div>
-      </footer>
+      <Footer />
     </div>
   );
 }

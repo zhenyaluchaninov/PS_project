@@ -1,11 +1,9 @@
 import type { ReactNode } from "react";
 
-export default function EditorLayout({ children }: { children: ReactNode }) {
+export default function EditorShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <main className="mx-auto flex min-h-screen max-w-screen-xl flex-col px-6 py-10">
-        {children}
-      </main>
+    <div className="flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text)]">
+      <div className="flex-1 min-h-0">{children}</div>
     </div>
   );
 }

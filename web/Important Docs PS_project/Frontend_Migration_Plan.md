@@ -474,7 +474,7 @@ web/
 
 ---
 
-### Step 9 – Layout components: Header, Footer, EditorLayout, PlayerLayout
+### [done] Step 9 – Layout components: Header, Footer, EditorLayout, PlayerLayout
 
 **What we do**
 
