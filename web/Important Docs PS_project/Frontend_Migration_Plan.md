@@ -227,7 +227,7 @@ web/js/
 
 ---
 
-### Step 5 – Implement API client & adventures/media modules
+### [done] Step 5 – Implement API client & adventures/media modules
 
 **What we do**
 
