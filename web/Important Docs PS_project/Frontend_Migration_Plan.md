@@ -423,7 +423,7 @@ web/
 
 ## Block C – UI Core & Theming
 
-### Step 8 – Tailwind, fonts, global styles & ThemeProvider
+### [done] Step 8 – Tailwind, fonts, global styles & ThemeProvider
 
 **What we do**
 
