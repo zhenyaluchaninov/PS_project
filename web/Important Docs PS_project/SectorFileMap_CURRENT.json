@@ -1,0 +1,234 @@
+{
+  "Player": {
+    "folders": {
+      "web/js": [
+        {
+          "path": "web/js/aventyr.player.js",
+          "summary": "Main player entry point; handles adventure loading, node navigation, and menu/button interactions during playback."
+        },
+        {
+          "path": "web/js/aventyr.viewer.js",
+          "summary": "Renders node content in the player (text, embedded media, transitions between node views)."
+        },
+        {
+          "path": "web/js/aventyr.scrollytell.js",
+          "summary": "Adds scroll-based storytelling behavior (\"scrollytell\") and touch/scroll interactions to the player."
+        }
+      ],
+      "web": [
+        {
+          "path": "web/ps_player.html",
+          "summary": "Player page template defining DOM structure for node content, navigation controls, and player UI containers."
+        }
+      ]
+    }
+  },
+  "Editor Graph": {
+    "folders": {
+      "web/js": [
+        {
+          "path": "web/js/aventyr.graph.js",
+          "summary": "Cytoscape-based graph visualization; draws nodes and links, handles selection, drag, zoom, and basic graph styling."
+        },
+        {
+          "path": "web/js/aventyr.app.js",
+          "summary": "Editor bootstrap/orchestrator; wires together graph, editor panel, and model via callbacks for selection and updates."
+        },
+        {
+          "path": "web/js/cytoscape.js",
+          "summary": "Third-party Cytoscape.js library used for graph rendering and interactions in the legacy editor."
+        }
+      ],
+      "web": [
+        {
+          "path": "web/editor.html",
+          "summary": "Main editor HTML template; includes graph canvas container and layout region where the node graph is rendered."
+        }
+      ]
+    }
+  },
+  "Editor Node Panel": {
+    "folders": {
+      "web/js": [
+        {
+          "path": "web/js/aventyr.app.js",
+          "summary": "Editor app orchestrator; connects node/link selection events to the right-side editor panel and model updates."
+        },
+        {
+          "path": "web/js/aventyr.editor.js",
+          "summary": "Right-side editor panel logic: node/link forms, adventure settings, media/image bank modal, and form event handling."
+        },
+        {
+          "path": "web/js/simplemde.min.js",
+          "summary": "Third-party SimpleMDE markdown editor library used for node text editing in the legacy panel."
+        },
+        {
+          "path": "web/js/emoji-button-2.12.1.min.js",
+          "summary": "Third-party emoji picker used inside the node text editor UI."
+        }
+      ],
+      "web/tinymce": [
+        {
+          "path": "web/tinymce/tinymce.min.js",
+          "summary": "TinyMCE WYSIWYG editor library for rich text node content editing."
+        }
+      ],
+      "web/css": [
+        {
+          "path": "web/css/simplemde.min.css",
+          "summary": "Stylesheet for the SimpleMDE markdown editor used in the node panel."
+        }
+      ],
+      "web": [
+        {
+          "path": "web/editor.html",
+          "summary": "Editor template containing the right-side node/link editing forms, adventure settings UI, and image bank modal markup."
+        }
+      ]
+    }
+  },
+  "Public Pages": {
+    "folders": {
+      "web/js": [
+        {
+          "path": "web/js/aventyr.nav.public.js",
+          "summary": "Public navigation logic; populates adventure dropdowns/lists and handles navigation on public pages."
+        },
+        {
+          "path": "web/js/aventyr.404.js",
+          "summary": "Custom script for the 404 page (visual/typing effects and behaviors on \"page not found\" view)."
+        }
+      ],
+      "web": [
+        {
+          "path": "web/index.html",
+          "summary": "Homepage listing/browsing adventures and categories for public users."
+        },
+        {
+          "path": "web/404.html",
+          "summary": "Custom 404 HTML template for invalid URLs, including themed message and layout."
+        }
+      ]
+    }
+  },
+  "UI Core": {
+    "folders": {
+      "web/js": [
+        {
+          "path": "web/js/aventyr.props.js",
+          "summary": "Shared props/flags logic; reads and applies node/adventure properties that affect visual style and behavior."
+        },
+        {
+          "path": "web/js/font_stupidity.js",
+          "summary": "Workaround script to fix font loading/selection quirks in the legacy UI."
+        },
+        {
+          "path": "web/js/markdownhelper.js",
+          "summary": "Helper for markdown → HTML formatting used across player and editor previews."
+        },
+        {
+          "path": "web/js/markdown-it.min.js",
+          "summary": "Third-party markdown-it parser library."
+        },
+        {
+          "path": "web/js/toastify.js",
+          "summary": "Third-party Toastify library for showing toast notifications across the UI."
+        },
+        {
+          "path": "web/js/bootstrap.min.js",
+          "summary": "Bootstrap JS bundle providing modals, dropdowns, and other interactive UI components."
+        },
+        {
+          "path": "web/js/popper.min.js",
+          "summary": "Popper.js positioning engine used by Bootstrap tooltips/popovers."
+        }
+      ],
+      "web/css": [
+        {
+          "path": "web/css/textaventyr.css",
+          "summary": "Main custom stylesheet with shared layout, player/editor styling, forms, and animations."
+        },
+        {
+          "path": "web/css/bootstrap.min.css",
+          "summary": "Bootstrap 4 core CSS framework used throughout the legacy frontend."
+        },
+        {
+          "path": "web/css/ps.css",
+          "summary": "Global PS-specific stylesheet covering player, editor, and public layout/styles."
+        },
+        {
+          "path": "web/css/ps_fonts.css",
+          "summary": "Custom font-face definitions and font styling used across adventures."
+        },
+        {
+          "path": "web/css/all.css",
+          "summary": "Font Awesome icon CSS used for icons across the UI."
+        },
+        {
+          "path": "web/css/zoom.css",
+          "summary": "Styles for image zoom/lightbox interactions used in the UI."
+        },
+        {
+          "path": "web/css/toastify.css",
+          "summary": "Styles for Toastify toast notifications."
+        }
+      ],
+      "web": [
+        {
+          "path": "web/header.html",
+          "summary": "Shared HTML head template (meta, fonts, Bootstrap, custom CSS) used by multiple pages."
+        },
+        {
+          "path": "web/header_editor.html",
+          "summary": "Editor-specific header template including scripts/styles needed by the editor UI."
+        },
+        {
+          "path": "web/header_public.html",
+          "summary": "Header for public-facing pages (navbar, branding, top-level navigation)."
+        },
+        {
+          "path": "web/footer.html",
+          "summary": "Shared footer template reused on public pages."
+        },
+        {
+          "path": "web/fonts.html",
+          "summary": "Template snippet to embed custom fonts (Google Fonts or uploaded fonts) into pages."
+        }
+      ]
+    }
+  },
+  "State & API": {
+    "folders": {
+      "web/js": [
+        {
+          "path": "web/js/aventyr.model.js",
+          "summary": "Core adventure data model; holds nodes, links, and adventure metadata in memory."
+        },
+        {
+          "path": "web/js/aventyr.storage.js",
+          "summary": "Persistence layer; handles localStorage caching and server sync (load/save/autosave adventures)."
+        },
+        {
+          "path": "web/js/restclient.js",
+          "summary": "Low-level REST client; wraps AJAX calls with auth headers and error handling."
+        }
+      ]
+    }
+  },
+  "Media": {
+    "folders": {
+      "web/js": [
+        {
+          "path": "web/js/aventyr.editor.js",
+          "summary": "Contains media-related logic for the editor: image/audio uploads, image bank selection, and wiring media into node/adventure properties."
+        }
+      ],
+      "web": [
+        {
+          "path": "web/editor.html",
+          "summary": "Provides markup for image bank modal and media-related UI elements used by the editor."
+        }
+      ]
+    }
+  }
+}

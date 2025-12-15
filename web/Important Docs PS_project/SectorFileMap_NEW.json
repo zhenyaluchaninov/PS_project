@@ -1,0 +1,385 @@
+{
+  "Player": {
+    "folders": {
+      "src/app/play": [
+        {
+          "path": "src/app/play/[slug]/page.tsx",
+          "summary": "Next.js dynamic route for playing adventures; fetches adventure data and renders PlayerPage component."
+        }
+      ],
+      "src/features/player": [
+        {
+          "path": "src/features/player/PlayerPage.tsx",
+          "summary": "Main player container component; orchestrates state initialization and composes NodeViewer, PlayerControls, and ScrollyTracker."
+        },
+        {
+          "path": "src/features/player/index.ts",
+          "summary": "Barrel export for player feature; exposes public API (PlayerPage, hooks) to other parts of the app."
+        }
+      ],
+      "src/features/player/components": [
+        {
+          "path": "src/features/player/components/NodeViewer.tsx",
+          "summary": "Renders a single node's content (rich text, images, audio, video) with transitions between nodes."
+        },
+        {
+          "path": "src/features/player/components/PlayerControls.tsx",
+          "summary": "Navigation UI with next/back/menu/restart buttons; dispatches state changes to playerStore."
+        },
+        {
+          "path": "src/features/player/components/ScrollyTracker.tsx",
+          "summary": "Scroll-based storytelling component using Intersection Observer; triggers narrative progress on scroll events."
+        }
+      ],
+      "src/features/player/hooks": [
+        {
+          "path": "src/features/player/hooks/usePlayerState.ts",
+          "summary": "Hook for player session state; provides current node, navigation history, and actions (goNext, goBack, restart)."
+        }
+      ]
+    }
+  },
+  "Editor Graph": {
+    "folders": {
+      "src/app/editor": [
+        {
+          "path": "src/app/editor/[adventureId]/page.tsx",
+          "summary": "Next.js route for editor; loads adventure data and renders GraphCanvas alongside NodePanel in split layout."
+        },
+        {
+          "path": "src/app/editor/[adventureId]/layout.tsx",
+          "summary": "Editor-specific layout; excludes public header/footer, provides editor chrome and providers."
+        }
+      ],
+      "src/features/editor/graph": [
+        {
+          "path": "src/features/editor/graph/GraphCanvas.tsx",
+          "summary": "React Flow canvas wrapper; configures viewport, node/edge types, and event callbacks for graph interactions."
+        },
+        {
+          "path": "src/features/editor/graph/index.ts",
+          "summary": "Barrel export for graph feature; exposes GraphCanvas and related components."
+        }
+      ],
+      "src/features/editor/graph/components": [
+        {
+          "path": "src/features/editor/graph/components/StoryNode.tsx",
+          "summary": "Custom React Flow node component; displays node title, type icon, status badge, and handles selection."
+        },
+        {
+          "path": "src/features/editor/graph/components/StoryEdge.tsx",
+          "summary": "Custom React Flow edge component; shows link label, delete handle, and visual styling for connections."
+        }
+      ],
+      "src/features/editor/graph/hooks": [
+        {
+          "path": "src/features/editor/graph/hooks/useGraph.ts",
+          "summary": "Two-way sync hook between React Flow state and Zustand adventureStore; handles selection, drag, and CRUD operations."
+        }
+      ]
+    }
+  },
+  "Editor Node Panel": {
+    "folders": {
+      "src/features/editor/node-panel": [
+        {
+          "path": "src/features/editor/node-panel/NodePanel.tsx",
+          "summary": "Right-side panel container with tabs for Node, Link, and Adventure Settings; switches views based on selection."
+        },
+        {
+          "path": "src/features/editor/node-panel/index.ts",
+          "summary": "Barrel export for node-panel feature; exposes NodePanel and form components."
+        }
+      ],
+      "src/features/editor/node-panel/components": [
+        {
+          "path": "src/features/editor/node-panel/components/NodeForm.tsx",
+          "summary": "Form for editing node properties: title, type, visual props; controlled inputs bound to Zustand state."
+        },
+        {
+          "path": "src/features/editor/node-panel/components/LinkForm.tsx",
+          "summary": "Form for editing link properties: label, target node, conditions; with node autocomplete selector."
+        },
+        {
+          "path": "src/features/editor/node-panel/components/RichTextEditor.tsx",
+          "summary": "Tiptap editor wrapper with toolbar, emoji-mart integration, and media embedding support for node content."
+        },
+        {
+          "path": "src/features/editor/node-panel/components/AdventureSettings.tsx",
+          "summary": "Form for adventure-level settings: title, description, cover image, start node, and metadata."
+        },
+        {
+          "path": "src/features/editor/node-panel/components/MediaPicker.tsx",
+          "summary": "Inline media selector button; opens MediaLibrary modal and returns selected media to parent form."
+        }
+      ],
+      "src/features/editor/node-panel/hooks": [
+        {
+          "path": "src/features/editor/node-panel/hooks/useEditorPanel.ts",
+          "summary": "Hook for panel state management; tracks selection, dirty flag, validation errors, and form submission."
+        }
+      ]
+    }
+  },
+  "Public Pages": {
+    "folders": {
+      "src/app/(public)": [
+        {
+          "path": "src/app/(public)/layout.tsx",
+          "summary": "Shared layout for public pages; includes Header, Footer, and common providers for all public routes."
+        },
+        {
+          "path": "src/app/(public)/page.tsx",
+          "summary": "Homepage route; renders HomePage component with adventure listing and category filters."
+        }
+      ],
+      "src/app": [
+        {
+          "path": "src/app/not-found.tsx",
+          "summary": "Global 404 page with themed styling and optional typing animation effect."
+        }
+      ],
+      "src/features/public": [
+        {
+          "path": "src/features/public/HomePage.tsx",
+          "summary": "Homepage component with adventure grid, category filtering, and search functionality."
+        },
+        {
+          "path": "src/features/public/index.ts",
+          "summary": "Barrel export for public feature; exposes page components."
+        }
+      ],
+      "src/features/public/components": [
+        {
+          "path": "src/features/public/components/AdventureCard.tsx",
+          "summary": "Single adventure card component; displays thumbnail, title, category, and links to player."
+        },
+        {
+          "path": "src/features/public/components/CategoryFilter.tsx",
+          "summary": "Category filter UI with tabs or dropdown; filters adventure list by selected category."
+        },
+        {
+          "path": "src/features/public/components/InfoPageLayout.tsx",
+          "summary": "Shared layout component for static info pages; provides consistent prose styling and structure."
+        },
+        {
+          "path": "src/features/public/components/NotFoundAnimation.tsx",
+          "summary": "Typing animation component for 404 page; recreates legacy visual effect using React hooks."
+        }
+      ]
+    }
+  },
+  "UI Core": {
+    "folders": {
+      "src/app": [
+        {
+          "path": "src/app/layout.tsx",
+          "summary": "Root application layout; configures fonts, global providers (Theme, Toast), and document structure."
+        }
+      ],
+      "src/features/ui-core": [
+        {
+          "path": "src/features/ui-core/index.ts",
+          "summary": "Barrel export for ui-core feature; exposes components, primitives, and providers."
+        }
+      ],
+      "src/features/ui-core/components": [
+        {
+          "path": "src/features/ui-core/components/Header.tsx",
+          "summary": "Site header component with logo, navigation links, and responsive mobile menu."
+        },
+        {
+          "path": "src/features/ui-core/components/Footer.tsx",
+          "summary": "Site footer component with credits, links, and branding."
+        },
+        {
+          "path": "src/features/ui-core/components/ImageZoom.tsx",
+          "summary": "Lightbox/zoom component for images; modal overlay with zoom and pan functionality."
+        },
+        {
+          "path": "src/features/ui-core/components/Icon.tsx",
+          "summary": "Lucide icon wrapper component; provides consistent icon API and default styling."
+        }
+      ],
+      "src/features/ui-core/primitives": [
+        {
+          "path": "src/features/ui-core/primitives/button.tsx",
+          "summary": "shadcn/ui Button component with variants (primary, secondary, ghost) and size options."
+        },
+        {
+          "path": "src/features/ui-core/primitives/dialog.tsx",
+          "summary": "shadcn/ui Dialog component wrapping Radix Dialog; accessible modal with focus trap."
+        },
+        {
+          "path": "src/features/ui-core/primitives/dropdown-menu.tsx",
+          "summary": "shadcn/ui DropdownMenu component wrapping Radix; accessible dropdown with keyboard navigation."
+        },
+        {
+          "path": "src/features/ui-core/primitives/tabs.tsx",
+          "summary": "shadcn/ui Tabs component wrapping Radix; accessible tabbed interface."
+        },
+        {
+          "path": "src/features/ui-core/primitives/tooltip.tsx",
+          "summary": "shadcn/ui Tooltip component wrapping Radix; accessible tooltip with positioning."
+        },
+        {
+          "path": "src/features/ui-core/primitives/input.tsx",
+          "summary": "shadcn/ui Input component; styled text input with focus states and error styling."
+        },
+        {
+          "path": "src/features/ui-core/primitives/select.tsx",
+          "summary": "shadcn/ui Select component wrapping Radix; accessible dropdown select with search."
+        },
+        {
+          "path": "src/features/ui-core/primitives/textarea.tsx",
+          "summary": "shadcn/ui Textarea component; styled multiline text input."
+        }
+      ],
+      "src/features/ui-core/providers": [
+        {
+          "path": "src/features/ui-core/providers/ThemeProvider.tsx",
+          "summary": "Theme context provider; sets CSS variables for adventure-specific fonts and colors at runtime."
+        },
+        {
+          "path": "src/features/ui-core/providers/ToastProvider.tsx",
+          "summary": "Sonner toast provider configuration; wraps app with toast portal and default styling."
+        }
+      ],
+      "src/features/ui-core/styles": [
+        {
+          "path": "src/features/ui-core/styles/globals.css",
+          "summary": "Global CSS with Tailwind directives, CSS custom properties, and base style resets."
+        },
+        {
+          "path": "src/features/ui-core/styles/fonts.ts",
+          "summary": "next/font configuration for Google Fonts and custom font faces; exports font class names."
+        }
+      ],
+      "src/lib": [
+        {
+          "path": "src/lib/cn.ts",
+          "summary": "Tailwind class merge utility combining clsx and tailwind-merge for conditional class names."
+        },
+        {
+          "path": "src/lib/markdown.ts",
+          "summary": "Markdown helper utilities for legacy content migration or any remaining markdown processing needs."
+        }
+      ],
+      "src/config": [
+        {
+          "path": "src/config/site.ts",
+          "summary": "Site-wide configuration constants: site name, URLs, default values, and feature flags."
+        }
+      ]
+    }
+  }
+
+  "State & API": {
+    "folders": {
+      "src/features/state": [
+        {
+          "path": "src/features/state/index.ts",
+          "summary": "Barrel export for state feature; exposes stores, API functions, hooks, and types."
+        }
+      ],
+      "src/features/state/stores": [
+        {
+          "path": "src/features/state/stores/adventureStore.ts",
+          "summary": "Zustand store for adventure data model; holds nodes, links, metadata with CRUD actions and persist middleware."
+        },
+        {
+          "path": "src/features/state/stores/editorStore.ts",
+          "summary": "Zustand store for editor UI state; tracks selected node/link, panel mode, and dirty flag."
+        },
+        {
+          "path": "src/features/state/stores/playerStore.ts",
+          "summary": "Zustand store for player session; manages current node, navigation history, and playback state."
+        }
+      ],
+      "src/features/state/api": [
+        {
+          "path": "src/features/state/api/client.ts",
+          "summary": "Typed fetch wrapper with base URL configuration, auth header injection, and error handling."
+        },
+        {
+          "path": "src/features/state/api/adventures.ts",
+          "summary": "Adventure API functions: loadAdventure, saveAdventure, listAdventures, deleteAdventure with typed responses."
+        },
+        {
+          "path": "src/features/state/api/media.ts",
+          "summary": "Media API functions: uploadMedia, getMediaList, deleteMedia with progress tracking support."
+        }
+      ],
+      "src/features/state/hooks": [
+        {
+          "path": "src/features/state/hooks/useAdventure.ts",
+          "summary": "Hook combining adventureStore with API; handles loading, saving, and syncing adventure data."
+        },
+        {
+          "path": "src/features/state/hooks/useAutosave.ts",
+          "summary": "Autosave hook with debouncing; subscribes to store changes and triggers periodic saves."
+        }
+      ],
+      "src/features/state/types": [
+        {
+          "path": "src/features/state/types/adventure.ts",
+          "summary": "TypeScript interfaces for Adventure, Node, Link, and AdventureSettings; single source of truth for data shapes."
+        },
+        {
+          "path": "src/features/state/types/media.ts",
+          "summary": "TypeScript interfaces for MediaItem, UploadResult, and MediaListResponse."
+        }
+      ]
+    }
+  },
+  "Media": {
+    "folders": {
+      "src/features/media": [
+        {
+          "path": "src/features/media/MediaLibrary.tsx",
+          "summary": "Full media browser component; displays grid of uploaded media with filters, search, and selection."
+        },
+        {
+          "path": "src/features/media/index.ts",
+          "summary": "Barrel export for media feature; exposes MediaLibrary, uploader, and hooks."
+        }
+      ],
+      "src/features/media/components": [
+        {
+          "path": "src/features/media/components/MediaUploader.tsx",
+          "summary": "Drag-and-drop upload zone with file validation, progress bar, and error display."
+        },
+        {
+          "path": "src/features/media/components/MediaGrid.tsx",
+          "summary": "Grid display of media items with thumbnails, selection state, and delete action."
+        }
+      ],
+      "src/features/media/hooks": [
+        {
+          "path": "src/features/media/hooks/useMediaUpload.ts",
+          "summary": "Upload state management hook; tracks progress, handles errors, and updates media list on success."
+        }
+      ]
+    }
+  },
+  "Shared Utilities": {
+    "folders": {
+      "src/lib": [
+        {
+          "path": "src/lib/cn.ts",
+          "summary": "Tailwind class merge utility combining clsx and tailwind-merge for conditional class names."
+        },
+        {
+          "path": "src/lib/markdown.ts",
+          "summary": "Markdown helper utilities for legacy content migration or any remaining markdown processing needs."
+        }
+      ],
+      "src/config": [
+        {
+          "path": "src/config/site.ts",
+          "summary": "Site-wide configuration constants: site name, URLs, default values, and feature flags."
+        }
+      ]
+    }
+  }
+}
