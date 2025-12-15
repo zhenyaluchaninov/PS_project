@@ -3,6 +3,11 @@
 import { useState } from "react";
 
 import { ImageZoom } from "@/features/ui-core/components/ImageZoom";
+import { LegacyContent } from "@/features/ui-core/components/LegacyContent";
+import {
+  buildPropsStyle,
+  combinePreviewClasses,
+} from "@/features/ui-core/props";
 import {
   Button,
   Dialog,
@@ -40,6 +45,36 @@ const sampleImage =
 export default function UiPlaygroundPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [tab, setTab] = useState("overview");
+  const [highContrast, setHighContrast] = useState(false);
+
+  const sampleAdventureProps = {
+    color_background: "#0b1020",
+    color_text: "#e5e7eb",
+    alpha_text: 90,
+    color_textbackground: "#111827",
+    alpha_textbackground: 70,
+    color_buttonbackground: "#7c3aed",
+    alpha_buttonbackground: 80,
+    color_buttontext: "#f8fafc",
+    alpha_buttontext: 100,
+  };
+
+  const sampleNodeProps = {
+    settings_highcontrast: highContrast ? "on" : "off",
+  };
+
+  const { style: previewStyle, flags } = buildPropsStyle({
+    adventureProps: sampleAdventureProps,
+    nodeProps: sampleNodeProps,
+    forceHighContrast: highContrast,
+  });
+
+  const legacyContent = `
+<h2>Legacy HTML content</h2>
+<p>This block renders stored node text with safe HTML + optional markdown. <a href="https://example.com">External links</a> open in a new tab.</p>
+<p><em>Markdown</em> also works: **bold**, lists, and line breaks.</p>
+<ul><li>First bullet</li><li>Second bullet</li></ul>
+`;
 
   return (
     <TooltipProvider delayDuration={120}>
@@ -203,6 +238,52 @@ export default function UiPlaygroundPage() {
                   alt="Sample scenic image"
                   caption="Image zoom overlays use the Dialog primitive underneath."
                 />
+              </div>
+            </div>
+          </Panel>
+
+          <Panel title="Props & Legacy Content">
+            <div className="space-y-4 text-sm text-[var(--muted)]">
+              <p>
+                Props mapping to CSS variables plus a sanitized legacy text
+                renderer. Toggle high-contrast to verify overrides.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  variant={highContrast ? "secondary" : "default"}
+                  onClick={() => setHighContrast((v) => !v)}
+                >
+                  High contrast: {highContrast ? "On" : "Off"}
+                </Button>
+                <span className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                  Parser flag: {flags.highContrast ? "on" : "off"}
+                </span>
+              </div>
+
+              <div
+                style={previewStyle}
+                className={combinePreviewClasses("space-y-3")}
+              >
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/80 p-4 shadow-inner">
+                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
+                    Props preview
+                  </p>
+                  <p className="text-base font-semibold text-[var(--text)]">
+                    Background, text, and accent colors are sourced from
+                    adventure/node props with alpha handling.
+                  </p>
+                  <p className="text-sm text-[var(--muted)]">
+                    Surface/text vars follow the legacy prop names
+                    (color_background, color_text, etc.).
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-4 text-[var(--text)] shadow-inner">
+                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
+                    Legacy content renderer
+                  </p>
+                  <LegacyContent value={legacyContent} />
+                </div>
               </div>
             </div>
           </Panel>
