@@ -1,0 +1,115 @@
+image: alpine:latest
+.extend_except_changes:
+    except:
+        changes:
+            - .editorconfig
+            - .env*
+            #- .gitlab-ci.yml
+            - .gitignore
+            - .vscode
+            - docker*
+            - Dockerfile
+            - Makefile
+            - README.md
+cache:
+    paths:
+        - /apt-cache
+        - /go/src/github.com
+        - /go/src/gitlab.com
+        - /go/src/golang.org
+        - /go/src/google.golang.org
+        - /go/src/gopkg.in
+        - node_modules/
+stages:
+    - test
+    - build
+    - deploy
+test:
+    allow_failure: true
+    stage: test
+    image: golang:latest
+    services:
+        - mysql:5.6
+    variables:
+        MYSQL_ALLOW_EMPTY_PASSWORD: "true"
+        TEST_DB_USERNAME: "docker"
+        TEST_DB_PASSWORD: "docker"
+        TEST_DB_HOST: "db"
+        TEST_DB_PORT: "3306"
+        TEST_DB_NAME: "projektps"
+    before_script:
+        - echo "Runnig unit test..."
+        - go test -short $(go list ./... | grep -v /vendor/)
+    script:
+        - echo "Running memory sanitizer test..."
+        - go test -msan -short $(go list ./... | grep -v /vendor/)
+    after_script:
+        - echo "Running data race test..."
+        - go test -race -short $(go list ./... | grep -v /vendor/)
+    only:
+        changes:
+            - "*.go"
+build backend:
+    allow_failure: false
+    retry: 2
+    stage: build
+    image: golang:latest
+    before_script:
+        - apt update
+    script:
+        - go mod download
+        - export CGO_ENABLED=0
+        - go build -o $DEPLOY_BINARY -ldflags '-X main.buildnumber='$CI_BUILD_ID' -X main.buildgreeter='$GITLAB_USER_LOGIN' -X main.buildtrigger='$GITLAB_USER_ID'' $DEPLOY_BINARY_ENTRYPOINT
+        - go build -o toolps ./cmd/toolps.go
+    artifacts:
+        paths:
+            - $DEPLOY_BINARY
+            - toolps
+            - web
+    extends: .extend_except_changes
+build frontend:
+    image: node:latest
+    allow_failure: false
+    retry: 2
+    stage: build
+    script:
+        - cd react-admin
+        - npm install
+        - npm run deploy
+    artifacts:
+        paths:
+            - web/admin
+    extends: .extend_except_changes
+deploy to test:
+    image: alpine:latest
+    allow_failure: false
+    retry: 2
+    stage: deploy
+    environment: test
+    before_script:
+        - apk add rsync openssh-client
+        - eval $(ssh-agent -s)
+        - echo "$DEV_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
+    script:
+        - rsync --itemize-changes --compress --verbose --archive --delete-before --update --exclude={"$DEPLOY_EXCLUDE"} --chown=$DEPLOY_CHOWN --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --rsync-path="sudo rsync" --rsh "ssh -p $DEV_SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" "$DEPLOY_BINARY" "toolps" "web" "$DEV_SSH_USER"@"$DEV_SSH_HOST":"$DEV_DEPLOY_PATH"
+        - ssh -p $DEV_SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $DEV_SSH_USER@$DEV_SSH_HOST "sudo systemctl restart $DEV_UNIX_SERVICE_NAME"
+    only:
+        - develop
+    extends: .extend_except_changes
+deploy to production:
+    image: alpine:latest
+    allow_failure: false
+    retry: 2
+    stage: deploy
+    environment: production
+    before_script:
+        - apk add rsync openssh-client
+        - eval $(ssh-agent -s)
+        - echo "$PROD_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
+    script:
+        - rsync --itemize-changes --compress --verbose --archive --delete-before --update --exclude={"$DEPLOY_EXCLUDE"} --chown=$DEPLOY_CHOWN --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r --rsync-path="sudo rsync" --rsh "ssh -p $PROD_SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" "$DEPLOY_BINARY" "web" "$PROD_SSH_USER"@"$PROD_SSH_HOST":"$PROD_DEPLOY_PATH"
+        - ssh -p $PROD_SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $PROD_SSH_USER@$PROD_SSH_HOST "sudo systemctl restart $PROD_UNIX_SERVICE_NAME"
+    when: manual
+    only:
+        - master
+    extends: .extend_except_changes

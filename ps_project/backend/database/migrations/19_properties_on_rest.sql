@@ -1,0 +1,3 @@
+ALTER TABLE adventure ADD COLUMN props VARCHAR (4096) DEFAULT '';
+ALTER TABLE adventure_link ADD COLUMN props VARCHAR (4096) DEFAULT '';
+
