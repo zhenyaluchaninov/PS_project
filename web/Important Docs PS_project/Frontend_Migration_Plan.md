@@ -298,7 +298,7 @@ web/
 
 ---
 
-### Step 6 – Implement Zustand stores: adventure, editor, player
+### [done] Step 6 – Implement Zustand stores: adventure, editor, player
 
 **What we do**
 
