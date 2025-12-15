@@ -4,7 +4,12 @@ import {
   type LinkDto,
   type NodeDto,
 } from "@/domain/dto";
-import { mapAdventureDto, mapLinkDto, mapNodeDto, parseAdventureDto } from "@/domain/mappers";
+import {
+  mapAdventureDto,
+  mapLinkDto,
+  mapNodeDto,
+  parseAdventureDto,
+} from "@/domain/mappers";
 import type { AdventureModel, LinkModel, NodeModel } from "@/domain/models";
 import { ApiError, requestJson, resolveApiUrl } from "./client";
 
@@ -16,7 +21,10 @@ export async function loadAdventure(
 ): Promise<AdventureModel> {
   const endpoint =
     mode === "play" ? `/api/adventure/${id}` : `/api/adventure/${id}/edit`;
-  const dto = await requestJson<AdventureDto>(endpoint, { cache: "no-store" });
+  const dto = await requestJson<AdventureDto>(endpoint, {
+    cache: "no-store",
+    auth: mode === "edit",
+  });
   const parsed = parseAdventureDto(dto);
   if (!parsed.ok) {
     throw new ApiError(
@@ -27,6 +35,16 @@ export async function loadAdventure(
     );
   }
   return parsed.data;
+}
+
+export async function loadAdventureForEdit(
+  editSlug: string
+): Promise<{ adventure: AdventureModel; editVersion: number }> {
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[adventures] loadAdventureForEdit", editSlug);
+  }
+  const adventure = await loadAdventure(editSlug, "edit");
+  return { adventure, editVersion: adventure.editVersion };
 }
 
 export async function saveAdventure(

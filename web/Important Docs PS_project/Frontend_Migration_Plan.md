@@ -358,7 +358,7 @@ web/
 
 ---
 
-### Step 7 – LocalStorage caching, autosave & event semantics
+### [done] Step 7 – LocalStorage caching, autosave & event semantics
 
 **What we do**
 
