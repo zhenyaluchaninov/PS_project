@@ -5,5 +5,5 @@ type PlayerPageProps = {
 };
 
 export default function PlayerPage({ params }: PlayerPageProps) {
-  return <PlayerRoute viewSlug={params.viewSlug} />;
+  return <PlayerRoute slug={params.viewSlug} mode="play" />;
 }

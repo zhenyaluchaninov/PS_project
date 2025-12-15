@@ -1,31 +1,38 @@
 "use client";
 
 import { useEffect } from "react";
-import { selectPlayerError, selectPlayerStatus, usePlayerStore } from "../state/playerStore";
 import { API_BASE_URL, resolveApiUrl } from "@/features/state/api/client";
 import { PageShell } from "@/ui-core/PageShell";
 import { Panel } from "@/ui-core/Panel";
+import {
+  selectPlayerError,
+  selectPlayerStatus,
+  usePlayerStore,
+} from "../state/playerStore";
 import { PlayerRuntime } from "./PlayerRuntime";
 
 type PlayerRouteProps = {
-  viewSlug: string;
+  slug: string;
+  mode?: "play" | "preview";
 };
 
-export function PlayerRoute({ viewSlug }: PlayerRouteProps) {
+export function PlayerRoute({ slug, mode = "play" }: PlayerRouteProps) {
   const status = usePlayerStore(selectPlayerStatus);
   const error = usePlayerStore(selectPlayerError);
-  const loadByViewSlug = usePlayerStore((s) => s.loadByViewSlug);
+  const loadBySlug = usePlayerStore((s) => s.loadBySlug);
+  const reset = usePlayerStore((s) => s.reset);
 
   useEffect(() => {
-    void loadByViewSlug(viewSlug);
+    void loadBySlug(slug, mode);
+    return () => reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewSlug]);
+  }, [slug, mode]);
 
   if (status === "loading" || status === "idle") {
     return (
       <PageShell>
         <Panel>
-          <p className="text-sm text-[var(--muted)]">Loading adventure…</p>
+          <p className="text-sm text-[var(--muted)]">Loading adventure...</p>
         </Panel>
       </PageShell>
     );
@@ -33,8 +40,7 @@ export function PlayerRoute({ viewSlug }: PlayerRouteProps) {
 
   if (status === "error" && error) {
     const apiBase = API_BASE_URL || "relative via Next rewrite (/api)";
-    const attemptedUrl =
-      error.url ?? resolveApiUrl(`/api/adventure/${viewSlug}`);
+    const attemptedUrl = error.url ?? resolveApiUrl(`/api/adventure/${slug}`);
     const detail =
       typeof error.details === "string"
         ? error.details

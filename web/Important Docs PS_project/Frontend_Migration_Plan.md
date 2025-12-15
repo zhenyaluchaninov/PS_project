@@ -582,7 +582,7 @@ web/
 
 ---
 
-### Step 11 – Props system & utilities (including legacy markdown helper)
+### [done] Step 11 – Props system & utilities (including legacy markdown helper)
 
 **What we do**
 
@@ -634,7 +634,7 @@ web/
 
 ## Block D – Player Experience
 
-### [partially] Step 12 – Basic player skeleton: data loading & simple navigation
+### [done] Step 12 – Basic player skeleton: data loading & simple navigation
 
 **What we do**
 
