@@ -7,18 +7,23 @@ import { buildPropsStyle } from "@/features/ui-core/props";
 import { LabelValue } from "@/ui-core/LabelValue";
 import { PageShell } from "@/ui-core/PageShell";
 import { Panel } from "@/ui-core/Panel";
+import { toastError } from "@/features/ui-core/toast";
 import {
   selectPlayerAdventure,
   selectPlayerCurrentNode,
+  selectPlayerCurrentNodeKind,
   selectPlayerHistoryLength,
   selectPlayerMode,
   selectPlayerOutgoingLinks,
   selectPlayerProgress,
   selectPlayerRootNodeId,
   selectPlayerVisitedCount,
-  selectPlayerCurrentNodeKind,
   usePlayerStore,
 } from "../state/playerStore";
+import {
+  resolveReferenceUrl,
+  resolveVideoSource,
+} from "../engine/playerEngine";
 
 export function PlayerRuntime() {
   const adventure = usePlayerStore(selectPlayerAdventure);
@@ -35,6 +40,27 @@ export function PlayerRuntime() {
   const getNodeById = usePlayerStore((s) => s.getNodeById);
   const goBack = usePlayerStore((s) => s.goBack);
   const goHome = usePlayerStore((s) => s.goHome);
+  const referenceUrl =
+    currentNodeKind === "reference" || currentNodeKind === "reference-tab"
+      ? resolveReferenceUrl(currentNode)
+      : null;
+  const videoSource = currentNodeKind === "video" ? resolveVideoSource(currentNode) : null;
+  const openReference = () => {
+    if (!referenceUrl) {
+      toastError("Missing link", "No URL found for this reference node.");
+      return;
+    }
+    try {
+      if (currentNodeKind === "reference-tab") {
+        window.open(referenceUrl, "_blank", "noopener,noreferrer");
+      } else {
+        window.location.assign(referenceUrl);
+      }
+    } catch (err) {
+      toastError("Could not open link", referenceUrl);
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     if (!currentNode) {
@@ -100,6 +126,17 @@ export function PlayerRuntime() {
                 </div>
               ) : null}
             </div>
+            {videoSource ? (
+              <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/60">
+                <video
+                  key={videoSource}
+                  src={videoSource}
+                  controls
+                  className="h-full w-full max-h-[360px] bg-black"
+                  playsInline
+                />
+              </div>
+            ) : null}
             <div className="prose prose-invert mt-4 max-w-none text-[var(--text)] prose-p:my-3 prose-a:text-[var(--accent-strong)]">
               {currentNode ? (
                 <LegacyContent value={currentNode.text} />
@@ -107,6 +144,22 @@ export function PlayerRuntime() {
                 <p className="text-sm text-[var(--muted)]">No node selected.</p>
               )}
             </div>
+            {currentNodeKind === "reference" || currentNodeKind === "reference-tab" ? (
+              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/70 p-3">
+                <Button onClick={openReference} disabled={!referenceUrl}>
+                  {currentNodeKind === "reference-tab"
+                    ? "Open link in new tab"
+                    : "Open link"}
+                </Button>
+                <div className="min-w-0 flex-1 text-xs text-[var(--muted)]">
+                  {referenceUrl ? (
+                    <span className="break-words">{referenceUrl}</span>
+                  ) : (
+                    <span className="text-red-300">No URL found in this node.</span>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </Panel>
 
           <Panel muted>

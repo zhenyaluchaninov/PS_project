@@ -4,6 +4,7 @@ export type NodeKind =
   | "root"
   | "random"
   | "reference"
+  | "reference-tab"
   | "video"
   | "chapter"
   | "default"
@@ -69,7 +70,8 @@ export const resolveNodeKind = (node?: NodeModel | null): NodeKind => {
 
   if (typeKey === "root" || typeKey === "start-node") return "root";
   if (typeKey === "random" || typeKey === "random-node") return "random";
-  if (typeKey.startsWith("ref-node")) return "reference";
+  if (typeKey === "ref-node-tab" || typeKey === "reference-tab") return "reference-tab";
+  if (typeKey.startsWith("ref-node") || typeKey === "reference") return "reference";
   if (typeKey.includes("video")) return "video";
   if (typeKey.includes("chapter")) return "chapter";
   if (typeKey.length > 0) return "default";
@@ -135,6 +137,28 @@ const pickRandomLink = ({
 
   const choice = candidates[Math.floor(Math.random() * candidates.length)];
   return choice.link;
+};
+
+const cleanUrl = (raw?: string | null): string | null => {
+  if (!raw) return null;
+  return raw.replace(/["'>),\s]+$/, "");
+};
+
+const isAllowedUrl = (url: string | null): url is string => {
+  if (!url) return false;
+  if (url.startsWith("/")) return true;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const extractFirstHttpUrl = (text?: string | null): string | null => {
+  if (!text) return null;
+  const match = text.match(/https?:\/\/[^\s<>"']+/i);
+  return cleanUrl(match?.[0] ?? null);
 };
 
 export const decideOnEnterNode = (
@@ -215,4 +239,24 @@ export const decideOnClick = (
     nodeId: targetNode.nodeId,
     linkId: link.linkId,
   };
+};
+
+export const resolveReferenceUrl = (node?: NodeModel | null): string | null => {
+  const url = extractFirstHttpUrl(node?.text);
+  return isAllowedUrl(url) ? url : null;
+};
+
+export const resolveVideoSource = (node?: NodeModel | null): string | null => {
+  if (!node) return null;
+  const imageUrl = cleanUrl(node.image?.url ?? null);
+  if (imageUrl && isAllowedUrl(imageUrl) && imageUrl.toLowerCase().includes(".mp4")) {
+    return imageUrl;
+  }
+
+  const urlInText = extractFirstHttpUrl(node.text);
+  if (urlInText && isAllowedUrl(urlInText) && urlInText.toLowerCase().includes(".mp4")) {
+    return urlInText;
+  }
+
+  return null;
 };
