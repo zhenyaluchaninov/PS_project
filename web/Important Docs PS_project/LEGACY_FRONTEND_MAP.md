@@ -1,6 +1,6 @@
 # Legacy Frontend File Map
 
-Complete file structure of the legacy `/web` frontend for comparison with the new architecture.
+Complete file structure of the legacy `/web` frontend for comparison with the new architecture. The `/web` is located `legacy_ps_project/web`
 
 ---
 

@@ -16,12 +16,14 @@ import {
   selectPlayerProgress,
   selectPlayerRootNodeId,
   selectPlayerVisitedCount,
+  selectPlayerCurrentNodeKind,
   usePlayerStore,
 } from "../state/playerStore";
 
 export function PlayerRuntime() {
   const adventure = usePlayerStore(selectPlayerAdventure);
   const currentNode = usePlayerStore(selectPlayerCurrentNode);
+  const currentNodeKind = usePlayerStore(selectPlayerCurrentNodeKind);
   const outgoingLinks = usePlayerStore(selectPlayerOutgoingLinks);
   const mode = usePlayerStore(selectPlayerMode);
   const historyLength = usePlayerStore(selectPlayerHistoryLength);
@@ -88,9 +90,14 @@ export function PlayerRuntime() {
                 </p>
               </div>
               {currentNode ? (
-                <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--muted)]">
-                  #{currentNode.nodeId}
-                </span>
+                <div className="flex flex-col items-end gap-2 text-right">
+                  <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--muted)]">
+                    #{currentNode.nodeId}
+                  </span>
+                  <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+                    Node kind: {currentNodeKind}
+                  </span>
+                </div>
               ) : null}
             </div>
             <div className="prose prose-invert mt-4 max-w-none text-[var(--text)] prose-p:my-3 prose-a:text-[var(--accent-strong)]">

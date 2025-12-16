@@ -7,6 +7,14 @@ import {
 } from "@/features/state/api/client";
 import { create } from "zustand";
 import { toastError } from "@/features/ui-core/toast";
+import {
+  buildGraphIndexes,
+  decideOnClick,
+  decideOnEnterNode,
+  getOutgoingLinksForNode,
+  resolveNodeKind,
+  type NodeKind,
+} from "../engine/playerEngine";
 
 export type PlayerMode = "play" | "preview";
 export type PlayerStatus = "idle" | "loading" | "ready" | "error";
@@ -38,6 +46,8 @@ type PlayerState = {
   goBack: () => void;
   goHome: () => void;
   getCurrentNode: () => NodeModel | undefined;
+  getCurrentNodeKind: () => NodeKind;
+  getNodeKindById: (id?: number | null) => NodeKind;
   getNodeById: (id?: number | null) => NodeModel | undefined;
   getOutgoingLinks: (nodeId?: number | null) => LinkModel[];
   getVisitedCount: () => number;
@@ -46,194 +56,226 @@ type PlayerState = {
 };
 
 const isDev = process.env.NODE_ENV !== "production";
-// IMPORTANT: Returning a new [] from a selector-backed getter can trigger an
-// infinite rerender loop via `useSyncExternalStore` (React expects snapshots to
-// be referentially stable when state hasn't changed).
-const EMPTY_LINKS: LinkModel[] = [];
 
-export const usePlayerStore = create<PlayerState>((set, get) => ({
-  status: "idle",
-  slug: undefined,
-  mode: "play",
-  adventure: undefined,
-  error: undefined,
-  loadedAt: undefined,
-  currentNodeId: undefined,
-  history: [],
-  rootNodeId: undefined,
-  visited: new Set(),
-  nodeIndex: undefined,
-  linksBySource: undefined,
-  linksById: undefined,
+export const usePlayerStore = create<PlayerState>((set, get) => {
+  const navigateToNode = (
+    nextNodeId: number,
+    options?: {
+      chosenLinkId?: number;
+      resetHistory?: boolean;
+      resetVisited?: boolean;
+    }
+  ): boolean => {
+    const { nodeIndex, linksBySource, linksById } = get();
+    if (!nodeIndex || !linksBySource || !linksById) return false;
 
-  reset: () =>
-    set({
-      status: "idle",
-      slug: undefined,
-      mode: "play",
-      adventure: undefined,
-      error: undefined,
-      loadedAt: undefined,
-      currentNodeId: undefined,
-      history: [],
-      rootNodeId: undefined,
-      visited: new Set(),
-      nodeIndex: undefined,
-      linksBySource: undefined,
-      linksById: undefined,
-    }),
+    const workingVisited = options?.resetVisited
+      ? new Set<number>()
+      : new Set(get().visited);
+    const workingHistory = options?.resetHistory ? [] : [...get().history];
 
-  loadBySlug: async (slug: string, mode: PlayerMode = "play") => {
-    const apiMode = mode === "preview" ? "edit" : "play";
-    const requestUrl =
-      apiMode === "play"
-        ? resolveApiUrl(`/api/adventure/${slug}`)
-        : resolveApiUrl(`/api/adventure/${slug}/edit`);
+    let targetNodeId = nextNodeId;
+    let chosenLinkId = options?.chosenLinkId;
+    let safetyCounter = 0;
+    const seenNodes = new Set<number>();
 
-    set({
-      status: "loading",
-      slug,
-      mode,
-      error: undefined,
-      adventure: undefined,
-      currentNodeId: undefined,
-      history: [],
-      rootNodeId: undefined,
-      visited: new Set(),
-    });
-    try {
-      const adventure = await loadAdventure(slug, apiMode);
+    while (safetyCounter < 20) {
+      safetyCounter += 1;
+      if (seenNodes.has(targetNodeId)) {
+        toastError("Navigation error", "Detected a navigation loop for this node.");
+        return false;
+      }
+      seenNodes.add(targetNodeId);
 
-      // Avoid stale updates if slug changed during fetch
-      if (get().slug !== slug) {
-        return;
+      const decision = decideOnEnterNode(targetNodeId, {
+        nodes: nodeIndex,
+        linksBySource,
+        linksById,
+        visited: workingVisited,
+      });
+
+      if (decision.type === "error") {
+        toastError(decision.error.title, decision.error.description);
+        return false;
       }
 
-      const nodeIndex = Object.fromEntries(
-        (adventure.nodes ?? []).map((node) => [node.nodeId, node])
-      );
-      const linksBySource: Record<number, LinkModel[]> = {};
-      const linksById: Record<number, LinkModel> = {};
-      for (const link of adventure.links ?? []) {
-        const sourceId = link.fromNodeId;
-        if (!linksBySource[sourceId]) {
-          linksBySource[sourceId] = [];
-        }
-        linksBySource[sourceId].push(link);
-        linksById[link.linkId] = link;
-        linksById[link.id] = link;
+      if (decision.type === "auto") {
+        targetNodeId = decision.targetNodeId;
+        chosenLinkId = decision.viaLinkId;
+        continue;
       }
 
+      workingVisited.add(decision.nodeId);
+      workingHistory.push({ nodeId: decision.nodeId, chosenLinkId });
       set({
-        status: "ready",
-        adventure,
-        loadedAt: Date.now(),
+        currentNodeId: decision.nodeId,
+        history: workingHistory,
+        visited: workingVisited,
+      });
+      return true;
+    }
+
+    toastError("Navigation error", "Could not resolve next node.");
+    return false;
+  };
+
+  return {
+    status: "idle",
+    slug: undefined,
+    mode: "play",
+    adventure: undefined,
+    error: undefined,
+    loadedAt: undefined,
+    currentNodeId: undefined,
+    history: [],
+    rootNodeId: undefined,
+    visited: new Set(),
+    nodeIndex: undefined,
+    linksBySource: undefined,
+    linksById: undefined,
+
+    reset: () =>
+      set({
+        status: "idle",
+        slug: undefined,
+        mode: "play",
+        adventure: undefined,
         error: undefined,
+        loadedAt: undefined,
         currentNodeId: undefined,
         history: [],
         rootNodeId: undefined,
         visited: new Set(),
-        nodeIndex,
-        linksBySource,
-        linksById,
+        nodeIndex: undefined,
+        linksBySource: undefined,
+        linksById: undefined,
+      }),
+
+    loadBySlug: async (slug: string, mode: PlayerMode = "play") => {
+      const apiMode = mode === "preview" ? "edit" : "play";
+      const requestUrl =
+        apiMode === "play"
+          ? resolveApiUrl(`/api/adventure/${slug}`)
+          : resolveApiUrl(`/api/adventure/${slug}/edit`);
+
+      set({
+        status: "loading",
+        slug,
+        mode,
+        error: undefined,
+        adventure: undefined,
+        currentNodeId: undefined,
+        history: [],
+        rootNodeId: undefined,
+        visited: new Set(),
       });
+      try {
+        const adventure = await loadAdventure(slug, apiMode);
 
-      if (isDev) {
-        console.log(`[player] loaded adventure "${adventure.title}" (${slug}) mode=${mode}`);
-      }
-    } catch (err) {
-      if (get().slug !== slug) {
-        return;
-      }
-      if (isApiError(err)) {
-        // Fallback: if play mode returns 404, try edit endpoint with same slug
-        if (mode === "play" && err.status === 404) {
-          try {
-            const adventure = await loadAdventure(slug, "edit");
-            if (get().slug !== slug) {
-              return;
-            }
-            const nodeIndex = Object.fromEntries(
-              (adventure.nodes ?? []).map((node) => [node.nodeId, node])
-            );
-            const linksBySource: Record<number, LinkModel[]> = {};
-            const linksById: Record<number, LinkModel> = {};
-            for (const link of adventure.links ?? []) {
-              const sourceId = link.fromNodeId;
-              if (!linksBySource[sourceId]) {
-                linksBySource[sourceId] = [];
+        // Avoid stale updates if slug changed during fetch
+        if (get().slug !== slug) {
+          return;
+        }
+
+        const { nodeIndex, linksBySource, linksById } = buildGraphIndexes(adventure);
+
+        set({
+          status: "ready",
+          adventure,
+          loadedAt: Date.now(),
+          error: undefined,
+          currentNodeId: undefined,
+          history: [],
+          rootNodeId: undefined,
+          visited: new Set(),
+          nodeIndex,
+          linksBySource,
+          linksById,
+        });
+
+        if (isDev) {
+          console.log(`[player] loaded adventure "${adventure.title}" (${slug}) mode=${mode}`);
+        }
+      } catch (err) {
+        if (get().slug !== slug) {
+          return;
+        }
+        if (isApiError(err)) {
+          // Fallback: if play mode returns 404, try edit endpoint with same slug
+          if (mode === "play" && err.status === 404) {
+            try {
+              const adventure = await loadAdventure(slug, "edit");
+              if (get().slug !== slug) {
+                return;
               }
-              linksBySource[sourceId].push(link);
-              linksById[link.linkId] = link;
-              linksById[link.id] = link;
-            }
+              const { nodeIndex, linksBySource, linksById } = buildGraphIndexes(adventure);
 
-            set({
-              status: "ready",
-              adventure,
-              loadedAt: Date.now(),
-              error: undefined,
-              currentNodeId: undefined,
-              history: [],
-              rootNodeId: undefined,
-              visited: new Set(),
-              nodeIndex,
-              linksBySource,
-              linksById,
-              mode: "preview",
-            });
-            if (isDev) {
-              console.warn(`[player] fallback loaded via edit endpoint for slug ${slug}`);
-            }
-            return;
-          } catch (fallbackErr) {
-            if (!isApiError(fallbackErr)) {
+              set({
+                status: "ready",
+                adventure,
+                loadedAt: Date.now(),
+                error: undefined,
+                currentNodeId: undefined,
+                history: [],
+                rootNodeId: undefined,
+                visited: new Set(),
+                nodeIndex,
+                linksBySource,
+                linksById,
+                mode: "preview",
+              });
+              if (isDev) {
+                console.warn(`[player] fallback loaded via edit endpoint for slug ${slug}`);
+              }
+              return;
+            } catch (fallbackErr) {
+              if (!isApiError(fallbackErr)) {
+                set({
+                  status: "error",
+                  error: {
+                    message: "Unexpected error",
+                    details: fallbackErr,
+                    url: requestUrl,
+                  },
+                });
+                return;
+              }
               set({
                 status: "error",
                 error: {
-                  message: "Unexpected error",
-                  details: fallbackErr,
-                  url: requestUrl,
+                  message: fallbackErr.message,
+                  status: fallbackErr.status,
+                  details: fallbackErr.details,
+                  url: fallbackErr.url ?? requestUrl,
                 },
               });
               return;
             }
-            set({
-              status: "error",
-              error: {
-                message: fallbackErr.message,
-                status: fallbackErr.status,
-                details: fallbackErr.details,
-                url: fallbackErr.url ?? requestUrl,
-              },
-            });
-            return;
+          }
+
+          set({
+            status: "error",
+            error: {
+              message: err.message,
+              status: err.status,
+              details: err.details,
+              url: err.url ?? requestUrl,
+            },
+          });
+          if (isDev) {
+            console.error(`[player] load failed for ${slug}`, err.status, err.message);
+          }
+        } else {
+          set({
+            status: "error",
+            error: { message: "Unexpected error", details: err, url: requestUrl },
+          });
+          if (isDev) {
+            console.error(`[player] load failed for ${slug}`, err);
           }
         }
-
-        set({
-          status: "error",
-          error: {
-            message: err.message,
-            status: err.status,
-            details: err.details,
-            url: err.url ?? requestUrl,
-          },
-        });
-        if (isDev) {
-          console.error(`[player] load failed for ${slug}`, err.status, err.message);
-        }
-      } else {
-        set({
-          status: "error",
-          error: { message: "Unexpected error", details: err, url: requestUrl },
-        });
-        if (isDev) {
-          console.error(`[player] load failed for ${slug}`, err);
-        }
       }
-    }
-  },
+    },
 
   start: () => {
     const { adventure, nodeIndex, currentNodeId } = get();
@@ -242,9 +284,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       return;
     }
     const rootNode =
-      adventure.nodes.find(
-        (node) => node.type?.toLowerCase() === "root"
-      ) ?? adventure.nodes[0];
+      adventure.nodes.find((node) => resolveNodeKind(node) === "root") ??
+      adventure.nodes[0];
     if (!rootNode) {
       set({
         status: "error",
@@ -252,45 +293,41 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       });
       return;
     }
-    const visited = new Set<number>([rootNode.nodeId]);
-    set({
-      currentNodeId: rootNode.nodeId,
-      history: [{ nodeId: rootNode.nodeId }],
-      rootNodeId: rootNode.nodeId,
-      visited,
+    set({ rootNodeId: rootNode.nodeId });
+    const started = navigateToNode(rootNode.nodeId, {
+      resetHistory: true,
+      resetVisited: true,
     });
-    if (isDev) {
+    if (isDev && started) {
       console.log(`[player] start at node ${rootNode.nodeId}`);
     }
   },
 
   chooseLink: (linkId: number) => {
-    const { linksById, history, visited, nodeIndex } = get();
-    const link = linksById?.[linkId];
-    if (!link || link.toNodeId == null) {
-      toastError("Broken link", "This choice has no destination.");
-      return false;
-    }
-    const nextNodeId = link.toNodeId;
-    if (!nodeIndex?.[nextNodeId]) {
-      toastError("Broken link", "The target node is missing.");
+    const { nodeIndex, linksBySource, linksById, visited } = get();
+    if (!nodeIndex || !linksBySource || !linksById) return false;
+
+    const decision = decideOnClick(linkId, {
+      nodes: nodeIndex,
+      linksBySource,
+      linksById,
+      visited,
+    });
+
+    if (decision.type === "error") {
+      toastError(decision.error.title, decision.error.description);
       return false;
     }
 
-    const updatedVisited = new Set<number>(visited);
-    updatedVisited.add(nextNodeId);
-    set({
-      currentNodeId: nextNodeId,
-      history: [...history, { nodeId: nextNodeId, chosenLinkId: linkId }],
-      visited: updatedVisited,
+    const success = navigateToNode(decision.nodeId, {
+      chosenLinkId: decision.linkId,
     });
-    if (isDev) {
-      console.log(`[player] chose link ${linkId} -> node ${nextNodeId}`, {
-        from: link.fromNodeId,
-        to: link.toNodeId,
-      });
+    if (isDev && success) {
+      console.log(
+        `[player] chose link ${decision.linkId} -> node ${decision.nodeId}`
+      );
     }
-    return true;
+    return success;
   },
 
   goBack: () => {
@@ -310,12 +347,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   goHome: () => {
     const { rootNodeId } = get();
     if (rootNodeId == null) return;
-    set({
-      currentNodeId: rootNodeId,
-      history: [{ nodeId: rootNodeId }],
-      visited: new Set<number>([rootNodeId]),
+    const success = navigateToNode(rootNodeId, {
+      resetHistory: true,
+      resetVisited: true,
     });
-    if (isDev) {
+    if (isDev && success) {
       console.log("[player] home/reset to start");
     }
   },
@@ -335,8 +371,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   getOutgoingLinks: (nodeId?: number | null) => {
     const { linksBySource, currentNodeId } = get();
     const sourceId = nodeId ?? currentNodeId;
-    if (sourceId == null || !linksBySource) return EMPTY_LINKS;
-    return linksBySource[sourceId] ?? EMPTY_LINKS;
+    return getOutgoingLinksForNode(sourceId, linksBySource);
   },
 
   getVisitedCount: () => {
@@ -350,7 +385,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (total === 0) return 0;
     return Math.min(100, Math.round((visited.size / total) * 100));
   },
-}));
+
+  getCurrentNodeKind: () => resolveNodeKind(get().getCurrentNode()),
+  getNodeKindById: (id?: number | null) => resolveNodeKind(get().getNodeById(id)),
+  };
+});
 
 export const selectPlayerStatus = (state: PlayerState) => state.status;
 export const selectPlayerAdventure = (state: PlayerState) => state.adventure;
@@ -359,6 +398,8 @@ export const selectPlayerCurrentNodeId = (state: PlayerState) =>
   state.currentNodeId;
 export const selectPlayerCurrentNode = (state: PlayerState) =>
   state.getCurrentNode();
+export const selectPlayerCurrentNodeKind = (state: PlayerState) =>
+  state.getCurrentNodeKind();
 export const selectPlayerOutgoingLinks = (state: PlayerState) =>
   state.getOutgoingLinks();
 export const selectPlayerMode = (state: PlayerState) => state.mode;

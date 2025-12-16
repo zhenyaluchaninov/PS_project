@@ -37,6 +37,7 @@ export type NodeModel = {
   type: string | null;
   changed: boolean;
   props: NodePropsModel | null;
+  rawProps: Record<string, unknown> | null;
 };
 
 export type LinkModel = {

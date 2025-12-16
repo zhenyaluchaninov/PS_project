@@ -115,6 +115,7 @@ function mapUserDto(dto: UserDto): UserModel {
 }
 
 export function mapNodeDto(dto: NodeDto): NodeModel {
+  const rawProps = parseJsonRecord(dto.props);
   return {
     id: dto.id,
     nodeId: dto.node_id,
@@ -132,7 +133,8 @@ export function mapNodeDto(dto: NodeDto): NodeModel {
     },
     type: dto.type ?? null,
     changed: Boolean(dto.changed),
-    props: normalizeNodeProps(dto.props),
+    props: normalizeNodeProps(rawProps ?? dto.props),
+    rawProps,
   };
 }
 
