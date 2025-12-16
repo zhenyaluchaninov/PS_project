@@ -23,6 +23,7 @@ import {
 import {
   resolveReferenceUrl,
   resolveVideoSource,
+  type NodeKind,
 } from "../engine/playerEngine";
 
 export function PlayerRuntime() {
@@ -137,13 +138,11 @@ export function PlayerRuntime() {
                 />
               </div>
             ) : null}
-            <div className="prose prose-invert mt-4 max-w-none text-[var(--text)] prose-p:my-3 prose-a:text-[var(--accent-strong)]">
-              {currentNode ? (
-                <LegacyContent value={currentNode.text} />
-              ) : (
-                <p className="text-sm text-[var(--muted)]">No node selected.</p>
-              )}
-            </div>
+            <NodeContent
+              nodeKind={currentNodeKind}
+              nodeTitle={currentNode?.title ?? ""}
+              nodeText={currentNode?.text ?? ""}
+            />
             {currentNodeKind === "reference" || currentNodeKind === "reference-tab" ? (
               <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/70 p-3">
                 <Button onClick={openReference} disabled={!referenceUrl}>
@@ -261,4 +260,60 @@ export function PlayerRuntime() {
       </div>
     </PageShell>
   );
+}
+
+function NodeContent({
+  nodeKind,
+  nodeTitle,
+  nodeText,
+}: {
+  nodeKind: NodeKind;
+  nodeTitle: string;
+  nodeText: string;
+}) {
+  const prose = (
+    <div className="prose prose-invert max-w-none text-[var(--text)] prose-p:my-3 prose-a:text-[var(--accent-strong)]">
+      {nodeText ? (
+        <LegacyContent value={nodeText} />
+      ) : (
+        <p className="text-sm text-[var(--muted)]">No content.</p>
+      )}
+    </div>
+  );
+
+  if (nodeKind === "start") {
+    return (
+      <div className="mt-4 space-y-3">
+        <h1 className="text-3xl font-bold text-[var(--text)]">{nodeTitle || "Start"}</h1>
+        {prose}
+      </div>
+    );
+  }
+
+  if (nodeKind === "chapter") {
+    return (
+      <div className="mt-4 space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/70 p-4">
+        <div className="border-b border-[var(--border)] pb-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Chapter</p>
+          <h2 className="mt-1 text-2xl font-semibold text-[var(--text)]">
+            {nodeTitle || "Untitled chapter"}
+          </h2>
+        </div>
+        {prose}
+      </div>
+    );
+  }
+
+  if (nodeKind === "chapter-plain") {
+    return (
+      <div className="mt-4 space-y-2">
+        <h2 className="text-xl font-semibold text-[var(--text)]">
+          {nodeTitle || "Untitled chapter"}
+        </h2>
+        {prose}
+      </div>
+    );
+  }
+
+  return <div className="mt-4">{prose}</div>;
 }

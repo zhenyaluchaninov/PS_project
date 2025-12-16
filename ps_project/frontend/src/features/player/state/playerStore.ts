@@ -284,7 +284,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       return;
     }
     const rootNode =
-      adventure.nodes.find((node) => resolveNodeKind(node) === "root") ??
+      adventure.nodes.find((node) => resolveNodeKind(node) === "start") ??
       adventure.nodes[0];
     if (!rootNode) {
       set({

@@ -2,11 +2,13 @@ import type { AdventureModel, LinkModel, NodeModel } from "@/domain/models";
 
 export type NodeKind =
   | "root"
+  | "start"
   | "random"
   | "reference"
   | "reference-tab"
   | "video"
   | "chapter"
+  | "chapter-plain"
   | "default"
   | "unknown";
 
@@ -68,10 +70,12 @@ export const resolveNodeKind = (node?: NodeModel | null): NodeKind => {
   const chapterType = chapterTypeFromProps(node);
   const typeKey = normalizeKindKey(chapterType ?? node?.type);
 
-  if (typeKey === "root" || typeKey === "start-node") return "root";
+  if (typeKey === "root" || typeKey === "start-node") return "start";
   if (typeKey === "random" || typeKey === "random-node") return "random";
   if (typeKey === "ref-node-tab" || typeKey === "reference-tab") return "reference-tab";
   if (typeKey.startsWith("ref-node") || typeKey === "reference") return "reference";
+  if (typeKey === "chapter-node") return "chapter";
+  if (typeKey === "chapter-node-plain") return "chapter-plain";
   if (typeKey.includes("video")) return "video";
   if (typeKey.includes("chapter")) return "chapter";
   if (typeKey.length > 0) return "default";
