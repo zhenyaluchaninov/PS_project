@@ -151,7 +151,9 @@
 
 .ps-player__floating {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
   pointer-events: none;
   z-index: 30;
 }

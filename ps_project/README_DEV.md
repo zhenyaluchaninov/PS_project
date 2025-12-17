@@ -6,6 +6,13 @@ Run the Go backend, MariaDB, and the new Next.js frontend with a single command.
 - Docker + Docker Compose
 - Ports available: `3000` (Next dev), `8080` (Go backend), `3306` (MariaDB), `3001` (react-admin optional)
 
+## Faster frontend loop (frontend locally)
+- Keep backend + DB in Docker: `docker compose up -d db backend`
+- Run Next locally with hot reload: `cd frontend && npm install && npm run dev` (or `pnpm dev`)
+- Open http://localhost:3000 — `/api/*` and `/upload/*` are proxied to `http://localhost:8080`
+- MySQL data persists in the named volume `ps_project_db_data`; avoid `docker compose down -v` to keep it.
+- Full details: `docs/dev-workflow.md`
+
 ## Quick start
 ```bash
 cd ps_project

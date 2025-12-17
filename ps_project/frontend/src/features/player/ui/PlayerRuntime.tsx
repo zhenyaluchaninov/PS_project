@@ -582,8 +582,8 @@ function DevToggles({
   onToggleHideBackground: () => void;
 }) {
   return (
-    <div className="pointer-events-none absolute inset-0">
-      <div className="pointer-events-auto absolute left-3 top-3 flex flex-col gap-1 text-xs">
+    <div className="pointer-events-none flex w-full items-start justify-between gap-2 px-3 pt-3">
+      <div className="pointer-events-auto flex flex-col gap-1 text-xs">
         <div className="flex gap-1">
           <button
             type="button"
@@ -606,7 +606,7 @@ function DevToggles({
       </div>
 
       {showDebug ? (
-        <div className="pointer-events-auto absolute right-3 top-3 rounded-md bg-black/60 px-3 py-2 text-[11px] text-white shadow">
+        <div className="pointer-events-auto rounded-md bg-black/60 px-3 py-2 text-[11px] text-white shadow">
           <p className="font-semibold">Media debug</p>
           <p>
             Subtitles:{" "}
