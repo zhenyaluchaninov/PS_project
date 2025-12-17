@@ -1,22 +1,146 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import "./player-layout.css";
 
 type PlayerLayoutProps = {
   children: ReactNode;
   overlay?: ReactNode;
+  backgroundImage?: string | null;
+  backgroundVideo?: {
+    src: string;
+    subtitlesUrl?: string | null;
+    onSubtitlesLoad?: () => void;
+    onSubtitlesError?: () => void;
+  };
+  hideBackground?: boolean;
+  mediaFilter?: string;
+  objectFit?: "cover" | "contain";
+  backgroundPosition?: string;
+  backgroundSize?: string;
+  overlayColor?: string | null;
+  dataProps?: {
+    background?: string;
+    backgroundImage?: string;
+    player?: string;
+    content?: string;
+  };
+  layout?: {
+    verticalAlign?: "top" | "center" | "bottom";
+    containerWidthVw?: number;
+    containerMarginsVw?: [number, number];
+    textAlign?: "left" | "center" | "right";
+  };
   className?: string;
+  style?: CSSProperties;
 };
 
-export function PlayerLayout({ children, overlay, className }: PlayerLayoutProps) {
+export function PlayerLayout({
+  children,
+  overlay,
+  backgroundImage,
+  backgroundVideo,
+  hideBackground = false,
+  mediaFilter,
+  objectFit,
+  backgroundPosition,
+  backgroundSize,
+  overlayColor,
+  dataProps,
+  layout,
+  className,
+  style,
+}: PlayerLayoutProps) {
+  const containerStyle: CSSProperties = {
+    ...(layout?.textAlign ? { textAlign: layout.textAlign } : {}),
+  };
+
+  if (layout?.containerWidthVw && Number.isFinite(layout.containerWidthVw)) {
+    containerStyle.width = `${layout.containerWidthVw}vw`;
+    containerStyle.maxWidth = `${layout.containerWidthVw}vw`;
+    containerStyle.marginLeft = "auto";
+    containerStyle.marginRight = "auto";
+  } else if (layout?.containerMarginsVw) {
+    containerStyle.marginLeft = `${layout.containerMarginsVw[0]}vw`;
+    containerStyle.marginRight = `${layout.containerMarginsVw[1]}vw`;
+  }
+
+  const rootStyle: CSSProperties = {
+    ...style,
+    ...(mediaFilter ? { ["--player-media-filter" as keyof CSSProperties]: mediaFilter } : {}),
+    ...(objectFit ? { ["--player-object-fit" as keyof CSSProperties]: objectFit } : {}),
+    ...(backgroundPosition
+      ? { ["--player-bg-position" as keyof CSSProperties]: backgroundPosition }
+      : {}),
+    ...(backgroundSize ? { ["--player-bg-size" as keyof CSSProperties]: backgroundSize } : {}),
+  };
+
   return (
-    <div className="relative min-h-screen bg-[var(--bg)] text-[var(--text)]">
-      <div className={cn("relative z-10 mx-auto max-w-6xl px-4 py-6", className)}>
-        {children}
+    <div
+      className={cn("ps-player", className)}
+      data-props={dataProps?.player || undefined}
+      data-align={layout?.verticalAlign ?? "top"}
+      data-hide-bg={hideBackground ? "true" : undefined}
+      style={rootStyle}
+    >
+      <div
+        className="ps-player__media"
+        data-props={dataProps?.background || undefined}
+        data-hidden={hideBackground ? "true" : undefined}
+      >
+        {backgroundVideo ? (
+          <video
+            key={backgroundVideo.src}
+            className="ps-player__video"
+            src={backgroundVideo.src}
+            playsInline
+            autoPlay
+            muted
+            loop
+            preload="auto"
+            aria-hidden
+          >
+            {backgroundVideo.subtitlesUrl ? (
+              <track
+                key={backgroundVideo.subtitlesUrl}
+                label="Subtitles"
+                kind="subtitles"
+                srcLang="en"
+                src={backgroundVideo.subtitlesUrl}
+                default
+                onError={backgroundVideo.onSubtitlesError}
+                onLoad={backgroundVideo.onSubtitlesLoad}
+              />
+            ) : null}
+          </video>
+        ) : null}
+
+        {!backgroundVideo && backgroundImage ? (
+          <div
+            className="ps-player__bg-image"
+            data-props={dataProps?.backgroundImage || undefined}
+            style={{
+              backgroundImage: backgroundImage ? `url(${backgroundImage})` : "none",
+            }}
+            aria-hidden
+          />
+        ) : null}
+
+        {!hideBackground && overlayColor ? (
+          <div className="ps-player__overlay" style={{ background: overlayColor }} />
+        ) : null}
       </div>
-      {overlay ? (
-        <div className="pointer-events-none absolute inset-0 z-20">{overlay}</div>
-      ) : null}
-      <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_20%_20%,rgba(124,58,237,0.05),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(59,130,246,0.05),transparent_35%)]" />
+
+      <div className="ps-player__outer">
+        <div
+          className="ps-player__content"
+          data-props={dataProps?.content || undefined}
+          style={containerStyle}
+        >
+          <div className="ps-player__body">{children}</div>
+        </div>
+      </div>
+
+      {overlay ? <div className="ps-player__floating">{overlay}</div> : null}
     </div>
   );
 }

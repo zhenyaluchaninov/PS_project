@@ -11,6 +11,8 @@ Each step briefly states:
 
 Blocks are just thematic groups. They do not strictly define execution order, but steps are ordered as if a developer was building and testing from scratch.
 
+Planning note: Each step is intended to be used as a standalone Codex implementation task/ticket. Because of that, important invariants/guardrails (especially performance/UX constraints) may be repeated inside multiple steps so each task stays self-contained and less error-prone to scope.
+
 ## Backend Contract Invariants (must-follow)
 
 - **All endpoints live under `/api`** (JSON).
@@ -632,9 +634,17 @@ web/
 
 ---
 
-## Block D – Player Experience
+## Block D - Player Experience
 
-### [done] Step 12 – Basic player skeleton: data loading & simple navigation
+**Player-wide guardrails: Scrollytell hybrid approach (applies to Steps 14–17)**
+
+These constraints are repeated in Steps 14–17 so each step remains a self-contained implementation task.
+
+- Use a **hybrid approach**: React for coarse state changes (node transitions, mode toggles, overlay/menu open/close), imperative DOM/CSS (refs, CSS classes/variables, `scroll-snap`, `IntersectionObserver`) for high-frequency scroll-linked visuals.
+- Avoid React-state-on-scroll (no `setState` on every `scroll`/`touchmove`); prefer CSS transitions/vars for opacity and layout tweaks.
+- Avoid always-on loops: no permanent `requestAnimationFrame` unless auto-scroll is actively enabled; stop RAF immediately when disabled or when user input takes over.
+
+### [done] Step 12 - Basic player skeleton: data loading & simple navigation
 
 **What we do**
 
@@ -698,7 +708,7 @@ web/
 
 ---
 
-### Step 13 – Player engine & special node types
+### [done] Step 13 – Player engine & special node types
 
 **What we do**
 
@@ -762,7 +772,7 @@ web/ps_player.html           # Loads viewer + markdown helper + props
 
 ---
 
-### Step 14 – Player layout, props & responsive behavior
+### Step 14 - Player layout, props & responsive behavior
 
 **What we do**
 
@@ -770,9 +780,19 @@ Enhance NodeViewer and PlayerLayout to:
 - Apply node and adventure props for colors, fonts, background images, grayscale/blur, container width/margins, vertical alignment, text shadow, navigation styles (bottom nav, swipe, etc.).
 - Handle portrait vs landscape, resize events, mobile detection, touch interactions.
 
+Boundary: Step 14 covers props/layout/responsive behavior and coarse device/touch detection. Scroll-driven scrollytell navigation modes and IO-based tracking are implemented in Step 17.
+"subtitles_url set but file not found; subtitle upload is implemented in Step 24"
+
 **What we get**
 
 Player visuals match legacy behavior: bottom navigation option, responsive layout, mobile friendliness.
+
+**Notes / pitfalls**
+
+- Avoid React-state-on-scroll: do not update React state on every `scroll`/`touchmove`; use CSS-first styling and imperative DOM updates (refs, CSS classes/vars) for scroll-linked effects.
+- Prefer native scroll + `scroll-snap` (as legacy) for swipe-like navigation styles, rather than building a custom gesture engine.
+- Prefer CSS media queries / container queries for responsive layout; use JS only for coarse mode detection and resize measurements (debounced).
+- Watch iOS viewport quirks (`vh` resizing with browser chrome): prefer `dvh`/`svh` where possible or a `--vh` CSS variable set on resize/orientation changes.
 
 **Feature Map coverage**
 
@@ -847,6 +867,12 @@ Implement audio system:
 - In-player settings & controls fully functional.
 - Audio experience aligned with legacy semantics.
 
+**Notes / pitfalls**
+
+- Overlay fade/visibility rules are coupled to scrollytell on/off, `videoControl`/subtitles modes, play/pause state, and user interactions; implement this as a small event-driven state machine (not scroll-driven React renders).
+- Keep high-frequency fades/opacity in CSS (transitions, classes, variables) and DOM refs where possible; avoid per-tick scroll/RAF `setState` to “drive” overlay/audio UI.
+- Drive overlay transitions from coarse events: media element events (`play/pause/ended`), `visibilitychange`, explicit menu open/close, and node enter/exit events from scrollytell tracking (Step 17).
+
 **Feature Map coverage**
 
 ```
@@ -909,6 +935,11 @@ Implement:
 - Node visit tracking identical to legacy.
 - Ability to demo player with local JSON or preview from editor.
 
+**Notes / pitfalls**
+
+- IntersectionObserver (Step 17) can fire multiple times per node; ensure stats are deduped so `trackNodeVisit` triggers once per real node entry (e.g., by `nodeId` per session/adventure).
+- Preview/standalone must never depend on statistics; keep stats side effects fire-and-forget and strictly gated by mode/props.
+
 **Feature Map coverage**
 
 ```
@@ -947,8 +978,11 @@ web/
 **What we do**
 
 Implement `ScrollyTracker.tsx`:
-- Intersection-Observer driven transitions instead of scroll handlers.
-- Only activates when scrollytell is enabled in props.
+- Prefer IntersectionObserver-driven transitions (inside the scroll container) rather than per-scroll React updates.
+- Use sentinel elements / node wrappers to detect active node entry/exit robustly.
+- Only activate when scrollytell is enabled in props.
+- Update high-frequency UI via DOM refs + CSS classes/variables (opacity fades, active-node styling, scroll-snap alignment), and emit coarse events only (`onNodeEnter`, `onNodeExit`, mode changes) so React re-renders occur on node transitions, not scroll ticks.
+- Avoid a permanent `requestAnimationFrame` loop; only run RAF while auto-scroll mode is active, and stop it immediately when auto-scroll is disabled or user input takes over.
 
 Fine-tune scroll speed, vertical position, and container behavior for scrollytell adventures on mobile.
 
@@ -956,6 +990,16 @@ Fine-tune scroll speed, vertical position, and container behavior for scrollytel
 
 - Modern, performant scrollytelling behavior.
 - Good UX on touch devices.
+
+**Notes / pitfalls**
+
+- Keep React re-renders tied to coarse node transitions (enter/exit), not scroll ticks; apply scroll-linked visuals via CSS classes/variables + refs.
+- Ensure observers/handlers are scoped to the scroll container and cleaned up on unmount; do not leave background loops running when scrollytell/auto-scroll is inactive.
+
+**Performance acceptance**
+
+- No continuous React re-renders during manual scrolling; scrolling remains smooth on mid-range mobile hardware.
+- No always-on RAF loop in the idle/manual-scroll path.
 
 **Feature Map coverage**
 
