@@ -11,6 +11,9 @@ type PlayerLayoutProps = {
     subtitlesUrl?: string | null;
     onSubtitlesLoad?: () => void;
     onSubtitlesError?: () => void;
+    muted?: boolean;
+    controls?: boolean;
+    videoRef?: (node: HTMLVideoElement | null) => void;
   };
   hideBackground?: boolean;
   mediaFilter?: string;
@@ -89,18 +92,22 @@ export function PlayerLayout({
         className="ps-player__media"
         data-props={dataProps?.background || undefined}
         data-hidden={hideBackground ? "true" : undefined}
+        data-interactive={backgroundVideo?.controls ? "true" : undefined}
       >
         {backgroundVideo ? (
           <video
             key={backgroundVideo.src}
             className="ps-player__video"
             src={backgroundVideo.src}
+            muted={backgroundVideo.muted ?? true}
+            controls={backgroundVideo.controls ?? false}
+            ref={backgroundVideo.videoRef}
             playsInline
             autoPlay
-            muted
             loop
             preload="auto"
-            aria-hidden
+            aria-hidden={backgroundVideo.controls ? undefined : true}
+            data-interactive={backgroundVideo.controls ? "true" : undefined}
           >
             {backgroundVideo.subtitlesUrl ? (
               <track

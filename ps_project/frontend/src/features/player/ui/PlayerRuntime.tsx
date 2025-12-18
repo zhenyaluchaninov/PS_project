@@ -4,12 +4,25 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
+  useCallback,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type MutableRefObject,
 } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, type ReadonlyURLSearchParams } from "next/navigation";
 import type { AdventurePropsModel, LinkModel, NodeModel } from "@/domain/models";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Home,
+  Menu as MenuIcon,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react";
 import { LegacyContent } from "@/features/ui-core/components/LegacyContent";
 import { PlayerLayout } from "@/features/ui-core/components/PlayerLayout";
 import { buildPropsStyle } from "@/features/ui-core/props";
@@ -21,6 +34,7 @@ import {
   selectPlayerAdventure,
   selectPlayerCurrentNode,
   selectPlayerCurrentNodeKind,
+  selectPlayerCurrentNodeId,
   selectPlayerHistoryLength,
   selectPlayerMode,
   selectPlayerOutgoingLinks,
@@ -44,7 +58,59 @@ type SubtitleStatus = {
   attempted: string[];
 };
 
+type PlayerPreferences = {
+  highContrast?: boolean;
+  hideBackground?: boolean;
+  soundEnabled: boolean;
+};
+
+type SearchParamLike = ReadonlyURLSearchParams | URLSearchParams | null | undefined;
+
 const injectedFonts = new Set<string>();
+
+const preferenceStorageKey = (slug?: string | null, viewSlug?: string | null) => {
+  const key = slug || viewSlug;
+  return key ? `ps-player:prefs:${key}` : null;
+};
+
+const readStoredPreferences = (key?: string | null): PlayerPreferences | null => {
+  if (!key) return null;
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PlayerPreferences>;
+    return {
+      highContrast:
+        typeof parsed.highContrast === "boolean" ? parsed.highContrast : undefined,
+      hideBackground:
+        typeof parsed.hideBackground === "boolean" ? parsed.hideBackground : undefined,
+      soundEnabled: typeof parsed.soundEnabled === "boolean" ? parsed.soundEnabled : true,
+    };
+  } catch (err) {
+    console.warn("[player] could not read stored preferences", err);
+    return null;
+  }
+};
+
+const persistPreferences = (key: string, prefs: PlayerPreferences) => {
+  if (typeof window === "undefined") return;
+  try {
+    const payload: PlayerPreferences = {
+      soundEnabled: prefs.soundEnabled ?? true,
+    };
+    if (typeof prefs.highContrast === "boolean") {
+      payload.highContrast = prefs.highContrast;
+    }
+    if (typeof prefs.hideBackground === "boolean") {
+      payload.hideBackground = prefs.hideBackground;
+    }
+    window.localStorage.setItem(key, JSON.stringify(payload));
+  } catch (err) {
+    console.warn("[player] could not persist preferences", err);
+  }
+};
 
 const parseFontEntry = (entry: string) => {
   const trimmed = entry.trim();
@@ -84,6 +150,24 @@ const useLoadAdventureFonts = (
     if (!requestedFont) return;
     injectedFonts.add(requestedFont);
   }, [requestedFont]);
+};
+
+const readBooleanParam = (params: SearchParamLike, keys: string[]) => {
+  if (!params) return undefined;
+  for (const key of keys) {
+    if (params.has(key)) {
+      return paramIsTruthy(params.get(key));
+    }
+  }
+  return undefined;
+};
+
+const resolveSoundParam = (params: SearchParamLike) => {
+  const mute = readBooleanParam(params, ["mute", "muted"]);
+  if (mute !== undefined) {
+    return !mute;
+  }
+  return readBooleanParam(params, ["sound", "audio", "soundEnabled"]);
 };
 
 const getRawSubtitlesValue = (node?: NodeModel | null) => {
@@ -261,6 +345,7 @@ export function PlayerRuntime() {
   const adventure = usePlayerStore(selectPlayerAdventure);
   const currentNode = usePlayerStore(selectPlayerCurrentNode);
   const currentNodeKind = usePlayerStore(selectPlayerCurrentNodeKind);
+  const currentNodeId = usePlayerStore(selectPlayerCurrentNodeId);
   const outgoingLinks = usePlayerStore(selectPlayerOutgoingLinks);
   const mode = usePlayerStore(selectPlayerMode);
   const historyLength = usePlayerStore(selectPlayerHistoryLength);
@@ -273,18 +358,31 @@ export function PlayerRuntime() {
   const getNodeById = usePlayerStore((s) => s.getNodeById);
   const goBack = usePlayerStore((s) => s.goBack);
   const goHome = usePlayerStore((s) => s.goHome);
+  const preferenceKey = useMemo(
+    () => preferenceStorageKey(adventure?.slug, adventure?.viewSlug),
+    [adventure?.slug, adventure?.viewSlug]
+  );
+  const [preferences, setPreferences] = useState<PlayerPreferences>(() => {
+    const stored = readStoredPreferences(preferenceKey);
+    const queryHighContrast = readBooleanParam(searchParams, ["hc", "highContrast"]);
+    const queryHideBackground = readBooleanParam(searchParams, ["hideBg", "hidebg"]);
+    const soundOverride = resolveSoundParam(searchParams);
 
-  const [devHighContrast, setDevHighContrast] = useState(
-    paramIsTruthy(searchParams?.get("hc") ?? searchParams?.get("highContrast"))
-  );
-  const [devHideBackground, setDevHideBackground] = useState(
-    paramIsTruthy(searchParams?.get("hideBg") ?? searchParams?.get("hidebg"))
-  );
+    return {
+      highContrast: queryHighContrast ?? stored?.highContrast,
+      hideBackground: queryHideBackground ?? stored?.hideBackground,
+      soundEnabled: soundOverride ?? stored?.soundEnabled ?? true,
+    };
+  });
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const [subtitleUrl, setSubtitleUrl] = useState<string | null>(null);
   const [subtitleStatus, setSubtitleStatus] = useState<SubtitleStatus>({
     state: "idle",
     attempted: [],
   });
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const backgroundVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const debugMedia = paramIsTruthy(
     searchParams?.get("debugMedia") ?? searchParams?.get("debugmedia")
@@ -292,17 +390,90 @@ export function PlayerRuntime() {
   const debugLayout = paramIsTruthy(
     searchParams?.get("debugLayout") ?? searchParams?.get("debuglayout")
   );
+  const debugUi = paramIsTruthy(searchParams?.get("debug") ?? searchParams?.get("dev"));
 
   useViewportDevice({ targetSelector: ".ps-player" });
 
   useEffect(() => {
-    setDevHighContrast(
-      paramIsTruthy(searchParams?.get("hc") ?? searchParams?.get("highContrast"))
-    );
-    setDevHideBackground(
-      paramIsTruthy(searchParams?.get("hideBg") ?? searchParams?.get("hidebg"))
-    );
+    if (hasInteracted) return;
+    const handleFirstPointer = () => setHasInteracted(true);
+    window.addEventListener("pointerdown", handleFirstPointer, { once: true, passive: true });
+    return () => window.removeEventListener("pointerdown", handleFirstPointer);
+  }, [hasInteracted]);
+
+  useEffect(() => {
+    if (!preferenceKey) return;
+    const stored = readStoredPreferences(preferenceKey);
+    if (!stored) return;
+    setPreferences((prev) => ({
+      highContrast: prev.highContrast ?? stored.highContrast,
+      hideBackground: prev.hideBackground ?? stored.hideBackground,
+      soundEnabled: prev.soundEnabled ?? stored.soundEnabled ?? true,
+    }));
+  }, [preferenceKey]);
+
+  useEffect(() => {
+    const queryHighContrast = readBooleanParam(searchParams, ["hc", "highContrast"]);
+    const queryHideBackground = readBooleanParam(searchParams, ["hideBg", "hidebg"]);
+    const soundOverride = resolveSoundParam(searchParams);
+
+    if (
+      queryHighContrast === undefined &&
+      queryHideBackground === undefined &&
+      soundOverride === undefined
+    ) {
+      return;
+    }
+
+    setPreferences((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      if (queryHighContrast !== undefined && queryHighContrast !== prev.highContrast) {
+        next.highContrast = queryHighContrast;
+        changed = true;
+      }
+      if (queryHideBackground !== undefined && queryHideBackground !== prev.hideBackground) {
+        next.hideBackground = queryHideBackground;
+        changed = true;
+      }
+      if (soundOverride !== undefined && soundOverride !== prev.soundEnabled) {
+        next.soundEnabled = soundOverride;
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!preferenceKey) return;
+    persistPreferences(preferenceKey, preferences);
+  }, [preferenceKey, preferences]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      if (!menuRef.current) return;
+      if (menuRef.current.contains(event.target as Node)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [currentNode?.nodeId]);
 
   useEffect(() => {
     if (!currentNode) {
@@ -413,13 +584,64 @@ export function PlayerRuntime() {
       buildPropsStyle({
         adventureProps: adventure?.props ?? undefined,
         nodeProps: currentNode?.rawProps ?? currentNode?.props ?? undefined,
-        forceHighContrast: devHighContrast,
-        forceHideBackground: devHideBackground,
+        overrideHighContrast: preferences.highContrast,
+        overrideHideBackground: preferences.hideBackground,
       }),
-    [adventure?.props, currentNode?.props, currentNode?.rawProps, devHighContrast, devHideBackground]
+    [
+      adventure?.props,
+      currentNode?.props,
+      currentNode?.rawProps,
+      preferences.highContrast,
+      preferences.hideBackground,
+    ]
   );
 
   const { style: propsStyle, flags, dataProps, layout, media, typography } = propsResult;
+  const soundEnabled = preferences.soundEnabled ?? true;
+
+  const handleToggleHighContrast = () => {
+    setPreferences((prev) => ({
+      ...prev,
+      highContrast: !flags.highContrast,
+    }));
+  };
+
+  const handleToggleHideBackground = () => {
+    setPreferences((prev) => ({
+      ...prev,
+      hideBackground: !flags.hideBackground,
+    }));
+  };
+
+  const handleToggleSound = () => {
+    setHasInteracted(true);
+    setPreferences((prev) => ({
+      ...prev,
+      soundEnabled: !(prev.soundEnabled ?? true),
+    }));
+  };
+
+  const handleToggleMenu = () => setMenuOpen((prev) => !prev);
+  const handleCloseMenu = () => setMenuOpen(false);
+
+  const syncMediaSound = useCallback(
+    (shouldTryPlay: boolean) => {
+      const targets = [backgroundVideoRef.current].filter(Boolean) as HTMLVideoElement[];
+      const muted = !(soundEnabled && hasInteracted);
+      targets.forEach((video) => {
+        video.muted = muted;
+        if (!muted && shouldTryPlay) {
+          const playPromise = video.play?.();
+          if (playPromise && typeof playPromise.catch === "function") {
+            playPromise.catch((err) => {
+              console.debug("[player] video play blocked", err);
+            });
+          }
+        }
+      });
+    },
+    [hasInteracted, soundEnabled]
+  );
 
   useLoadAdventureFonts(adventure?.props?.fontList, typography.fontFamily);
 
@@ -475,7 +697,7 @@ export function PlayerRuntime() {
     };
   }, [subtitleCandidates]);
 
-  const handleSubtitleError = () => {
+  const handleSubtitleError = useCallback(() => {
     setSubtitleStatus((prev) => {
       const attempted = prev.attempted.includes(subtitleUrl ?? "")
         ? prev.attempted
@@ -496,9 +718,9 @@ export function PlayerRuntime() {
       console.warn("[player] subtitles failed for all candidates", attempted);
       return { state: "error", attempted };
     });
-  };
+  }, [subtitleCandidates, subtitleUrl]);
 
-  const handleSubtitleLoad = () => {
+  const handleSubtitleLoad = useCallback(() => {
     setSubtitleStatus((prev) => {
       const attempted = prev.attempted.includes(subtitleUrl ?? "")
         ? prev.attempted
@@ -507,7 +729,7 @@ export function PlayerRuntime() {
           : prev.attempted;
       return { state: "ok", attempted };
     });
-  };
+  }, [subtitleUrl]);
 
   const referenceUrl =
     currentNodeKind === "reference" || currentNodeKind === "reference-tab"
@@ -515,15 +737,47 @@ export function PlayerRuntime() {
       : null;
 
   const videoSource = resolveVideoSource(currentNode);
-  const backgroundImage = videoSource ? null : currentNode?.image?.url ?? null;
-  const backgroundVideo = videoSource
-    ? {
-        src: videoSource,
-        subtitlesUrl: subtitleUrl,
-        onSubtitlesError: handleSubtitleError,
-        onSubtitlesLoad: handleSubtitleLoad,
-      }
-    : undefined;
+  const isVideoNode = currentNodeKind === "video";
+  const backgroundImage = isVideoNode
+    ? currentNode?.image?.url ?? null
+    : videoSource
+      ? null
+      : currentNode?.image?.url ?? null;
+  const backgroundVideo = useMemo(
+    () =>
+      videoSource
+        ? {
+            src: videoSource,
+            subtitlesUrl: subtitleUrl,
+            onSubtitlesError: handleSubtitleError,
+            onSubtitlesLoad: handleSubtitleLoad,
+            muted: !(soundEnabled && hasInteracted),
+            controls: isVideoNode,
+            videoRef: (node: HTMLVideoElement | null) => {
+              backgroundVideoRef.current = node;
+            },
+          }
+        : undefined,
+    [
+      handleSubtitleError,
+      handleSubtitleLoad,
+      hasInteracted,
+      isVideoNode,
+      soundEnabled,
+      subtitleUrl,
+      videoSource,
+    ]
+  );
+
+  useEffect(() => {
+    syncMediaSound(true);
+  }, [syncMediaSound, backgroundVideo?.src]);
+
+  useEffect(() => {
+    if (!backgroundVideo) {
+      backgroundVideoRef.current = null;
+    }
+  }, [backgroundVideo]);
 
   const resolvedMargins = layout.containerMarginsVw;
 
@@ -635,7 +889,44 @@ export function PlayerRuntime() {
   const playerClassName = cn(
     `ps-player--nav-${navigationConfig.style}`,
     navigationConfig.placement === "bottom" ? "ps-player--nav-bottom" : "",
-    navigationConfig.swipeMode ? "ps-player--swipe" : ""
+    navigationConfig.swipeMode ? "ps-player--swipe" : "",
+    isVideoNode ? "ps-player--videoplayer" : ""
+  );
+  const canGoBack = historyLength > 1;
+  const canGoHome = rootNodeId != null && currentNodeId !== rootNodeId;
+
+  const overlayContent = (
+    <div className="ps-overlay-shell space-y-2">
+      <PlayerOverlay
+        canGoBack={canGoBack}
+        canGoHome={canGoHome}
+        menuOpen={menuOpen}
+        highContrast={flags.highContrast}
+        hideBackground={flags.hideBackground}
+        soundEnabled={soundEnabled}
+        navigationStyle={navigationConfig.style}
+        navPlacement={navigationConfig.placement}
+        onBack={goBack}
+        onHome={goHome}
+        onToggleMenu={handleToggleMenu}
+        onCloseMenu={handleCloseMenu}
+        onToggleHighContrast={handleToggleHighContrast}
+        onToggleHideBackground={handleToggleHideBackground}
+        onToggleSound={handleToggleSound}
+        menuRef={menuRef}
+        showDebug={debugUi}
+      />
+      {debugUi ? (
+        <DevToggles
+          highContrast={flags.highContrast}
+          hideBackground={flags.hideBackground}
+          subtitleStatus={subtitleStatus}
+          showDebug={debugMedia}
+          onToggleHighContrast={handleToggleHighContrast}
+          onToggleHideBackground={handleToggleHideBackground}
+        />
+      ) : null}
+    </div>
   );
 
   const openReference = () => {
@@ -681,16 +972,7 @@ export function PlayerRuntime() {
         containerMarginsVw: resolvedMargins,
         textAlign: layout.textAlign,
       }}
-      overlay={
-        <DevToggles
-          highContrast={flags.highContrast}
-          hideBackground={flags.hideBackground}
-          subtitleStatus={subtitleStatus}
-          showDebug={debugMedia}
-          onToggleHighContrast={() => setDevHighContrast((prev) => !prev)}
-          onToggleHideBackground={() => setDevHideBackground((prev) => !prev)}
-        />
-      }
+      overlay={overlayContent}
     >
       <div className="ps-player__card">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -763,37 +1045,220 @@ export function PlayerRuntime() {
           onBack={goBack}
           disableBack={historyLength <= 1}
         />
-
-        <div className="flex flex-wrap items-center gap-2 pt-2">
-          <button
-            type="button"
-            onClick={goBack}
-            disabled={historyLength <= 1}
-            className={cn(
-              "rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold transition",
-              historyLength <= 1
-                ? "cursor-not-allowed opacity-60"
-                : "hover:border-[var(--player-accent,#fff)] hover:bg-white/15"
-            )}
-          >
-            Back
-          </button>
-          <button
-            type="button"
-            onClick={goHome}
-            disabled={!rootNodeId || historyLength <= 1}
-            className={cn(
-              "rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold transition",
-              !rootNodeId || historyLength <= 1
-                ? "cursor-not-allowed opacity-60"
-                : "hover:border-[var(--player-accent,#fff)] hover:bg-white/15"
-            )}
-          >
-            Home
-          </button>
-        </div>
       </div>
     </PlayerLayout>
+  );
+}
+
+function PlayerOverlay({
+  canGoBack,
+  canGoHome,
+  menuOpen,
+  highContrast,
+  hideBackground,
+  soundEnabled,
+  navigationStyle,
+  navPlacement,
+  onBack,
+  onHome,
+  onToggleMenu,
+  onCloseMenu,
+  onToggleHighContrast,
+  onToggleHideBackground,
+  onToggleSound,
+  menuRef,
+  showDebug,
+}: {
+  canGoBack: boolean;
+  canGoHome: boolean;
+  menuOpen: boolean;
+  highContrast: boolean;
+  hideBackground: boolean;
+  soundEnabled: boolean;
+  navigationStyle: NavStyle;
+  navPlacement: NavPlacement;
+  onBack: () => void;
+  onHome: () => void;
+  onToggleMenu: () => void;
+  onCloseMenu: () => void;
+  onToggleHighContrast: () => void;
+  onToggleHideBackground: () => void;
+  onToggleSound: () => void;
+  menuRef: MutableRefObject<HTMLDivElement | null>;
+  showDebug: boolean;
+}) {
+  return (
+    <div className="ps-overlay" data-menu-open={menuOpen ? "true" : undefined}>
+      <div className="ps-overlay__bar">
+        <div className="ps-overlay__group">
+          <OverlayButton
+            label="Back"
+            icon={<ArrowLeft aria-hidden />}
+            disabled={!canGoBack}
+            onClick={onBack}
+          />
+          <OverlayButton
+            label="Home"
+            icon={<Home aria-hidden />}
+            disabled={!canGoHome}
+            onClick={onHome}
+          />
+        </div>
+        <div className="ps-overlay__group">
+          <OverlayButton
+            label="Sound"
+            subtleLabel={soundEnabled ? "On" : "Muted"}
+            icon={soundEnabled ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
+            onClick={onToggleSound}
+            active={soundEnabled}
+            ariaPressed={soundEnabled}
+          />
+          <OverlayButton
+            label="Menu"
+            subtleLabel={menuOpen ? "Close" : "Open"}
+            icon={menuOpen ? <X aria-hidden /> : <MenuIcon aria-hidden />}
+            onClick={menuOpen ? onCloseMenu : onToggleMenu}
+            active={menuOpen}
+            ariaExpanded={menuOpen}
+          />
+        </div>
+      </div>
+
+      {menuOpen ? (
+        <>
+          <div className="ps-overlay__backdrop" onClick={onCloseMenu} />
+          <div
+            className="ps-overlay__panel"
+            ref={menuRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Player menu"
+          >
+            <div className="ps-overlay__panel-header">
+              <span className="ps-overlay__panel-title">Settings</span>
+              <button
+                type="button"
+                className="ps-overlay__panel-close"
+                onClick={onCloseMenu}
+                aria-label="Close menu"
+              >
+                <X aria-hidden />
+              </button>
+            </div>
+
+            <div className="ps-overlay__panel-body">
+              <OverlayToggleRow
+                label="High contrast"
+                description="Stronger contrast for text and UI"
+                value={highContrast}
+                onToggle={onToggleHighContrast}
+              />
+              <OverlayToggleRow
+                label="Hide background"
+                description="Disable background images or videos"
+                value={hideBackground}
+                onToggle={onToggleHideBackground}
+              />
+              <OverlayToggleRow
+                label="Sound"
+                description="Mute or enable music and effects"
+                value={soundEnabled}
+                onToggle={onToggleSound}
+              />
+            </div>
+
+            {showDebug ? (
+              <div className="ps-overlay__debug">
+                <p className="ps-overlay__debug-title">Debug</p>
+                <p className="ps-overlay__debug-row">
+                  HC {highContrast ? "on" : "off"} · BG {hideBackground ? "hidden" : "visible"} ·
+                  Sound {soundEnabled ? "on" : "muted"}
+                </p>
+                <p className="ps-overlay__debug-row">
+                  Nav {navigationStyle}
+                  {navPlacement === "bottom" ? " · bottom" : ""}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function OverlayButton({
+  icon,
+  label,
+  subtleLabel,
+  onClick,
+  disabled,
+  active,
+  ariaExpanded,
+  ariaPressed,
+}: {
+  icon: ReactNode;
+  label: string;
+  subtleLabel?: string;
+  onClick: () => void;
+  disabled?: boolean;
+  active?: boolean;
+  ariaExpanded?: boolean;
+  ariaPressed?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="ps-overlay__btn"
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      data-active={active ? "true" : undefined}
+      aria-expanded={ariaExpanded}
+      aria-pressed={ariaPressed}
+    >
+      <span className="ps-overlay__btn-icon" aria-hidden>
+        {icon}
+      </span>
+      <span className="ps-overlay__btn-text">
+        <span className="ps-overlay__btn-label">{label}</span>
+        {subtleLabel ? <span className="ps-overlay__btn-meta">{subtleLabel}</span> : null}
+      </span>
+    </button>
+  );
+}
+
+function OverlayToggleRow({
+  label,
+  description,
+  value,
+  onToggle,
+}: {
+  label: string;
+  description?: string;
+  value: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="ps-overlay__toggle"
+      role="switch"
+      aria-checked={value}
+      onClick={onToggle}
+    >
+      <div className="ps-overlay__toggle-text">
+        <span className="ps-overlay__toggle-label">{label}</span>
+        {description ? <span className="ps-overlay__toggle-desc">{description}</span> : null}
+      </div>
+      <span
+        className={cn(
+          "ps-overlay__pill",
+          value ? "ps-overlay__pill--on" : "ps-overlay__pill--off"
+        )}
+      >
+        {value ? "On" : "Off"}
+      </span>
+    </button>
   );
 }
 

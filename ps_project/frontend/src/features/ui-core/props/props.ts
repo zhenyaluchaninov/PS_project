@@ -304,13 +304,17 @@ const mapColors = (
 export const buildPropsStyle = ({
   adventureProps,
   nodeProps,
-  forceHighContrast = false,
-  forceHideBackground = false,
+  forceHighContrast,
+  forceHideBackground,
+  overrideHighContrast,
+  overrideHideBackground,
 }: {
   adventureProps?: PropsInput;
   nodeProps?: PropsInput;
   forceHighContrast?: boolean;
   forceHideBackground?: boolean;
+  overrideHighContrast?: boolean;
+  overrideHideBackground?: boolean;
 }): PropsResult => {
   const merged = {
     ...parsePropInput(adventureProps),
@@ -319,15 +323,17 @@ export const buildPropsStyle = ({
 
   const dataProps = collectDataProps(merged);
 
+  const computedHighContrast =
+    coerceValue(merged["high_contrast"]) === "true" ||
+    coerceValue(merged["settings_highcontrast"]) === "on";
+  const computedHideBackground =
+    coerceValue(merged["settings_hidebackground"]) === "on" ||
+    coerceValue(merged["hide_background"]) === "true";
+
   const flags = {
-    highContrast:
-      forceHighContrast ||
-      coerceValue(merged["high_contrast"]) === "true" ||
-      coerceValue(merged["settings_highcontrast"]) === "on",
+    highContrast: overrideHighContrast ?? (forceHighContrast ? true : undefined) ?? computedHighContrast,
     hideBackground:
-      forceHideBackground ||
-      coerceValue(merged["settings_hidebackground"]) === "on" ||
-      coerceValue(merged["hide_background"]) === "true",
+      overrideHideBackground ?? (forceHideBackground ? true : undefined) ?? computedHideBackground,
     grayscale:
       (coerceValue(merged["settings_grayscale"]) ?? "").toLowerCase() === "on",
   };

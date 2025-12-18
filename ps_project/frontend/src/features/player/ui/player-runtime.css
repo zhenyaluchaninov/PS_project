@@ -181,3 +181,302 @@
     padding: 1rem 1.05rem;
   }
 }
+
+.ps-overlay-shell {
+  padding: calc(clamp(10px, 2vw, 16px) + env(safe-area-inset-top, 0px))
+    clamp(14px, 3vw, 24px) 0 clamp(14px, 3vw, 24px);
+}
+
+.ps-overlay {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: inherit;
+}
+
+.ps-overlay__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 3;
+}
+
+.ps-overlay__group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ps-overlay__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: color-mix(
+    in srgb,
+    rgba(0, 0, 0, 0.6) 70%,
+    var(--player-text-bg, rgba(0, 0, 0, 0.25))
+  );
+  color: inherit;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, opacity 140ms ease;
+  box-shadow: 0 14px 60px -40px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px) saturate(115%);
+}
+
+.ps-overlay__btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--player-accent, rgba(255, 255, 255, 0.7));
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.ps-overlay__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ps-overlay__btn[data-active="true"] {
+  border-color: var(--player-accent, rgba(255, 255, 255, 0.85));
+  background: color-mix(
+    in srgb,
+    rgba(255, 255, 255, 0.12) 60%,
+    var(--player-text-bg, rgba(0, 0, 0, 0.25))
+  );
+}
+
+.ps-overlay__btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+}
+
+.ps-overlay__btn-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ps-overlay__btn-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.ps-overlay__btn-label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ps-overlay__btn-meta {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.ps-overlay__backdrop {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  z-index: 2;
+}
+
+.ps-overlay__panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(360px, calc(100% - clamp(28px, 8vw, 60px)));
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: color-mix(
+    in srgb,
+    rgba(0, 0, 0, 0.75) 80%,
+    var(--player-text-bg, rgba(0, 0, 0, 0.3))
+  );
+  box-shadow: 0 18px 80px -40px rgba(0, 0, 0, 0.9);
+  padding: 14px;
+  z-index: 4;
+  backdrop-filter: blur(12px) saturate(120%);
+}
+
+.ps-overlay__panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.ps-overlay__panel-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  opacity: 0.8;
+  font-weight: 700;
+}
+
+.ps-overlay__panel-close {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.ps-overlay__panel-close:hover {
+  border-color: var(--player-accent, rgba(255, 255, 255, 0.9));
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ps-overlay__panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ps-overlay__toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  text-align: left;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.ps-overlay__toggle:hover {
+  border-color: var(--player-accent, rgba(255, 255, 255, 0.7));
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+}
+
+.ps-overlay__toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ps-overlay__toggle-label {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.ps-overlay__toggle-desc {
+  font-size: 12px;
+  opacity: 0.72;
+}
+
+.ps-overlay__pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 56px;
+  text-align: center;
+}
+
+.ps-overlay__pill--on {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--player-accent, rgba(255, 255, 255, 0.7));
+}
+
+.ps-overlay__pill--off {
+  opacity: 0.7;
+}
+
+.ps-overlay__debug {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.ps-overlay__debug-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin: 0 0 4px 0;
+  opacity: 0.8;
+}
+
+.ps-overlay__debug-row {
+  margin: 2px 0;
+}
+
+@media (max-width: 780px) {
+  .ps-overlay__bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ps-overlay__group {
+    justify-content: space-between;
+  }
+
+  .ps-overlay__btn {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .ps-overlay__panel {
+    right: clamp(6px, 4vw, 14px);
+    width: min(420px, calc(100% - clamp(12px, 8vw, 32px)));
+  }
+}
+
+.ps-player--videoplayer .ps-player__media {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ps-player--videoplayer .ps-player__video {
+  object-fit: var(--player-object-fit, cover);
+}
+
+.ps-player--videoplayer .ps-player__content {
+  padding-top: clamp(18px, 5vw, 38px);
+  padding-bottom: clamp(140px, 18vw, 220px);
+  pointer-events: none;
+}
+
+.ps-player--videoplayer .ps-player__card {
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+  background: color-mix(in srgb, var(--player-text-bg, rgba(0, 0, 0, 0.35)) 85%, rgba(0, 0, 0, 0.35));
+  pointer-events: auto;
+}
+
+.ps-player--videoplayer .ps-player__floating {
+  z-index: 35;
+}
+
+.ps-player--videoplayer .ps-overlay__bar {
+  z-index: 36;
+}
+
+.ps-player--videoplayer .ps-player__outer {
+  pointer-events: none;
+}
+
+.ps-player--videoplayer .ps-player__body {
+  pointer-events: auto;
+}

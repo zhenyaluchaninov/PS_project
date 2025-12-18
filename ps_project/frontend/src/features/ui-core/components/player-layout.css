@@ -16,6 +16,11 @@
   inset: 0;
   z-index: 0;
   overflow: hidden;
+  pointer-events: none;
+}
+
+.ps-player__media[data-interactive="true"] {
+  pointer-events: auto;
 }
 
 .ps-player__media[data-hidden="true"] {
@@ -41,6 +46,11 @@
   object-fit: var(--player-object-fit, cover);
   filter: var(--player-media-filter, none);
   background: #000;
+  pointer-events: none;
+}
+
+.ps-player__video[data-interactive="true"] {
+  pointer-events: auto;
 }
 
 .ps-player__overlay {
@@ -79,6 +89,8 @@
   padding: 0 clamp(14px, 4vw, 32px);
   margin: 0 auto;
   box-sizing: border-box;
+  position: relative;
+  z-index: 10;
 }
 
 .ps-player__body {
@@ -167,6 +179,10 @@
 
 .ps-player__floating > * {
   pointer-events: auto;
+}
+
+.ps-player--videoplayer .ps-player__floating {
+  z-index: 35;
 }
 
 .ps-player[data-hide-bg="true"] .ps-player__bg-image,
