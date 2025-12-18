@@ -34,6 +34,7 @@ import {
   resolveVideoSource,
   type NodeKind,
 } from "../engine/playerEngine";
+import { useViewportDevice } from "./useViewportDevice";
 
 const paramIsTruthy = (value?: string | null) =>
   value ? ["1", "true", "yes", "on"].includes(value.toLowerCase()) : false;
@@ -279,7 +280,6 @@ export function PlayerRuntime() {
   const [devHideBackground, setDevHideBackground] = useState(
     paramIsTruthy(searchParams?.get("hideBg") ?? searchParams?.get("hidebg"))
   );
-  const [orientation, setOrientation] = useState<"portrait" | "landscape">("landscape");
   const [subtitleUrl, setSubtitleUrl] = useState<string | null>(null);
   const [subtitleStatus, setSubtitleStatus] = useState<SubtitleStatus>({
     state: "idle",
@@ -292,6 +292,8 @@ export function PlayerRuntime() {
   const debugLayout = paramIsTruthy(
     searchParams?.get("debugLayout") ?? searchParams?.get("debuglayout")
   );
+
+  useViewportDevice({ targetSelector: ".ps-player" });
 
   useEffect(() => {
     setDevHighContrast(
@@ -307,33 +309,6 @@ export function PlayerRuntime() {
       start();
     }
   }, [currentNode, start]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const updateMetrics = () => {
-      if (typeof window === "undefined") return;
-      const vh = window.innerHeight * 0.01;
-      document.documentElement.style.setProperty("--vh", `${vh}px`);
-      setOrientation(window.innerHeight > window.innerWidth ? "portrait" : "landscape");
-    };
-
-    let resizeTimer: number | undefined;
-    const handleResize = () => {
-      if (resizeTimer) window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(updateMetrics, 140);
-    };
-
-    updateMetrics();
-    window.addEventListener("resize", handleResize);
-    window.addEventListener("orientationchange", handleResize);
-
-    return () => {
-      if (resizeTimer) window.clearTimeout(resizeTimer);
-      window.removeEventListener("resize", handleResize);
-      window.removeEventListener("orientationchange", handleResize);
-    };
-  }, []);
 
   useEffect(() => {
     if (!debugLayout) return;
@@ -658,7 +633,6 @@ export function PlayerRuntime() {
   ]);
 
   const playerClassName = cn(
-    `ps-player--${orientation}`,
     `ps-player--nav-${navigationConfig.style}`,
     navigationConfig.placement === "bottom" ? "ps-player--nav-bottom" : "",
     navigationConfig.swipeMode ? "ps-player--swipe" : ""

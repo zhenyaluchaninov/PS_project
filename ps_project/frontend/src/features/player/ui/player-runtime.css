@@ -57,6 +57,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
 }
 
@@ -78,6 +80,26 @@
 .ps-player__choice.btn-pressed {
   transform: translateY(1px) scale(0.995);
   opacity: 0.92;
+}
+
+.ps-player__choice {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ps-player[data-hover="none"] .ps-nav__arrow:hover,
+.ps-player[data-hover="none"] .ps-player__choice:hover,
+:root[data-hover="none"] .ps-nav__arrow:hover,
+:root[data-hover="none"] .ps-player__choice:hover {
+  transform: none;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+@media (hover: none) {
+  .ps-nav__arrow:hover,
+  .ps-player__choice:hover {
+    transform: none;
+  }
 }
 
 .ps-nav[data-nav-style="swipe"] .ps-nav__arrow--down svg {
@@ -107,9 +129,10 @@
 
 .ps-nav[data-nav-placement="bottom"] {
   position: sticky;
-  bottom: clamp(12px, 4vw, 28px);
+  bottom: calc(clamp(12px, 4vw, 28px) + env(safe-area-inset-bottom, 0px));
   z-index: 15;
   padding: clamp(6px, 1vw, 10px) clamp(8px, 2vw, 14px);
+  padding-bottom: calc(clamp(8px, 2vw, 14px) + env(safe-area-inset-bottom, 0px));
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: color-mix(
@@ -121,7 +144,7 @@
 }
 
 .ps-player--nav-bottom .ps-player__card {
-  padding-bottom: clamp(24px, 5vw, 40px);
+  padding-bottom: calc(clamp(24px, 5vw, 40px) + env(safe-area-inset-bottom, 0px));
 }
 
 @media (max-width: 700px) {
@@ -130,11 +153,31 @@
   }
 
   .ps-nav__arrow {
-    min-width: 44px;
-    min-height: 44px;
+    min-width: 48px;
+    min-height: 48px;
   }
 
   .ps-nav__choices--compact .ps-player__choice {
     max-width: 100%;
+  }
+}
+
+.ps-player[data-input="touch"] .ps-nav__arrow {
+  min-width: 56px;
+  min-height: 56px;
+}
+
+.ps-player[data-input="touch"] .ps-player__choice {
+  padding: 1rem 1.05rem;
+}
+
+@media (pointer: coarse) {
+  .ps-nav__arrow {
+    min-width: 56px;
+    min-height: 56px;
+  }
+
+  .ps-player__choice {
+    padding: 1rem 1.05rem;
   }
 }

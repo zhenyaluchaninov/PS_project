@@ -772,7 +772,7 @@ web/ps_player.html           # Loads viewer + markdown helper + props
 
 ---
 
-### Step 14 - Player layout, props & responsive behavior
+### [done] Step 14 - Player layout, props & responsive behavior
 
 **What we do**
 

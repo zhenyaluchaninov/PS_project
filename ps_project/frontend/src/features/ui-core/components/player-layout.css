@@ -1,12 +1,13 @@
 .ps-player {
   position: relative;
   width: 100%;
-  min-height: 100dvh;
-  min-height: calc(var(--vh, 1vh) * 100);
+  --player-safe-height: var(--player-viewport-height, calc(var(--vh, 1vh) * 100));
+  min-height: var(--player-safe-height);
   color: var(--player-text, var(--text, #ffffff));
   background: var(--player-bg, #000000);
   overflow-x: hidden;
-  overflow-y: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   isolation: isolate;
 }
 
@@ -52,13 +53,15 @@
 .ps-player__outer {
   position: relative;
   z-index: 10;
-  min-height: 100dvh;
-  min-height: calc(var(--vh, 1vh) * 100);
+  min-height: var(--player-safe-height);
   width: 100%;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  padding: clamp(14px, 2vw, 32px) 0 clamp(24px, 4vw, 40px);
+  padding-top: calc(clamp(14px, 2vw, 32px) + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(clamp(24px, 4vw, 40px) + env(safe-area-inset-bottom, 0px));
+  padding-left: 0;
+  padding-right: 0;
   box-sizing: border-box;
 }
 
@@ -83,6 +86,7 @@
   text-shadow: var(--player-text-shadow, none);
   overflow-wrap: anywhere;
   word-break: break-word;
+  min-height: 0;
 }
 
 .ps-player__card {
@@ -175,6 +179,19 @@
   background: transparent;
 }
 
+.ps-player[data-orientation="landscape"] .ps-player__outer {
+  padding-top: calc(clamp(10px, 2vh, 20px) + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(clamp(18px, 3vh, 28px) + env(safe-area-inset-bottom, 0px));
+}
+
+.ps-player[data-orientation="landscape"] .ps-player__content {
+  max-width: min(1160px, 100%);
+}
+
+.ps-player[data-orientation="portrait"] .ps-player__content {
+  max-width: min(1020px, 100%);
+}
+
 @media (max-width: 700px) {
   .ps-player__card {
     border-radius: 14px;
@@ -192,7 +209,7 @@
   }
 
   .ps-player__outer {
-    padding-top: clamp(18px, 6vw, 32px);
-    padding-bottom: clamp(32px, 8vw, 48px);
+    padding-top: calc(clamp(18px, 6vw, 32px) + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(clamp(32px, 8vw, 48px) + env(safe-area-inset-bottom, 0px));
   }
 }
