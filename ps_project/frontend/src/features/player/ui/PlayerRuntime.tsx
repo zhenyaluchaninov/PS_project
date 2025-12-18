@@ -1,14 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { useSearchParams } from "next/navigation";
-import type { AdventurePropsModel, NodeModel } from "@/domain/models";
+import type { AdventurePropsModel, LinkModel, NodeModel } from "@/domain/models";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { LegacyContent } from "@/features/ui-core/components/LegacyContent";
 import { PlayerLayout } from "@/features/ui-core/components/PlayerLayout";
 import { buildPropsStyle } from "@/features/ui-core/props";
 import { Button } from "@/features/ui-core/primitives";
 import { toastError } from "@/features/ui-core/toast";
 import { cn } from "@/lib/utils";
+import "./player-runtime.css";
 import {
   selectPlayerAdventure,
   selectPlayerCurrentNode,
@@ -127,6 +135,126 @@ const resolveSubtitleCandidates = (
   return candidates;
 };
 
+type NavStyle = "default" | "right" | "leftright" | "noButtons" | "swipe" | "swipeWithButton";
+type NavPlacement = "inline" | "bottom";
+
+type NavItem = { kind: "link"; link: LinkModel } | { kind: "current" };
+type NavigationButton = {
+  key: string;
+  label: string;
+  meta?: string;
+  linkId?: number;
+  targetNodeId?: number;
+  disabled?: boolean;
+  isCurrent?: boolean;
+};
+
+type NavigationModel = {
+  buttons: NavigationButton[];
+  primaryLinkId?: number;
+};
+
+const normalizeNavStyle = (raw?: string | null): NavStyle | null => {
+  if (raw === null || raw === undefined) return null;
+  let asString: string | null = null;
+  if (typeof raw === "string") {
+    asString = raw;
+  } else if (Array.isArray(raw)) {
+    const first = raw.find((item) => typeof item === "string") as string | undefined;
+    asString = first ?? null;
+  } else {
+    asString = String(raw);
+  }
+  const key = asString?.toLowerCase().trim() ?? "";
+  if (!key) return null;
+  if (key === "right") return "right";
+  if (key === "leftright" || key === "left-right" || key === "left_right") return "leftright";
+  if (key === "nobuttons" || key === "no-buttons" || key === "no") return "noButtons";
+  if (key === "swipewithbutton" || key === "swipe-with-button") return "swipeWithButton";
+  if (key === "swipe") return "swipe";
+  return "default";
+};
+
+const tokenize = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(/[,\s]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  if (value === undefined || value === null) return [];
+  const str = String(value).trim();
+  return str ? [str] : [];
+};
+
+const readRawProp = (raw: Record<string, unknown> | null | undefined, keys: string[]) => {
+  if (!raw) return undefined;
+  for (const key of keys) {
+    const variants = [key, key.replace(/\./g, "_"), key.replace(/\./g, "-")];
+    for (const variant of variants) {
+      if (variant in raw) {
+        return raw[variant];
+      }
+    }
+  }
+  return undefined;
+};
+
+const parseOrderedLinkIds = (value: unknown): number[] => {
+  const tokens = tokenize(value);
+  return tokens
+    .map((token) => Number(token))
+    .filter((num) => Number.isFinite(num))
+    .map((num) => Number(num));
+};
+
+const hasHideVisitedCondition = (node?: NodeModel | null): boolean => {
+  if (!node?.rawProps) return false;
+  const conditions = tokenize(
+    readRawProp(node.rawProps, ["node_conditions", "nodeConditions", "node-conditions"])
+  ).map((token) => token.toLowerCase());
+  return conditions.includes("hide_visited");
+};
+
+const applyOrder = <T,>(
+  items: T[],
+  order: number[] | null | undefined,
+  getId: (item: T) => number
+) => {
+  if (!order || order.length === 0) return items;
+
+  const ordered: T[] = [];
+  const used = new Set<number>();
+
+  order.forEach((rawId) => {
+    const id = Number(rawId);
+    if (!Number.isFinite(id) || used.has(id)) return;
+    const found = items.find((item) => getId(item) === id);
+    if (found) {
+      ordered.push(found);
+      used.add(id);
+    }
+  });
+
+  items.forEach((item) => {
+    const id = getId(item);
+    if (!used.has(id)) ordered.push(item);
+  });
+
+  return ordered;
+};
+
+const addPressedClass = (event: ReactPointerEvent<HTMLElement>) => {
+  event.currentTarget.classList.add("btn-pressed");
+};
+
+const removePressedClass = (event: ReactPointerEvent<HTMLElement>) => {
+  event.currentTarget.classList.remove("btn-pressed");
+};
+
 export function PlayerRuntime() {
   const searchParams = useSearchParams();
   const adventure = usePlayerStore(selectPlayerAdventure);
@@ -138,6 +266,7 @@ export function PlayerRuntime() {
   const visitedCount = usePlayerStore(selectPlayerVisitedCount);
   const progress = usePlayerStore(selectPlayerProgress);
   const rootNodeId = usePlayerStore(selectPlayerRootNodeId);
+  const visitedNodes = usePlayerStore((s) => s.visited);
   const chooseLink = usePlayerStore((s) => s.chooseLink);
   const start = usePlayerStore((s) => s.start);
   const getNodeById = usePlayerStore((s) => s.getNodeById);
@@ -237,6 +366,72 @@ export function PlayerRuntime() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, [debugLayout]);
+
+  const navOverrides = useMemo(
+    () => {
+      const styleOverride = normalizeNavStyle(
+        searchParams?.get("navStyle") ??
+          searchParams?.get("navstyle") ??
+          searchParams?.get("nav")
+      );
+      const bottomOverride = paramIsTruthy(
+        searchParams?.get("navBottom") ?? searchParams?.get("navbottom")
+      );
+      const showCurrentOverride =
+        searchParams && (searchParams.has("navShowCurrent") || searchParams.has("navCurrent"))
+          ? paramIsTruthy(searchParams.get("navShowCurrent") ?? searchParams.get("navCurrent"))
+          : undefined;
+      const hideVisitedOverride =
+        searchParams && (searchParams.has("navHideVisited") || searchParams.has("navHide"))
+          ? paramIsTruthy(searchParams.get("navHideVisited") ?? searchParams.get("navHide"))
+          : undefined;
+      return { styleOverride, bottomOverride, showCurrentOverride, hideVisitedOverride };
+    },
+    [searchParams]
+  );
+
+  const navigationConfig = useMemo(() => {
+    const navSettingsTokens = tokenize(
+      readRawProp(currentNode?.rawProps, [
+        "playerNavigation.settings",
+        "playerNavigation_settings",
+        "playerNavigationSettings",
+      ])
+    ).map((token) => token.toLowerCase());
+
+    const styleFromProps = normalizeNavStyle(
+      readRawProp(currentNode?.rawProps, [
+        "background.navigation_style",
+        "navigation_style",
+        "backgroundNavigationStyle",
+      ]) as string | undefined
+    );
+
+    const style: NavStyle = navOverrides.styleOverride ?? styleFromProps ?? "default";
+    const placement: NavPlacement =
+      navOverrides.bottomOverride || navSettingsTokens.includes("bottom-navigation")
+        ? "bottom"
+        : "inline";
+    const showCurrent =
+      navOverrides.showCurrentOverride ?? navSettingsTokens.includes("show-current-node");
+    const hideVisited =
+      (navOverrides.hideVisitedOverride ?? false) || navSettingsTokens.includes("hide-visited");
+    const orderedIds = parseOrderedLinkIds(
+      readRawProp(currentNode?.rawProps, ["ordered_link_ids", "button_order", "button-order"])
+    );
+    const skipCount = style === "default" || style === "swipeWithButton" ? 0 : 1;
+    const swipeMode = style === "swipe" || style === "swipeWithButton";
+
+    return {
+      style,
+      placement,
+      showCurrent,
+      orderedIds,
+      skipCount,
+      hideVisited,
+      swipeMode,
+    };
+  }, [currentNode?.rawProps, navOverrides]);
 
   const propsResult = useMemo(
     () =>
@@ -366,6 +561,109 @@ export function PlayerRuntime() {
     .join(" ")
     .trim();
 
+  const navigationModel = useMemo<NavigationModel>(() => {
+    // Preserve API ordering for deterministic fallback when no custom order is defined.
+    const baseItems: NavItem[] = outgoingLinks.map((link) => ({ kind: "link", link }));
+    if (navigationConfig.showCurrent && currentNode) {
+      baseItems.push({ kind: "current" });
+    }
+
+    const orderedItems = applyOrder(
+      baseItems,
+      navigationConfig.orderedIds,
+      (item) => (item.kind === "current" ? -1 : item.link.linkId)
+    );
+
+    const shouldHideLink = (link: LinkModel) => {
+      const targetNode = getNodeById(link.toNodeId);
+      if (!targetNode) return false;
+      const visited = visitedNodes.has(targetNode.nodeId);
+      if (!visited) return false;
+      const nodeWantsHide = hasHideVisitedCondition(targetNode);
+      return nodeWantsHide || navigationConfig.hideVisited;
+    };
+
+    const firstUsableLink = orderedItems.find((item) => {
+      if (item.kind !== "link") return false;
+      if (shouldHideLink(item.link)) return false;
+      const targetNode = getNodeById(item.link.toNodeId);
+      return Boolean(item.link.toNodeId && targetNode);
+    });
+
+    if (navigationConfig.style === "noButtons") {
+      return {
+        buttons: [],
+        primaryLinkId: firstUsableLink && firstUsableLink.kind === "link"
+          ? firstUsableLink.link.linkId
+          : undefined,
+      };
+    }
+
+    let skip = navigationConfig.skipCount;
+    const buttons: NavigationButton[] = [];
+
+    orderedItems.forEach((item) => {
+      if (skip > 0) {
+        skip -= 1;
+        return;
+      }
+
+      if (item.kind === "current") {
+        buttons.push({
+          key: "current",
+          label: currentNode?.title || "Current node",
+          meta: "You are here",
+          isCurrent: true,
+        });
+        return;
+      }
+
+      const link = item.link;
+      const targetNode = getNodeById(link.toNodeId);
+      if (shouldHideLink(link)) return;
+
+      const isBroken = !link.toNodeId || !targetNode;
+      const label =
+        link.label && link.label.trim().length > 0
+          ? link.label.trim()
+          : targetNode?.title || `Continue ${buttons.length + 1}`;
+
+      buttons.push({
+        key: String(link.linkId),
+        label,
+        meta: isBroken ? "No target" : `-> Node ${link.toNodeId}`,
+        linkId: link.linkId,
+        targetNodeId: link.toNodeId,
+        disabled: isBroken,
+      });
+    });
+
+    return {
+      buttons,
+      primaryLinkId:
+        firstUsableLink && firstUsableLink.kind === "link"
+          ? firstUsableLink.link.linkId
+          : undefined,
+    };
+  }, [
+    outgoingLinks,
+    navigationConfig.showCurrent,
+    navigationConfig.orderedIds,
+    navigationConfig.style,
+    navigationConfig.hideVisited,
+    navigationConfig.skipCount,
+    currentNode,
+    getNodeById,
+    visitedNodes,
+  ]);
+
+  const playerClassName = cn(
+    `ps-player--${orientation}`,
+    `ps-player--nav-${navigationConfig.style}`,
+    navigationConfig.placement === "bottom" ? "ps-player--nav-bottom" : "",
+    navigationConfig.swipeMode ? "ps-player--swipe" : ""
+  );
+
   const openReference = () => {
     if (!referenceUrl) {
       toastError("Missing link", "No URL found for this reference node.");
@@ -387,6 +685,7 @@ export function PlayerRuntime() {
 
   return (
     <PlayerLayout
+      className={playerClassName}
       style={propsStyle}
       overlayColor={flags.hideBackground ? null : typography.overlayColor ?? undefined}
       backgroundImage={backgroundImage}
@@ -475,45 +774,21 @@ export function PlayerRuntime() {
           <span>Progress {progress}%</span>
         </div>
 
-        <div className="ps-player__choices">
-          {currentNode && outgoingLinks.length > 0 ? (
-            outgoingLinks.map((link, idx) => {
-              const targetNode = getNodeById(link.toNodeId);
-              const isBroken = !link.toNodeId || !targetNode;
-              return (
-                <button
-                  key={link.linkId}
-                  type="button"
-                  onClick={() => chooseLink(link.linkId)}
-                  aria-disabled={isBroken}
-                  className={cn(
-                    "ps-player__choice",
-                    isBroken ? "cursor-not-allowed opacity-60" : ""
-                  )}
-                  disabled={isBroken}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex flex-col">
-                      <span className="font-semibold">
-                        {link.label && link.label.trim().length > 0
-                          ? link.label
-                          : targetNode?.title || `Continue ${idx + 1}`}
-                      </span>
-                      {isBroken ? (
-                        <span className="text-xs opacity-75 text-red-200">Broken link</span>
-                      ) : null}
-                    </div>
-                    <span className="text-xs opacity-75">
-                      {isBroken ? "No target" : `-> Node ${link.toNodeId}`}
-                    </span>
-                  </div>
-                </button>
-              );
-            })
-          ) : (
-            <p className="text-sm opacity-75">No outgoing links.</p>
-          )}
-        </div>
+        <NavigationArea
+          navStyle={navigationConfig.style}
+          navPlacement={navigationConfig.placement}
+          swipeMode={navigationConfig.swipeMode}
+          buttons={navigationModel.buttons}
+          primaryLinkId={navigationModel.primaryLinkId}
+          showLeftArrow={navigationConfig.style === "leftright"}
+          showRightArrow={
+            navigationConfig.style === "leftright" || navigationConfig.style === "right"
+          }
+          showDownArrow={navigationConfig.style === "swipe"}
+          onChooseLink={(linkId) => chooseLink(linkId)}
+          onBack={goBack}
+          disableBack={historyLength <= 1}
+        />
 
         <div className="flex flex-wrap items-center gap-2 pt-2">
           <button
@@ -545,6 +820,165 @@ export function PlayerRuntime() {
         </div>
       </div>
     </PlayerLayout>
+  );
+}
+
+function NavigationArea({
+  navStyle,
+  navPlacement,
+  swipeMode,
+  buttons,
+  primaryLinkId,
+  showLeftArrow,
+  showRightArrow,
+  showDownArrow,
+  onChooseLink,
+  onBack,
+  disableBack,
+}: {
+  navStyle: NavStyle;
+  navPlacement: NavPlacement;
+  swipeMode: boolean;
+  buttons: NavigationButton[];
+  primaryLinkId?: number;
+  showLeftArrow: boolean;
+  showRightArrow: boolean;
+  showDownArrow: boolean;
+  onChooseLink: (linkId: number) => void;
+  onBack: () => void;
+  disableBack: boolean;
+}) {
+  const hasButtons = buttons.length > 0;
+  const hasArrows = showLeftArrow || showRightArrow || showDownArrow;
+  const shouldShowEmptyState = !hasButtons && navStyle !== "noButtons";
+
+  if (!hasButtons && !hasArrows && !shouldShowEmptyState) {
+    return null;
+  }
+
+  return (
+    <div
+      className="ps-nav"
+      data-nav-style={navStyle}
+      data-nav-placement={navPlacement}
+      data-swipe-mode={swipeMode ? navStyle : undefined}
+      data-nav-empty={!hasButtons ? "true" : undefined}
+    >
+      <div className="ps-nav__bar" data-has-arrows={hasArrows ? "true" : undefined}>
+        {showLeftArrow ? (
+          <NavArrowButton
+            label="Previous"
+            icon={<ChevronLeft aria-hidden />}
+            onClick={onBack}
+            disabled={disableBack}
+          />
+        ) : null}
+
+        <div
+          className={cn(
+            "ps-nav__choices ps-player__choices",
+            navStyle === "right" ? "ps-nav__choices--right" : "",
+            navStyle === "leftright" ? "ps-nav__choices--compact" : ""
+          )}
+        >
+          {hasButtons ? (
+            buttons.map((button) => (
+              <button
+                key={button.key}
+                type="button"
+                className={cn(
+                  "ps-player__choice ps-nav__choice",
+                  button.isCurrent ? "ps-nav__choice--current" : "",
+                  button.disabled ? "cursor-not-allowed opacity-60" : ""
+                )}
+                onClick={
+                  button.disabled || !button.linkId || button.isCurrent
+                    ? undefined
+                    : () => {
+                        if (button.linkId) onChooseLink(button.linkId);
+                      }
+                }
+                onPointerDown={button.disabled || button.isCurrent ? undefined : addPressedClass}
+                onPointerUp={removePressedClass}
+                onPointerLeave={removePressedClass}
+                onPointerCancel={removePressedClass}
+                disabled={button.disabled || button.isCurrent}
+                aria-disabled={button.disabled || button.isCurrent}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col">
+                    <span className="font-semibold">{button.label}</span>
+                    {button.isCurrent ? (
+                      <span className="text-xs opacity-75">Current node</span>
+                    ) : button.disabled ? (
+                      <span className="text-xs opacity-75 text-red-200">Broken link</span>
+                    ) : null}
+                  </div>
+                  {button.meta ? (
+                    <span className="text-xs opacity-75">{button.meta}</span>
+                  ) : null}
+                </div>
+              </button>
+            ))
+          ) : (
+            <p className="text-sm opacity-75">No outgoing links.</p>
+          )}
+        </div>
+
+        {showRightArrow ? (
+          <NavArrowButton
+            label="Next"
+            icon={<ChevronRight aria-hidden />}
+            disabled={!primaryLinkId}
+            onClick={() => {
+              if (primaryLinkId) onChooseLink(primaryLinkId);
+            }}
+          />
+        ) : null}
+
+        {showDownArrow ? (
+          <NavArrowButton
+            label="Continue"
+            className="ps-nav__arrow--down"
+            icon={<ChevronDown aria-hidden />}
+            disabled={!primaryLinkId}
+            onClick={() => {
+              if (primaryLinkId) onChooseLink(primaryLinkId);
+            }}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function NavArrowButton({
+  label,
+  icon,
+  className,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  icon: ReactNode;
+  className?: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn("ps-nav__arrow", className)}
+      onClick={disabled ? undefined : onClick}
+      onPointerDown={disabled ? undefined : addPressedClass}
+      onPointerUp={removePressedClass}
+      onPointerLeave={removePressedClass}
+      onPointerCancel={removePressedClass}
+      disabled={disabled}
+      aria-label={label}
+    >
+      {icon}
+    </button>
   );
 }
 
@@ -633,7 +1067,7 @@ function DevToggles({
           </button>
         </div>
         <span className="rounded-md bg-black/40 px-2 py-1 text-[10px] text-white/80">
-          Query params: hc=1 hideBg=1 debugMedia=1
+          Query params: hc=1 hideBg=1 debugMedia=1 navStyle=leftright navCurrent=1 navHideVisited=1 navBottom=1
         </span>
       </div>
 
