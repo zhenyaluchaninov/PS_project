@@ -59,7 +59,10 @@ export function PlayerLayout({
     containerStyle.maxWidth = `${layout.containerWidthVw}vw`;
     containerStyle.marginLeft = "auto";
     containerStyle.marginRight = "auto";
-  } else if (layout?.containerMarginsVw) {
+  } else if (
+    layout?.containerMarginsVw &&
+    (layout.containerMarginsVw[0] > 0 || layout.containerMarginsVw[1] > 0)
+  ) {
     containerStyle.marginLeft = `${layout.containerMarginsVw[0]}vw`;
     containerStyle.marginRight = `${layout.containerMarginsVw[1]}vw`;
   }

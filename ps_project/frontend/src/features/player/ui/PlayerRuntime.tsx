@@ -160,6 +160,9 @@ export function PlayerRuntime() {
   const debugMedia = paramIsTruthy(
     searchParams?.get("debugMedia") ?? searchParams?.get("debugmedia")
   );
+  const debugLayout = paramIsTruthy(
+    searchParams?.get("debugLayout") ?? searchParams?.get("debuglayout")
+  );
 
   useEffect(() => {
     setDevHighContrast(
@@ -202,6 +205,38 @@ export function PlayerRuntime() {
       window.removeEventListener("orientationchange", handleResize);
     };
   }, []);
+
+  useEffect(() => {
+    if (!debugLayout) return;
+    if (typeof window === "undefined") return;
+
+    const logLayout = () => {
+      const root = document.querySelector<HTMLElement>(".ps-player");
+      const content = document.querySelector<HTMLElement>(".ps-player__content");
+      if (!root || !content) return;
+
+      const contentRect = content.getBoundingClientRect();
+      console.info("[player][debugLayout]", {
+        root: {
+          scrollWidth: root.scrollWidth,
+          clientWidth: root.clientWidth,
+          offsetWidth: root.offsetWidth,
+          windowInnerWidth: window.innerWidth,
+        },
+        contentRect: {
+          width: contentRect.width,
+          left: contentRect.left,
+          right: contentRect.right,
+          x: contentRect.x,
+        },
+      });
+    };
+
+    const handleResize = () => window.requestAnimationFrame(logLayout);
+    logLayout();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [debugLayout]);
 
   const propsResult = useMemo(
     () =>
@@ -320,10 +355,7 @@ export function PlayerRuntime() {
       }
     : undefined;
 
-  const resolvedMargins =
-    layout.containerWidthVw || orientation === "landscape"
-      ? layout.containerMarginsVw
-      : ([6, 6] as [number, number]);
+  const resolvedMargins = layout.containerMarginsVw;
 
   const contentDataProps = [
     dataProps.player_container,

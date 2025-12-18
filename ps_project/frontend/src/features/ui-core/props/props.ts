@@ -371,8 +371,8 @@ export const buildPropsStyle = ({
       containerWidthCandidates[1],
     ];
   } else {
-    const marginLeft = coerceNumber(merged["player_container_marginleft"], 18);
-    const marginRight = coerceNumber(merged["player_container_marginright"], 18);
+    const marginLeft = coerceNumber(merged["player_container_marginleft"]);
+    const marginRight = coerceNumber(merged["player_container_marginright"]);
     containerMarginsVw =
       marginLeft != null && marginRight != null
         ? [marginLeft, marginRight]
