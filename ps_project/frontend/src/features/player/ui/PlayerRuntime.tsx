@@ -11,7 +11,7 @@ import {
   type MutableRefObject,
 } from "react";
 import { useSearchParams, type ReadonlyURLSearchParams } from "next/navigation";
-import type { AdventurePropsModel, LinkModel, NodeModel } from "@/domain/models";
+import type { AdventureModel, AdventurePropsModel, LinkModel, NodeModel } from "@/domain/models";
 import {
   ArrowLeft,
   ChevronDown,
@@ -48,6 +48,12 @@ import {
   resolveVideoSource,
   type NodeKind,
 } from "../engine/playerEngine";
+import {
+  createAudioEngine,
+  type AudioEngine,
+  type AudioDebugSnapshot,
+  type AudioSourceConfig,
+} from "../media/audioEngine";
 import { useViewportDevice } from "./useViewportDevice";
 
 const paramIsTruthy = (value?: string | null) =>
@@ -180,7 +186,7 @@ const getRawSubtitlesValue = (node?: NodeModel | null) => {
   return typeof rawValue === "string" ? rawValue : null;
 };
 
-const resolveSubtitleCandidates = (
+const resolveUploadCandidates = (
   adventureSlug: string | null | undefined,
   adventureViewSlug: string | null | undefined,
   rawValue: string | null
@@ -219,6 +225,18 @@ const resolveSubtitleCandidates = (
 
   return candidates;
 };
+
+const resolveSubtitleCandidates = (
+  adventureSlug: string | null | undefined,
+  adventureViewSlug: string | null | undefined,
+  rawValue: string | null
+) => resolveUploadCandidates(adventureSlug, adventureViewSlug, rawValue);
+
+const resolveAudioCandidates = (
+  adventureSlug: string | null | undefined,
+  adventureViewSlug: string | null | undefined,
+  rawValue: string | null
+) => resolveUploadCandidates(adventureSlug, adventureViewSlug, rawValue);
 
 type NavStyle = "default" | "right" | "leftright" | "noButtons" | "swipe" | "swipeWithButton";
 type NavPlacement = "inline" | "bottom";
@@ -286,6 +304,81 @@ const readRawProp = (raw: Record<string, unknown> | null | undefined, keys: stri
     }
   }
   return undefined;
+};
+
+const clampVolume = (value: number, fallback = 1) => {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(Math.max(value, 0), 1);
+};
+
+const normalizeAudioVolume = (value: unknown): number => {
+  if (value === undefined || value === null) return 1;
+  const primary = Array.isArray(value) ? value[0] : value;
+  const numeric = Number(primary);
+  if (!Number.isFinite(numeric)) return 1;
+  if (numeric > 1.0001) {
+    return clampVolume(numeric / 100);
+  }
+  return clampVolume(numeric);
+};
+
+const coerceSeconds = (value: unknown): number | null => {
+  if (value === undefined || value === null) return null;
+  const primary = Array.isArray(value) ? value[0] : value;
+  const numeric = Number(primary);
+  if (!Number.isFinite(numeric)) return null;
+  return Math.max(0, numeric);
+};
+
+const booleanFromTokens = (value: unknown): boolean => {
+  const tokens = tokenize(value).map((token) => token.toLowerCase());
+  return tokens.some((token) => token === "true" || token === "on" || token === "1" || token === "yes");
+};
+
+const pickFirstString = (value: unknown): string | null => {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (Array.isArray(value)) {
+    const found = value.find((item) => typeof item === "string" && String(item).trim());
+    if (typeof found === "string" && found.trim()) return found.trim();
+  }
+  return null;
+};
+
+const buildAudioSourceConfig = (
+  node?: NodeModel | null,
+  adventure?: AdventureModel | null
+): AudioSourceConfig | null => {
+  if (!node) return null;
+  const rawProps = node.rawProps as Record<string, unknown> | null | undefined;
+  const mainRaw =
+    pickFirstString(readRawProp(rawProps, ["audio_url", "audioUrl"])) ??
+    pickFirstString((node.props as Record<string, unknown> | null | undefined)?.["audioUrl"]);
+  const altRaw =
+    pickFirstString(readRawProp(rawProps, ["audio_url_alt", "audioUrlAlt"])) ??
+    pickFirstString((node.props as Record<string, unknown> | null | undefined)?.["audioUrlAlt"]);
+  const volumeRaw =
+    readRawProp(rawProps, ["audio_volume", "audioVolume"]) ??
+    (node.props as Record<string, unknown> | null | undefined)?.["audioVolume"];
+  const fadeIn = coerceSeconds(readRawProp(rawProps, ["settings_audioFadeIn", "audioFadeIn"]));
+  const fadeOut = coerceSeconds(readRawProp(rawProps, ["settings_audioFadeOut", "audioFadeOut"]));
+  const loop = booleanFromTokens(readRawProp(rawProps, ["settings_audioLoop", "audioLoop"]));
+  const extraAudioTokens = tokenize(readRawProp(rawProps, ["settings_extraAudio", "extraAudio"])).map(
+    (token) => token.toLowerCase()
+  );
+  const altBehavior: AudioSourceConfig["altBehavior"] = extraAudioTokens.includes("play_once")
+    ? "play_once"
+    : "always";
+
+  return {
+    nodeId: node.nodeId ?? null,
+    mainCandidates: resolveAudioCandidates(adventure?.slug, adventure?.viewSlug, mainRaw),
+    altCandidates: resolveAudioCandidates(adventure?.slug, adventure?.viewSlug, altRaw),
+    volume: normalizeAudioVolume(volumeRaw),
+    fadeInSeconds: fadeIn ?? undefined,
+    fadeOutSeconds: fadeOut ?? undefined,
+    loop,
+    altBehavior,
+  };
 };
 
 const parseOrderedLinkIds = (value: unknown): number[] => {
@@ -382,6 +475,9 @@ export function PlayerRuntime() {
     attempted: [],
   });
   const [hasInteracted, setHasInteracted] = useState(false);
+  const [documentVisible, setDocumentVisible] = useState(true);
+  const audioEngineRef = useRef<AudioEngine | null>(null);
+  const [audioDebug, setAudioDebug] = useState<AudioDebugSnapshot | null>(null);
   const backgroundVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const debugMedia = paramIsTruthy(
@@ -400,6 +496,24 @@ export function PlayerRuntime() {
     window.addEventListener("pointerdown", handleFirstPointer, { once: true, passive: true });
     return () => window.removeEventListener("pointerdown", handleFirstPointer);
   }, [hasInteracted]);
+
+  useEffect(() => {
+    const engine = createAudioEngine();
+    audioEngineRef.current = engine;
+    return () => {
+      engine.dispose();
+      audioEngineRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      setDocumentVisible(document.visibilityState !== "hidden");
+    };
+    handleVisibility();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
 
   useEffect(() => {
     if (!preferenceKey) return;
@@ -513,6 +627,17 @@ export function PlayerRuntime() {
     return () => window.removeEventListener("resize", handleResize);
   }, [debugLayout]);
 
+  useEffect(() => {
+    const engine = audioEngineRef.current;
+    if (!engine) return;
+    engine.setDebugListener(debugMedia ? setAudioDebug : undefined);
+    if (!debugMedia) {
+      setAudioDebug(null);
+    } else {
+      setAudioDebug(engine.getDebugState());
+    }
+  }, [debugMedia]);
+
   const navOverrides = useMemo(
     () => {
       const styleOverride = normalizeNavStyle(
@@ -598,6 +723,43 @@ export function PlayerRuntime() {
 
   const { style: propsStyle, flags, dataProps, layout, media, typography } = propsResult;
   const soundEnabled = preferences.soundEnabled ?? true;
+  const audioSource = useMemo<AudioSourceConfig | null>(
+    () => buildAudioSourceConfig(currentNode, adventure),
+    [adventure, currentNode]
+  );
+  const audioVolume = audioSource?.volume ?? 1;
+
+  useEffect(() => {
+    const engine = audioEngineRef.current;
+    if (!engine) return;
+    engine.reset();
+  }, [adventure?.slug]);
+
+  useEffect(() => {
+    const engine = audioEngineRef.current;
+    if (!engine) return;
+    engine.setPlaybackState({
+      soundEnabled,
+      canAutoplay: hasInteracted,
+      isDocumentVisible: documentVisible,
+    });
+  }, [documentVisible, hasInteracted, soundEnabled]);
+
+  useEffect(() => {
+    const engine = audioEngineRef.current;
+    if (!engine) return;
+    engine.setSource(audioSource);
+    if (audioSource) {
+      engine.preload([...audioSource.mainCandidates, ...audioSource.altCandidates]);
+    }
+  }, [audioSource]);
+
+  useEffect(() => {
+    const video = backgroundVideoRef.current;
+    if (!video) return;
+    const effectiveVolume = soundEnabled ? audioVolume : 0;
+    video.volume = effectiveVolume;
+  }, [audioVolume, soundEnabled]);
 
   const handleToggleHighContrast = () => {
     setPreferences((prev) => ({
@@ -627,10 +789,14 @@ export function PlayerRuntime() {
   const syncMediaSound = useCallback(
     (shouldTryPlay: boolean) => {
       const targets = [backgroundVideoRef.current].filter(Boolean) as HTMLVideoElement[];
-      const muted = !(soundEnabled && hasInteracted);
+      const allowAudio = soundEnabled && hasInteracted && documentVisible;
       targets.forEach((video) => {
-        video.muted = muted;
-        if (!muted && shouldTryPlay) {
+        video.muted = !allowAudio;
+        if (!documentVisible) {
+          video.pause();
+          return;
+        }
+        if (allowAudio && shouldTryPlay) {
           const playPromise = video.play?.();
           if (playPromise && typeof playPromise.catch === "function") {
             playPromise.catch((err) => {
@@ -640,8 +806,12 @@ export function PlayerRuntime() {
         }
       });
     },
-    [hasInteracted, soundEnabled]
+    [documentVisible, hasInteracted, soundEnabled]
   );
+
+  useEffect(() => {
+    syncMediaSound(true);
+  }, [documentVisible, hasInteracted, soundEnabled, syncMediaSound]);
 
   useLoadAdventureFonts(adventure?.props?.fontList, typography.fontFamily);
 
@@ -751,7 +921,7 @@ export function PlayerRuntime() {
             subtitlesUrl: subtitleUrl,
             onSubtitlesError: handleSubtitleError,
             onSubtitlesLoad: handleSubtitleLoad,
-            muted: !(soundEnabled && hasInteracted),
+            muted: !(soundEnabled && hasInteracted && documentVisible),
             controls: isVideoNode,
             videoRef: (node: HTMLVideoElement | null) => {
               backgroundVideoRef.current = node;
@@ -763,6 +933,7 @@ export function PlayerRuntime() {
       handleSubtitleLoad,
       hasInteracted,
       isVideoNode,
+      documentVisible,
       soundEnabled,
       subtitleUrl,
       videoSource,
@@ -921,6 +1092,7 @@ export function PlayerRuntime() {
           highContrast={flags.highContrast}
           hideBackground={flags.hideBackground}
           subtitleStatus={subtitleStatus}
+          audioDebug={audioDebug}
           showDebug={debugMedia}
           onToggleHighContrast={handleToggleHighContrast}
           onToggleHideBackground={handleToggleHideBackground}
@@ -1475,6 +1647,7 @@ function DevToggles({
   highContrast,
   hideBackground,
   subtitleStatus,
+  audioDebug,
   showDebug,
   onToggleHighContrast,
   onToggleHideBackground,
@@ -1482,6 +1655,7 @@ function DevToggles({
   highContrast: boolean;
   hideBackground: boolean;
   subtitleStatus: SubtitleStatus;
+  audioDebug: AudioDebugSnapshot | null;
   showDebug: boolean;
   onToggleHighContrast: () => void;
   onToggleHideBackground: () => void;
@@ -1529,11 +1703,44 @@ function DevToggles({
               {subtitleStatus.state}
             </span>
           </p>
+          <p>
+            Audio:{" "}
+            <span
+              className={
+                audioDebug?.main?.status === "playing"
+                  ? "text-green-200"
+                  : audioDebug?.main?.status === "error"
+                    ? "text-red-200"
+                    : "text-yellow-200"
+              }
+            >
+              {audioDebug?.main?.status ?? "idle"}
+            </span>
+          </p>
+          {audioDebug?.main?.requested ? (
+            <p className="mt-1 text-[10px] opacity-80">
+              Main: {audioDebug.main.requested}
+            </p>
+          ) : null}
+          {audioDebug?.alt?.requested ? (
+            <p className="text-[10px] opacity-80">
+              Alt: {audioDebug.alt.requested} ({audioDebug.alt.status ?? "idle"})
+            </p>
+          ) : null}
           {subtitleStatus.attempted.length ? (
             <div className="mt-1 max-w-[260px] space-y-1">
               {subtitleStatus.attempted.map((url) => (
                 <p key={url} className="truncate text-[10px] opacity-80">
                   {url}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          {audioDebug?.preload?.length ? (
+            <div className="mt-2 max-w-[260px] space-y-1">
+              {audioDebug.preload.map((item, index) => (
+                <p key={`${item.url}-${item.status}-${index}`} className="truncate text-[10px] opacity-70">
+                  {item.status.toUpperCase()}: {item.url}
                 </p>
               ))}
             </div>
