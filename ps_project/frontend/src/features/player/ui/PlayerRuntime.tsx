@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   useEffect,
@@ -527,6 +527,7 @@ export function PlayerRuntime() {
     };
   });
   const [menuOpen, setMenuOpen] = useState(false);
+  const [viewportActiveNodeId, setViewportActiveNodeId] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [subtitleUrl, setSubtitleUrl] = useState<string | null>(null);
   const [subtitleStatus, setSubtitleStatus] = useState<SubtitleStatus>({
@@ -782,18 +783,44 @@ export function PlayerRuntime() {
     };
   }, [currentNode?.rawProps, navOverrides]);
 
+  const isScrollytell = navigationConfig.style === "scrollytell";
+  const viewportActiveNode = useMemo(
+    () => (viewportActiveNodeId != null ? getNodeById(viewportActiveNodeId) : undefined),
+    [getNodeById, viewportActiveNodeId]
+  );
+  const activeNode = isScrollytell ? viewportActiveNode ?? currentNode : currentNode;
+  const activeNodeKind = useMemo(() => resolveNodeKind(activeNode), [activeNode]);
+
+  useEffect(() => {
+    if (!isScrollytell) {
+      setViewportActiveNodeId(null);
+      return;
+    }
+    if (currentNodeId == null) return;
+    const hasActive =
+      viewportActiveNodeId != null &&
+      historyNodes.some((node) => node.nodeId === viewportActiveNodeId);
+    if (!hasActive) {
+      setViewportActiveNodeId(currentNodeId);
+    }
+  }, [currentNodeId, historyNodes, isScrollytell, viewportActiveNodeId]);
+
+  const handleViewportActiveChange = useCallback((nodeId: number | null) => {
+    setViewportActiveNodeId((prev) => (prev === nodeId ? prev : nodeId));
+  }, []);
+
   const propsResult = useMemo(
     () =>
       buildPropsStyle({
         adventureProps: adventure?.props ?? undefined,
-        nodeProps: currentNode?.rawProps ?? currentNode?.props ?? undefined,
+        nodeProps: activeNode?.rawProps ?? activeNode?.props ?? undefined,
         overrideHighContrast: preferences.highContrast,
         overrideHideBackground: preferences.hideBackground,
       }),
     [
       adventure?.props,
-      currentNode?.props,
-      currentNode?.rawProps,
+      activeNode?.props,
+      activeNode?.rawProps,
       preferences.highContrast,
       preferences.hideBackground,
     ]
@@ -813,8 +840,8 @@ export function PlayerRuntime() {
     [currentNode?.rawProps]
   );
   const audioSource = useMemo<AudioSourceConfig | null>(
-    () => buildAudioSourceConfig(currentNode, adventure),
-    [adventure, currentNode]
+    () => buildAudioSourceConfig(activeNode, adventure),
+    [activeNode, adventure]
   );
   const audioVolume = audioSource?.volume ?? 1;
 
@@ -988,9 +1015,9 @@ export function PlayerRuntime() {
       resolveSubtitleCandidates(
         adventure?.slug,
         adventure?.viewSlug,
-        getRawSubtitlesValue(currentNode)
+        getRawSubtitlesValue(activeNode)
       ),
-    [adventure?.slug, adventure?.viewSlug, currentNode]
+    [activeNode, adventure?.slug, adventure?.viewSlug]
   );
 
   useEffect(() => {
@@ -1074,13 +1101,13 @@ export function PlayerRuntime() {
       ? resolveReferenceUrl(currentNode)
       : null;
 
-  const videoSource = resolveVideoSource(currentNode);
-  const isVideoNode = currentNodeKind === "video";
+  const videoSource = resolveVideoSource(activeNode);
+  const isVideoNode = activeNodeKind === "video";
   const backgroundImage = isVideoNode
-    ? currentNode?.image?.url ?? null
+    ? activeNode?.image?.url ?? null
     : videoSource
       ? null
-      : currentNode?.image?.url ?? null;
+      : activeNode?.image?.url ?? null;
   const backgroundVideo = useMemo(
     () =>
       videoSource
@@ -1225,7 +1252,6 @@ export function PlayerRuntime() {
     visitedNodes,
   ]);
 
-  const isScrollytell = navigationConfig.style === "scrollytell";
   const playerClassName = cn(
     `ps-player--nav-${navigationConfig.style}`,
     navigationConfig.placement === "bottom" ? "ps-player--nav-bottom" : "",
@@ -1250,6 +1276,9 @@ export function PlayerRuntime() {
         statisticsDisabledReason={statisticsDisabledReason}
         navigationStyle={navigationConfig.style}
         navPlacement={navigationConfig.placement}
+        gameNodeId={currentNodeId ?? null}
+        viewportActiveNodeId={viewportActiveNodeId}
+        scrollytellActive={isScrollytell}
         onBack={goBack}
         onHome={goHome}
         onToggleMenu={handleToggleMenu}
@@ -1402,7 +1431,11 @@ export function PlayerRuntime() {
     : [];
 
   const playerBody = isScrollytell ? (
-    <ScrollyTracker blocks={scrollyBlocks} activeNodeId={currentNodeId ?? null} />
+    <ScrollyTracker
+      blocks={scrollyBlocks}
+      activeNodeId={currentNodeId ?? null}
+      onViewportActiveChange={handleViewportActiveChange}
+    />
   ) : (
     renderNodeCard(currentNode, currentNodeKind, true)
   );
@@ -1450,6 +1483,9 @@ function PlayerOverlay({
   statisticsDisabledReason,
   navigationStyle,
   navPlacement,
+  gameNodeId,
+  viewportActiveNodeId,
+  scrollytellActive,
   onBack,
   onHome,
   onToggleMenu,
@@ -1472,6 +1508,9 @@ function PlayerOverlay({
   statisticsDisabledReason?: string | null;
   navigationStyle: NavStyle;
   navPlacement: NavPlacement;
+  gameNodeId: number | null;
+  viewportActiveNodeId: number | null;
+  scrollytellActive: boolean;
   onBack: () => void;
   onHome: () => void;
   onToggleMenu: () => void;
@@ -1574,12 +1613,21 @@ function PlayerOverlay({
               <div className="ps-overlay__debug">
                 <p className="ps-overlay__debug-title">Debug</p>
                 <p className="ps-overlay__debug-row">
-                  HC {highContrast ? "on" : "off"} · BG {hideBackground ? "hidden" : "visible"} ·
+                  HC {highContrast ? "on" : "off"} В· BG {hideBackground ? "hidden" : "visible"} В·
                   Sound {soundEnabled ? "on" : "muted"}
                 </p>
                 <p className="ps-overlay__debug-row">
                   Nav {navigationStyle}
-                  {navPlacement === "bottom" ? " · bottom" : ""}
+                  {navPlacement === "bottom" ? " В· bottom" : ""}
+                </p>
+                <p className="ps-overlay__debug-row">
+                  Game {gameNodeId ?? "?"} - Viewport {viewportActiveNodeId ?? "?"}
+                </p>
+                <p className="ps-overlay__debug-row">
+                  Scrollytell{" "}
+                  {scrollytellActive
+                    ? "tracking on"
+                    : "tracking off (nav style not scrollytell)"}
                 </p>
               </div>
             ) : null}
@@ -2033,3 +2081,7 @@ function DevToggles({
     </div>
   );
 }
+
+
+
+
