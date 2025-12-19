@@ -785,6 +785,9 @@ export function PlayerRuntime() {
   }, [currentNode?.rawProps, navOverrides]);
 
   const isScrollytell = navigationConfig.style === "scrollytell";
+  const isSwipeNav =
+    !isScrollytell &&
+    (navigationConfig.style === "swipe" || navigationConfig.style === "swipeWithButton");
   const viewportActiveNode = useMemo(
     () => (viewportActiveNodeId != null ? getNodeById(viewportActiveNodeId) : undefined),
     [getNodeById, viewportActiveNodeId]
@@ -1200,6 +1203,24 @@ export function PlayerRuntime() {
       };
     }
 
+    const buildButton = (link: LinkModel, fallbackIndex: number): NavigationButton => {
+      const targetNode = getNodeById(link.toNodeId);
+      const isBroken = !link.toNodeId || !targetNode;
+      const label =
+        link.label && link.label.trim().length > 0
+          ? link.label.trim()
+          : targetNode?.title || `Continue ${fallbackIndex}`;
+
+      return {
+        key: String(link.linkId),
+        label,
+        meta: isBroken ? "No target" : `-> Node ${link.toNodeId}`,
+        linkId: link.linkId,
+        targetNodeId: link.toNodeId,
+        disabled: isBroken,
+      };
+    };
+
     let skip = navigationConfig.skipCount;
     const buttons: NavigationButton[] = [];
 
@@ -1220,23 +1241,8 @@ export function PlayerRuntime() {
       }
 
       const link = item.link;
-      const targetNode = getNodeById(link.toNodeId);
       if (shouldHideLink(link)) return;
-
-      const isBroken = !link.toNodeId || !targetNode;
-      const label =
-        link.label && link.label.trim().length > 0
-          ? link.label.trim()
-          : targetNode?.title || `Continue ${buttons.length + 1}`;
-
-      buttons.push({
-        key: String(link.linkId),
-        label,
-        meta: isBroken ? "No target" : `-> Node ${link.toNodeId}`,
-        linkId: link.linkId,
-        targetNodeId: link.toNodeId,
-        disabled: isBroken,
-      });
+      buttons.push(buildButton(link, buttons.length + 1));
     });
 
     return {
@@ -1436,7 +1442,7 @@ export function PlayerRuntime() {
             showRightArrow={
               navigationConfig.style === "leftright" || navigationConfig.style === "right"
             }
-            showDownArrow={navigationConfig.style === "swipe"}
+            showDownArrow={false}
             onChooseLink={(linkId) => chooseLink(linkId)}
             onBack={goBack}
             disableBack={historyLength <= 1}
@@ -1468,6 +1474,20 @@ export function PlayerRuntime() {
       scrollToNodeId={currentNodeId ?? null}
       scrollToNonce={scrollyReturnNonce}
     />
+  ) : isSwipeNav ? (
+    <SwipeNodeNavigator
+      canGoBack={canGoBack}
+      canGoForward={Boolean(navigationModel.primaryLinkId)}
+      onBack={goBack}
+      onForward={() => {
+        if (navigationModel.primaryLinkId) {
+          chooseLink(navigationModel.primaryLinkId);
+        }
+      }}
+      currentNodeId={currentNodeId}
+    >
+      {renderNodeCard(currentNode, currentNodeKind, true)}
+    </SwipeNodeNavigator>
   ) : (
     renderNodeCard(currentNode, currentNodeKind, true)
   );
@@ -1752,6 +1772,125 @@ function OverlayToggleRow({
   );
 }
 
+function SwipeNodeNavigator({
+  canGoBack,
+  canGoForward,
+  onBack,
+  onForward,
+  currentNodeId,
+  children,
+}: {
+  canGoBack: boolean;
+  canGoForward: boolean;
+  onBack: () => void;
+  onForward: () => void;
+  currentNodeId?: number | null;
+  children: ReactNode;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const lockRef = useRef(false);
+  const lastTriggerRef = useRef(0);
+
+  const scrollToCenter = useCallback((behavior: ScrollBehavior = "auto") => {
+    const container = containerRef.current;
+    if (!container) return;
+    const top = container.clientHeight;
+    container.scrollTo({ top, behavior });
+  }, []);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    lockRef.current = true;
+    requestAnimationFrame(() => {
+      scrollToCenter("auto");
+      window.setTimeout(() => {
+        lockRef.current = false;
+      }, 200);
+    });
+  }, [currentNodeId, scrollToCenter]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const sentinels = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-swipe-sentinel]")
+    );
+    if (!sentinels.length) return;
+
+    const triggerSwipe = (direction: "prev" | "next") => {
+      if (lockRef.current) return;
+      const now = Date.now();
+      if (now - lastTriggerRef.current < 400) return;
+      lastTriggerRef.current = now;
+      lockRef.current = true;
+
+      if (direction === "prev") {
+        if (canGoBack) {
+          onBack();
+        }
+      } else if (canGoForward) {
+        onForward();
+      }
+
+      window.setTimeout(() => {
+        scrollToCenter("smooth");
+        lockRef.current = false;
+      }, 240);
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (lockRef.current) return;
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const target = entry.target as HTMLElement;
+          const direction = target.getAttribute("data-swipe-target");
+          if (direction === "prev") {
+            triggerSwipe("prev");
+          } else if (direction === "next") {
+            triggerSwipe("next");
+          }
+        });
+      },
+      {
+        root: container,
+        rootMargin: "-35% 0px -35% 0px",
+        threshold: 0,
+      }
+    );
+
+    sentinels.forEach((sentinel) => observer.observe(sentinel));
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [canGoBack, canGoForward, onBack, onForward, scrollToCenter]);
+
+  return (
+    <div className="ps-swipe-node" ref={containerRef}>
+      <div className="ps-swipe-node__block ps-swipe-node__block--prev">
+        <span
+          className="ps-swipe-node__sentinel"
+          data-swipe-sentinel
+          data-swipe-target="prev"
+          aria-hidden
+        />
+      </div>
+      <div className="ps-swipe-node__block ps-swipe-node__block--current">
+        <div className="ps-swipe-node__block-inner">{children}</div>
+      </div>
+      <div className="ps-swipe-node__block ps-swipe-node__block--next">
+        <span
+          className="ps-swipe-node__sentinel"
+          data-swipe-sentinel
+          data-swipe-target="next"
+          aria-hidden
+        />
+      </div>
+    </div>
+  );
+}
+
 function NavigationArea({
   navStyle,
   navPlacement,
@@ -1780,6 +1919,67 @@ function NavigationArea({
   const hasButtons = buttons.length > 0;
   const hasArrows = showLeftArrow || showRightArrow || showDownArrow;
   const shouldShowEmptyState = !hasButtons && navStyle !== "noButtons";
+
+  if (navStyle === "swipe") {
+    return null;
+  }
+
+  if (navStyle === "swipeWithButton") {
+    const primaryButton =
+      buttons.find((button) => button.linkId === primaryLinkId) ??
+      buttons.find((button) => Boolean(button.linkId)) ??
+      null;
+
+    if (!primaryButton) {
+      return null;
+    }
+
+    return (
+      <div
+        className="ps-nav"
+        data-nav-style={navStyle}
+        data-nav-placement={navPlacement}
+        data-swipe-mode={swipeMode ? navStyle : undefined}
+      >
+        <div className="ps-nav__bar ps-nav__bar--center">
+          <button
+            type="button"
+            className={cn(
+              "ps-player__choice ps-nav__choice",
+              primaryButton.disabled ? "cursor-not-allowed opacity-60" : ""
+            )}
+            onClick={
+              primaryButton.disabled || !primaryButton.linkId
+                ? undefined
+                : () => {
+                    if (primaryButton.linkId) onChooseLink(primaryButton.linkId);
+                  }
+            }
+            onPointerDown={
+              primaryButton.disabled ? undefined : addPressedClass
+            }
+            onPointerUp={removePressedClass}
+            onPointerLeave={removePressedClass}
+            onPointerCancel={removePressedClass}
+            disabled={primaryButton.disabled}
+            aria-disabled={primaryButton.disabled}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col">
+                <span className="font-semibold">{primaryButton.label}</span>
+                {primaryButton.disabled ? (
+                  <span className="text-xs opacity-75 text-red-200">Broken link</span>
+                ) : null}
+              </div>
+              {primaryButton.meta ? (
+                <span className="text-xs opacity-75">{primaryButton.meta}</span>
+              ) : null}
+            </div>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!hasButtons && !hasArrows && !shouldShowEmptyState) {
     return null;
