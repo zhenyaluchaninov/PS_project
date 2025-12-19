@@ -28,6 +28,7 @@ import { PlayerLayout } from "@/features/ui-core/components/PlayerLayout";
 import { buildPropsStyle } from "@/features/ui-core/props";
 import { Button } from "@/features/ui-core/primitives";
 import { toastError } from "@/features/ui-core/toast";
+import { trackNodeVisit } from "@/features/state/api/adventures";
 import { cn } from "@/lib/utils";
 import "./player-runtime.css";
 import {
@@ -64,10 +65,19 @@ type SubtitleStatus = {
   attempted: string[];
 };
 
+type StatsDebugState = {
+  lastAttempt: { nodeId: number; adventureSlug: string } | null;
+  sent: number;
+  deduped: number;
+  skippedDisabled: number;
+  errors: number;
+};
+
 type PlayerPreferences = {
   highContrast?: boolean;
   hideBackground?: boolean;
   soundEnabled: boolean;
+  statisticsEnabled?: boolean;
 };
 
 type SearchParamLike = ReadonlyURLSearchParams | URLSearchParams | null | undefined;
@@ -93,6 +103,8 @@ const readStoredPreferences = (key?: string | null): PlayerPreferences | null =>
       hideBackground:
         typeof parsed.hideBackground === "boolean" ? parsed.hideBackground : undefined,
       soundEnabled: typeof parsed.soundEnabled === "boolean" ? parsed.soundEnabled : true,
+      statisticsEnabled:
+        typeof parsed.statisticsEnabled === "boolean" ? parsed.statisticsEnabled : undefined,
     };
   } catch (err) {
     console.warn("[player] could not read stored preferences", err);
@@ -111,6 +123,9 @@ const persistPreferences = (key: string, prefs: PlayerPreferences) => {
     }
     if (typeof prefs.hideBackground === "boolean") {
       payload.hideBackground = prefs.hideBackground;
+    }
+    if (typeof prefs.statisticsEnabled === "boolean") {
+      payload.statisticsEnabled = prefs.statisticsEnabled;
     }
     window.localStorage.setItem(key, JSON.stringify(payload));
   } catch (err) {
@@ -397,6 +412,13 @@ const hasHideVisitedCondition = (node?: NodeModel | null): boolean => {
   return conditions.includes("hide_visited");
 };
 
+const isStatisticsEnabledForNode = (node?: NodeModel | null): boolean => {
+  if (!node?.rawProps) return false;
+  return booleanFromTokens(
+    readRawProp(node.rawProps, ["node_statistics", "nodeStatistics", "node-statistics"])
+  );
+};
+
 const applyOrder = <T,>(
   items: T[],
   order: number[] | null | undefined,
@@ -465,6 +487,7 @@ export function PlayerRuntime() {
       highContrast: queryHighContrast ?? stored?.highContrast,
       hideBackground: queryHideBackground ?? stored?.hideBackground,
       soundEnabled: soundOverride ?? stored?.soundEnabled ?? true,
+      statisticsEnabled: stored?.statisticsEnabled ?? true,
     };
   });
   const [menuOpen, setMenuOpen] = useState(false);
@@ -479,6 +502,18 @@ export function PlayerRuntime() {
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const [audioDebug, setAudioDebug] = useState<AudioDebugSnapshot | null>(null);
   const backgroundVideoRef = useRef<HTMLVideoElement | null>(null);
+  const statsSessionRef = useRef<{ adventureSlug: string | null; seen: Set<number> }>({
+    adventureSlug: null,
+    seen: new Set(),
+  });
+  const lastNodeKeyRef = useRef<string | null>(null);
+  const [statsDebug, setStatsDebug] = useState<StatsDebugState>(() => ({
+    lastAttempt: null,
+    sent: 0,
+    deduped: 0,
+    skippedDisabled: 0,
+    errors: 0,
+  }));
 
   const debugMedia = paramIsTruthy(
     searchParams?.get("debugMedia") ?? searchParams?.get("debugmedia")
@@ -523,6 +558,7 @@ export function PlayerRuntime() {
       highContrast: prev.highContrast ?? stored.highContrast,
       hideBackground: prev.hideBackground ?? stored.hideBackground,
       soundEnabled: prev.soundEnabled ?? stored.soundEnabled ?? true,
+      statisticsEnabled: prev.statisticsEnabled ?? stored.statisticsEnabled ?? true,
     }));
   }, [preferenceKey]);
 
@@ -723,11 +759,88 @@ export function PlayerRuntime() {
 
   const { style: propsStyle, flags, dataProps, layout, media, typography } = propsResult;
   const soundEnabled = preferences.soundEnabled ?? true;
+  const statisticsEnabled = preferences.statisticsEnabled ?? true;
+  const nodeStatisticsEnabled = useMemo(
+    () => isStatisticsEnabledForNode(currentNode),
+    [currentNode?.rawProps]
+  );
   const audioSource = useMemo<AudioSourceConfig | null>(
     () => buildAudioSourceConfig(currentNode, adventure),
     [adventure, currentNode]
   );
   const audioVolume = audioSource?.volume ?? 1;
+
+  const bumpStatsDebug = useCallback(
+    (
+      kind: "sent" | "deduped" | "skipped" | "error",
+      lastAttempt?: StatsDebugState["lastAttempt"]
+    ) => {
+      setStatsDebug((prev) => {
+        const next = { ...prev, lastAttempt: lastAttempt ?? prev.lastAttempt };
+        if (kind === "sent") {
+          next.sent = prev.sent + 1;
+        } else if (kind === "deduped") {
+          next.deduped = prev.deduped + 1;
+        } else if (kind === "skipped") {
+          next.skippedDisabled = prev.skippedDisabled + 1;
+        } else {
+          next.errors = prev.errors + 1;
+        }
+        return next;
+      });
+    },
+    []
+  );
+
+  useEffect(() => {
+    const slug = adventure?.slug ?? null;
+    if (statsSessionRef.current.adventureSlug === slug) return;
+    statsSessionRef.current = { adventureSlug: slug, seen: new Set() };
+    lastNodeKeyRef.current = null;
+    setStatsDebug({
+      lastAttempt: null,
+      sent: 0,
+      deduped: 0,
+      skippedDisabled: 0,
+      errors: 0,
+    });
+  }, [adventure?.slug]);
+
+  useEffect(() => {
+    const nodeId = currentNode?.nodeId;
+    const adventureSlug = adventure?.slug ?? null;
+    if (nodeId == null || !Number.isFinite(nodeId) || !adventureSlug) return;
+
+    const nodeKey = `${adventureSlug}:${nodeId}`;
+    if (lastNodeKeyRef.current === nodeKey) return;
+    lastNodeKeyRef.current = nodeKey;
+
+    const lastAttempt = { nodeId, adventureSlug };
+
+    if (mode !== "play" || !statisticsEnabled || !nodeStatisticsEnabled) {
+      bumpStatsDebug("skipped", lastAttempt);
+      return;
+    }
+
+    const session = statsSessionRef.current;
+    if (session.seen.has(nodeId)) {
+      bumpStatsDebug("deduped", lastAttempt);
+      return;
+    }
+
+    session.seen.add(nodeId);
+    bumpStatsDebug("sent", lastAttempt);
+    void trackNodeVisit(adventureSlug, nodeId).catch(() => {
+      bumpStatsDebug("error");
+    });
+  }, [
+    adventure?.slug,
+    bumpStatsDebug,
+    currentNode?.nodeId,
+    mode,
+    nodeStatisticsEnabled,
+    statisticsEnabled,
+  ]);
 
   useEffect(() => {
     const engine = audioEngineRef.current;
@@ -780,6 +893,13 @@ export function PlayerRuntime() {
     setPreferences((prev) => ({
       ...prev,
       soundEnabled: !(prev.soundEnabled ?? true),
+    }));
+  };
+
+  const handleToggleStatistics = () => {
+    setPreferences((prev) => ({
+      ...prev,
+      statisticsEnabled: !(prev.statisticsEnabled ?? true),
     }));
   };
 
@@ -1075,6 +1195,7 @@ export function PlayerRuntime() {
         highContrast={flags.highContrast}
         hideBackground={flags.hideBackground}
         soundEnabled={soundEnabled}
+        statisticsEnabled={statisticsEnabled}
         navigationStyle={navigationConfig.style}
         navPlacement={navigationConfig.placement}
         onBack={goBack}
@@ -1084,6 +1205,7 @@ export function PlayerRuntime() {
         onToggleHighContrast={handleToggleHighContrast}
         onToggleHideBackground={handleToggleHideBackground}
         onToggleSound={handleToggleSound}
+        onToggleStatistics={handleToggleStatistics}
         menuRef={menuRef}
         showDebug={debugUi}
       />
@@ -1093,6 +1215,9 @@ export function PlayerRuntime() {
           hideBackground={flags.hideBackground}
           subtitleStatus={subtitleStatus}
           audioDebug={audioDebug}
+          statsDebug={statsDebug}
+          statisticsEnabled={statisticsEnabled}
+          nodeStatisticsEnabled={nodeStatisticsEnabled}
           showDebug={debugMedia}
           onToggleHighContrast={handleToggleHighContrast}
           onToggleHideBackground={handleToggleHideBackground}
@@ -1229,6 +1354,7 @@ function PlayerOverlay({
   highContrast,
   hideBackground,
   soundEnabled,
+  statisticsEnabled,
   navigationStyle,
   navPlacement,
   onBack,
@@ -1238,6 +1364,7 @@ function PlayerOverlay({
   onToggleHighContrast,
   onToggleHideBackground,
   onToggleSound,
+  onToggleStatistics,
   menuRef,
   showDebug,
 }: {
@@ -1247,6 +1374,7 @@ function PlayerOverlay({
   highContrast: boolean;
   hideBackground: boolean;
   soundEnabled: boolean;
+  statisticsEnabled: boolean;
   navigationStyle: NavStyle;
   navPlacement: NavPlacement;
   onBack: () => void;
@@ -1256,6 +1384,7 @@ function PlayerOverlay({
   onToggleHighContrast: () => void;
   onToggleHideBackground: () => void;
   onToggleSound: () => void;
+  onToggleStatistics: () => void;
   menuRef: MutableRefObject<HTMLDivElement | null>;
   showDebug: boolean;
 }) {
@@ -1336,6 +1465,12 @@ function PlayerOverlay({
                 description="Mute or enable music and effects"
                 value={soundEnabled}
                 onToggle={onToggleSound}
+              />
+              <OverlayToggleRow
+                label="Statistics tracking"
+                description="Send node visit data"
+                value={statisticsEnabled}
+                onToggle={onToggleStatistics}
               />
             </div>
 
@@ -1648,6 +1783,9 @@ function DevToggles({
   hideBackground,
   subtitleStatus,
   audioDebug,
+  statsDebug,
+  statisticsEnabled,
+  nodeStatisticsEnabled,
   showDebug,
   onToggleHighContrast,
   onToggleHideBackground,
@@ -1656,6 +1794,9 @@ function DevToggles({
   hideBackground: boolean;
   subtitleStatus: SubtitleStatus;
   audioDebug: AudioDebugSnapshot | null;
+  statsDebug: StatsDebugState;
+  statisticsEnabled: boolean;
+  nodeStatisticsEnabled: boolean;
   showDebug: boolean;
   onToggleHighContrast: () => void;
   onToggleHideBackground: () => void;
@@ -1684,69 +1825,95 @@ function DevToggles({
         </span>
       </div>
 
-      {showDebug ? (
-        <div className="pointer-events-auto rounded-md bg-black/60 px-3 py-2 text-[11px] text-white shadow">
-          <p className="font-semibold">Media debug</p>
+      <div className="pointer-events-auto space-y-2">
+        {showDebug ? (
+          <div className="rounded-md bg-black/60 px-3 py-2 text-[11px] text-white shadow">
+            <p className="font-semibold">Media debug</p>
+            <p>
+              Subtitles:{" "}
+              <span
+                className={
+                  subtitleStatus.state === "ok"
+                    ? "text-green-200"
+                    : subtitleStatus.state === "loading"
+                      ? "text-yellow-200"
+                      : subtitleStatus.state === "idle"
+                        ? "text-white"
+                        : "text-red-200"
+                }
+              >
+                {subtitleStatus.state}
+              </span>
+            </p>
+            <p>
+              Audio:{" "}
+              <span
+                className={
+                  audioDebug?.main?.status === "playing"
+                    ? "text-green-200"
+                    : audioDebug?.main?.status === "error"
+                      ? "text-red-200"
+                      : "text-yellow-200"
+                }
+              >
+                {audioDebug?.main?.status ?? "idle"}
+              </span>
+            </p>
+            {audioDebug?.main?.requested ? (
+              <p className="mt-1 text-[10px] opacity-80">
+                Main: {audioDebug.main.requested}
+              </p>
+            ) : null}
+            {audioDebug?.alt?.requested ? (
+              <p className="text-[10px] opacity-80">
+                Alt: {audioDebug.alt.requested} ({audioDebug.alt.status ?? "idle"})
+              </p>
+            ) : null}
+            {subtitleStatus.attempted.length ? (
+              <div className="mt-1 max-w-[260px] space-y-1">
+                {subtitleStatus.attempted.map((url) => (
+                  <p key={url} className="truncate text-[10px] opacity-80">
+                    {url}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+            {audioDebug?.preload?.length ? (
+              <div className="mt-2 max-w-[260px] space-y-1">
+                {audioDebug.preload.map((item, index) => (
+                  <p
+                    key={`${item.url}-${item.status}-${index}`}
+                    className="truncate text-[10px] opacity-70"
+                  >
+                    {item.status.toUpperCase()}: {item.url}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="rounded-md bg-black/60 px-3 py-2 text-[11px] text-white shadow">
+          <p className="font-semibold">Statistics</p>
+          <p>Mode: normal</p>
           <p>
-            Subtitles:{" "}
-            <span
-              className={
-                subtitleStatus.state === "ok"
-                  ? "text-green-200"
-                  : subtitleStatus.state === "loading"
-                    ? "text-yellow-200"
-                    : subtitleStatus.state === "idle"
-                      ? "text-white"
-                      : "text-red-200"
-              }
-            >
-              {subtitleStatus.state}
-            </span>
+            Toggle: {statisticsEnabled ? "on" : "off"} (node{" "}
+            {nodeStatisticsEnabled ? "on" : "off"})
           </p>
           <p>
-            Audio:{" "}
-            <span
-              className={
-                audioDebug?.main?.status === "playing"
-                  ? "text-green-200"
-                  : audioDebug?.main?.status === "error"
-                    ? "text-red-200"
-                    : "text-yellow-200"
-              }
-            >
-              {audioDebug?.main?.status ?? "idle"}
-            </span>
+            Last:{" "}
+            {statsDebug.lastAttempt
+              ? `node ${statsDebug.lastAttempt.nodeId} @ ${statsDebug.lastAttempt.adventureSlug}`
+              : "none"}
           </p>
-          {audioDebug?.main?.requested ? (
-            <p className="mt-1 text-[10px] opacity-80">
-              Main: {audioDebug.main.requested}
-            </p>
-          ) : null}
-          {audioDebug?.alt?.requested ? (
-            <p className="text-[10px] opacity-80">
-              Alt: {audioDebug.alt.requested} ({audioDebug.alt.status ?? "idle"})
-            </p>
-          ) : null}
-          {subtitleStatus.attempted.length ? (
-            <div className="mt-1 max-w-[260px] space-y-1">
-              {subtitleStatus.attempted.map((url) => (
-                <p key={url} className="truncate text-[10px] opacity-80">
-                  {url}
-                </p>
-              ))}
-            </div>
-          ) : null}
-          {audioDebug?.preload?.length ? (
-            <div className="mt-2 max-w-[260px] space-y-1">
-              {audioDebug.preload.map((item, index) => (
-                <p key={`${item.url}-${item.status}-${index}`} className="truncate text-[10px] opacity-70">
-                  {item.status.toUpperCase()}: {item.url}
-                </p>
-              ))}
-            </div>
-          ) : null}
+          <p className="mt-1">
+            Sent {statsDebug.sent} - Deduped {statsDebug.deduped}
+          </p>
+          <p>
+            Skipped {statsDebug.skippedDisabled} - Errors {statsDebug.errors}
+          </p>
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }

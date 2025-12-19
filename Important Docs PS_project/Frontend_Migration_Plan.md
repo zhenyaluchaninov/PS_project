@@ -848,7 +848,7 @@ web/
 
 ---
 
-### Step 15 – Overlay menu & audio system
+### [done] Step 15 – Overlay menu & audio system
 
 **What we do**
 
