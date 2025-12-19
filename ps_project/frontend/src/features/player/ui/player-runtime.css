@@ -480,3 +480,41 @@
 .ps-player--videoplayer .ps-player__body {
   pointer-events: auto;
 }
+
+.ps-player--scrollytell {
+  height: var(--player-safe-height);
+  overflow: hidden;
+}
+
+.ps-player--scrollytell .ps-player__outer {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.ps-player--scrollytell .ps-player__content,
+.ps-player--scrollytell .ps-player__body {
+  height: 100%;
+}
+
+.ps-scrollytell {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ps-scrollytell__block {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  min-height: 100%;
+  display: flex;
+}
+
+.ps-scrollytell__block-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}

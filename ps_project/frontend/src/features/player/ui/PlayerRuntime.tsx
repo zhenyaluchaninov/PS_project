@@ -46,6 +46,7 @@ import {
 } from "../state/playerStore";
 import {
   resolveReferenceUrl,
+  resolveNodeKind,
   resolveVideoSource,
   type NodeKind,
 } from "../engine/playerEngine";
@@ -56,6 +57,7 @@ import {
   type AudioSourceConfig,
 } from "../media/audioEngine";
 import { useViewportDevice } from "./useViewportDevice";
+import { ScrollyTracker } from "./ScrollyTracker";
 
 const paramIsTruthy = (value?: string | null) =>
   value ? ["1", "true", "yes", "on"].includes(value.toLowerCase()) : false;
@@ -262,7 +264,14 @@ const resolveAudioCandidates = (
   rawValue: string | null
 ) => resolveUploadCandidates(adventureSlug, adventureViewSlug, rawValue);
 
-type NavStyle = "default" | "right" | "leftright" | "noButtons" | "swipe" | "swipeWithButton";
+type NavStyle =
+  | "default"
+  | "right"
+  | "leftright"
+  | "noButtons"
+  | "swipe"
+  | "swipeWithButton"
+  | "scrollytell";
 type NavPlacement = "inline" | "bottom";
 
 type NavItem = { kind: "link"; link: LinkModel } | { kind: "current" };
@@ -299,6 +308,15 @@ const normalizeNavStyle = (raw?: string | null): NavStyle | null => {
   if (key === "nobuttons" || key === "no-buttons" || key === "no") return "noButtons";
   if (key === "swipewithbutton" || key === "swipe-with-button") return "swipeWithButton";
   if (key === "swipe") return "swipe";
+  if (
+    key === "scrollytell" ||
+    key === "scrolly" ||
+    key === "scroll-tell" ||
+    key === "scrolly-tell" ||
+    key === "scrollytelling"
+  ) {
+    return "scrollytell";
+  }
   return "default";
 };
 
@@ -473,6 +491,7 @@ export function PlayerRuntime() {
   const outgoingLinks = usePlayerStore(selectPlayerOutgoingLinks);
   const mode = usePlayerStore(selectPlayerMode);
   const historyLength = usePlayerStore(selectPlayerHistoryLength);
+  const history = usePlayerStore((s) => s.history);
   const visitedCount = usePlayerStore(selectPlayerVisitedCount);
   const progress = usePlayerStore(selectPlayerProgress);
   const rootNodeId = usePlayerStore(selectPlayerRootNodeId);
@@ -482,6 +501,14 @@ export function PlayerRuntime() {
   const getNodeById = usePlayerStore((s) => s.getNodeById);
   const goBack = usePlayerStore((s) => s.goBack);
   const goHome = usePlayerStore((s) => s.goHome);
+
+  const historyNodes = useMemo(
+    () =>
+      history
+        .map((entry) => getNodeById(entry.nodeId))
+        .filter((node): node is NodeModel => Boolean(node)),
+    [history, getNodeById]
+  );
   const preferenceKey = useMemo(
     () => preferenceStorageKey(adventure?.slug, adventure?.viewSlug),
     [adventure?.slug, adventure?.viewSlug]
@@ -740,7 +767,8 @@ export function PlayerRuntime() {
     const orderedIds = parseOrderedLinkIds(
       readRawProp(currentNode?.rawProps, ["ordered_link_ids", "button_order", "button-order"])
     );
-    const skipCount = style === "default" || style === "swipeWithButton" ? 0 : 1;
+    const skipCount =
+      style === "default" || style === "swipeWithButton" || style === "scrollytell" ? 0 : 1;
     const swipeMode = style === "swipe" || style === "swipeWithButton";
 
     return {
@@ -1197,10 +1225,12 @@ export function PlayerRuntime() {
     visitedNodes,
   ]);
 
+  const isScrollytell = navigationConfig.style === "scrollytell";
   const playerClassName = cn(
     `ps-player--nav-${navigationConfig.style}`,
     navigationConfig.placement === "bottom" ? "ps-player--nav-bottom" : "",
     navigationConfig.swipeMode ? "ps-player--swipe" : "",
+    isScrollytell ? "ps-player--scrollytell" : "",
     isVideoNode ? "ps-player--videoplayer" : ""
   );
   const canGoBack = historyLength > 1;
@@ -1269,6 +1299,114 @@ export function PlayerRuntime() {
 
   if (!adventure) return null;
 
+  const renderNodeCard = (
+    node: NodeModel | null | undefined,
+    nodeKind: NodeKind,
+    isActive: boolean
+  ) => {
+    if (!node) return null;
+    return (
+      <div className="ps-player__card">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-[0.2em] opacity-70">
+              {adventure.title}
+            </p>
+            <p className="text-sm opacity-70">
+              Node {node.nodeId ?? "?"} - {nodeKind}
+            </p>
+          </div>
+          {isActive ? (
+            <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase">
+              {mode === "preview" ? (
+                <span className="rounded-full bg-white/15 px-3 py-1 text-white">
+                  Preview
+                </span>
+              ) : null}
+              {flags.highContrast ? (
+                <span className="rounded-full bg-black/60 px-3 py-1 text-white border border-white/30">
+                  High contrast
+                </span>
+              ) : null}
+              {flags.hideBackground ? (
+                <span className="rounded-full bg-black/50 px-3 py-1 text-white border border-white/20">
+                  Background hidden
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <NodeContent
+          nodeKind={nodeKind}
+          nodeTitle={node.title ?? ""}
+          nodeText={node.text ?? ""}
+        />
+
+        {isActive && (nodeKind === "reference" || nodeKind === "reference-tab") ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/15 bg-black/20 p-3">
+            <Button onClick={openReference} disabled={!referenceUrl} size="sm">
+              {nodeKind === "reference-tab" ? "Open in new tab" : "Open link"}
+            </Button>
+            <div className="min-w-0 flex-1 text-xs opacity-80">
+              {referenceUrl ? (
+                <span className="break-words">{referenceUrl}</span>
+              ) : (
+                <span className="text-red-300">No URL found in this node.</span>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {isActive ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs opacity-80">
+            <span>Visited {visitedCount}/{adventure.nodes.length}</span>
+            <span aria-hidden>-</span>
+            <span>Progress {progress}%</span>
+          </div>
+        ) : null}
+
+        {isActive ? (
+          <NavigationArea
+            navStyle={navigationConfig.style}
+            navPlacement={navigationConfig.placement}
+            swipeMode={navigationConfig.swipeMode}
+            buttons={navigationModel.buttons}
+            primaryLinkId={navigationModel.primaryLinkId}
+            showLeftArrow={navigationConfig.style === "leftright"}
+            showRightArrow={
+              navigationConfig.style === "leftright" || navigationConfig.style === "right"
+            }
+            showDownArrow={navigationConfig.style === "swipe"}
+            onChooseLink={(linkId) => chooseLink(linkId)}
+            onBack={goBack}
+            disableBack={historyLength <= 1}
+          />
+        ) : null}
+      </div>
+    );
+  };
+
+  const scrollyBlocks = isScrollytell
+    ? historyNodes.map((node, index) => {
+        const isActive =
+          node.nodeId === currentNodeId && index === historyNodes.length - 1;
+        const nodeKind = isActive ? currentNodeKind : resolveNodeKind(node);
+        return {
+          key: `${node.nodeId}-${index}`,
+          nodeId: node.nodeId,
+          isActive,
+          content: renderNodeCard(node, nodeKind, isActive),
+        };
+      })
+    : [];
+
+  const playerBody = isScrollytell ? (
+    <ScrollyTracker blocks={scrollyBlocks} activeNodeId={currentNodeId ?? null} />
+  ) : (
+    renderNodeCard(currentNode, currentNodeKind, true)
+  );
+
   return (
     <PlayerLayout
       className={playerClassName}
@@ -1295,78 +1433,7 @@ export function PlayerRuntime() {
       }}
       overlay={overlayContent}
     >
-      <div className="ps-player__card">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.2em] opacity-70">
-              {adventure.title}
-            </p>
-            <p className="text-sm opacity-70">
-              Node {currentNode?.nodeId ?? "?"} - {currentNodeKind}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase">
-            {mode === "preview" ? (
-              <span className="rounded-full bg-white/15 px-3 py-1 text-white">
-                Preview
-              </span>
-            ) : null}
-            {flags.highContrast ? (
-              <span className="rounded-full bg-black/60 px-3 py-1 text-white border border-white/30">
-                High contrast
-              </span>
-            ) : null}
-            {flags.hideBackground ? (
-              <span className="rounded-full bg-black/50 px-3 py-1 text-white border border-white/20">
-                Background hidden
-              </span>
-            ) : null}
-          </div>
-        </div>
-
-        <NodeContent
-          nodeKind={currentNodeKind}
-          nodeTitle={currentNode?.title ?? ""}
-          nodeText={currentNode?.text ?? ""}
-        />
-
-        {currentNodeKind === "reference" || currentNodeKind === "reference-tab" ? (
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/15 bg-black/20 p-3">
-            <Button onClick={openReference} disabled={!referenceUrl} size="sm">
-              {currentNodeKind === "reference-tab" ? "Open in new tab" : "Open link"}
-            </Button>
-            <div className="min-w-0 flex-1 text-xs opacity-80">
-              {referenceUrl ? (
-                <span className="break-words">{referenceUrl}</span>
-              ) : (
-                <span className="text-red-300">No URL found in this node.</span>
-              )}
-            </div>
-          </div>
-        ) : null}
-
-        <div className="flex flex-wrap items-center gap-2 text-xs opacity-80">
-          <span>Visited {visitedCount}/{adventure.nodes.length}</span>
-          <span aria-hidden>-</span>
-          <span>Progress {progress}%</span>
-        </div>
-
-        <NavigationArea
-          navStyle={navigationConfig.style}
-          navPlacement={navigationConfig.placement}
-          swipeMode={navigationConfig.swipeMode}
-          buttons={navigationModel.buttons}
-          primaryLinkId={navigationModel.primaryLinkId}
-          showLeftArrow={navigationConfig.style === "leftright"}
-          showRightArrow={
-            navigationConfig.style === "leftright" || navigationConfig.style === "right"
-          }
-          showDownArrow={navigationConfig.style === "swipe"}
-          onChooseLink={(linkId) => chooseLink(linkId)}
-          onBack={goBack}
-          disableBack={historyLength <= 1}
-        />
-      </div>
+      {playerBody}
     </PlayerLayout>
   );
 }
