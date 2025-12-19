@@ -528,6 +528,7 @@ export function PlayerRuntime() {
   });
   const [menuOpen, setMenuOpen] = useState(false);
   const [viewportActiveNodeId, setViewportActiveNodeId] = useState<number | null>(null);
+  const [scrollyReturnNonce, setScrollyReturnNonce] = useState(0);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [subtitleUrl, setSubtitleUrl] = useState<string | null>(null);
   const [subtitleStatus, setSubtitleStatus] = useState<SubtitleStatus>({
@@ -808,6 +809,11 @@ export function PlayerRuntime() {
   const handleViewportActiveChange = useCallback((nodeId: number | null) => {
     setViewportActiveNodeId((prev) => (prev === nodeId ? prev : nodeId));
   }, []);
+
+  const handleReturnToCurrent = () => {
+    if (currentNodeId == null) return;
+    setScrollyReturnNonce((prev) => prev + 1);
+  };
 
   const propsResult = useMemo(
     () =>
@@ -1262,6 +1268,12 @@ export function PlayerRuntime() {
   const canGoBack = historyLength > 1;
   const canGoHome = rootNodeId != null && currentNodeId !== rootNodeId;
 
+  const showReturnToCurrent =
+    isScrollytell &&
+    currentNodeId != null &&
+    viewportActiveNodeId != null &&
+    viewportActiveNodeId !== currentNodeId;
+
   const overlayContent = (
     <div className="ps-overlay-shell space-y-2">
       <PlayerOverlay
@@ -1290,6 +1302,24 @@ export function PlayerRuntime() {
         menuRef={menuRef}
         showDebug={debugUi}
       />
+      {showReturnToCurrent ? (
+        <div className="ps-scrolly-return">
+          <button
+            type="button"
+            className="ps-overlay__btn ps-scrolly-return__btn"
+            onClick={handleReturnToCurrent}
+            aria-label="Return to current node"
+          >
+            <span className="ps-overlay__btn-icon" aria-hidden>
+              <ChevronDown />
+            </span>
+            <span className="ps-overlay__btn-text">
+              <span className="ps-overlay__btn-label">Return to current</span>
+              <span className="ps-overlay__btn-meta">Scroll to active node</span>
+            </span>
+          </button>
+        </div>
+      ) : null}
       {debugUi ? (
         <DevToggles
           highContrast={flags.highContrast}
@@ -1435,6 +1465,8 @@ export function PlayerRuntime() {
       blocks={scrollyBlocks}
       activeNodeId={currentNodeId ?? null}
       onViewportActiveChange={handleViewportActiveChange}
+      scrollToNodeId={currentNodeId ?? null}
+      scrollToNonce={scrollyReturnNonce}
     />
   ) : (
     renderNodeCard(currentNode, currentNodeKind, true)

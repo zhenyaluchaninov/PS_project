@@ -483,7 +483,8 @@
 
 .ps-player--scrollytell {
   height: var(--player-safe-height);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .ps-player--scrollytell .ps-player__outer {
@@ -504,6 +505,8 @@
   scroll-behavior: smooth;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .ps-scrollytell__block {
@@ -518,6 +521,7 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  min-height: 100%;
 }
 
 .ps-scrollytell__sentinel {
@@ -528,4 +532,38 @@
   height: 1px;
   transform: translate(-50%, -50%);
   pointer-events: none;
+}
+
+.ps-scrollytell::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.ps-player[data-align="center"] .ps-scrollytell__block-inner {
+  justify-content: center;
+}
+
+.ps-player[data-align="bottom"] .ps-scrollytell__block-inner {
+  justify-content: flex-end;
+}
+
+.ps-player--scrollytell .ps-overlay-shell {
+  width: 100%;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.ps-player--scrollytell .ps-player__floating {
+  overflow: visible;
+}
+
+.ps-scrolly-return {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.ps-scrolly-return__btn {
+  min-height: 40px;
+  padding: 8px 12px;
 }

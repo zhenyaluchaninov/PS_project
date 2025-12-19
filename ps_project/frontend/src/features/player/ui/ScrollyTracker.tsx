@@ -12,6 +12,8 @@ type ScrollyTrackerProps = {
   blocks: ScrollyBlock[];
   activeNodeId?: number | null;
   onViewportActiveChange?: (nodeId: number | null) => void;
+  scrollToNodeId?: number | null;
+  scrollToNonce?: number;
   className?: string;
 };
 
@@ -19,6 +21,8 @@ export function ScrollyTracker({
   blocks,
   activeNodeId,
   onViewportActiveChange,
+  scrollToNodeId,
+  scrollToNonce,
   className,
 }: ScrollyTrackerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -33,6 +37,17 @@ export function ScrollyTracker({
     if (!target) return;
     target.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [activeNodeId]);
+
+  useEffect(() => {
+    if (scrollToNodeId == null) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const target = container.querySelector<HTMLElement>(
+      `[data-node-id="${scrollToNodeId}"]`
+    );
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [scrollToNodeId, scrollToNonce]);
 
   useEffect(() => {
     if (!onViewportActiveChange) return;
