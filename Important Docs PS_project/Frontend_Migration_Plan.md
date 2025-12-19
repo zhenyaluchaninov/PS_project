@@ -918,7 +918,7 @@ web/
 
 ---
 
-### Step 16 – Statistics & standalone / preview modes
+### [done] Step 16 – Statistics & standalone / preview modes
 
 **What we do**
 

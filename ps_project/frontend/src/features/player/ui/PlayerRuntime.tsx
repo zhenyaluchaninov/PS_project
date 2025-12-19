@@ -531,7 +531,7 @@ export function PlayerRuntime() {
     searchParams?.get("debugLayout") ?? searchParams?.get("debuglayout")
   );
   const debugUi = paramIsTruthy(searchParams?.get("debug") ?? searchParams?.get("dev"));
-  const previewStartNodeId = useMemo(
+  const startOverrideNodeId = useMemo(
     () => readNumberParam(searchParams, "nodeId") ?? readNumberParam(searchParams, "nodeid"),
     [searchParams]
   );
@@ -640,9 +640,10 @@ export function PlayerRuntime() {
 
   useEffect(() => {
     if (!currentNode) {
-      start(mode === "preview" ? previewStartNodeId ?? undefined : undefined);
+      const shouldOverrideStart = mode === "preview" || mode === "standalone";
+      start(shouldOverrideStart ? startOverrideNodeId ?? undefined : undefined);
     }
-  }, [currentNode, mode, previewStartNodeId, start]);
+  }, [currentNode, mode, start, startOverrideNodeId]);
 
   useEffect(() => {
     if (!debugLayout) return;
@@ -774,6 +775,11 @@ export function PlayerRuntime() {
   const soundEnabled = preferences.soundEnabled ?? true;
   const statisticsEnabled = preferences.statisticsEnabled ?? true;
   const statisticsAllowed = mode === "play";
+  const statisticsDisabledReason = statisticsAllowed
+    ? null
+    : mode === "preview"
+      ? "Disabled in preview mode"
+      : "Disabled in standalone mode";
   const nodeStatisticsEnabled = useMemo(
     () => isStatisticsEnabledForNode(currentNode),
     [currentNode?.rawProps]
@@ -1211,6 +1217,7 @@ export function PlayerRuntime() {
         soundEnabled={soundEnabled}
         statisticsEnabled={statisticsEnabled}
         statisticsDisabled={!statisticsAllowed}
+        statisticsDisabledReason={statisticsDisabledReason}
         navigationStyle={navigationConfig.style}
         navPlacement={navigationConfig.placement}
         onBack={goBack}
@@ -1234,6 +1241,7 @@ export function PlayerRuntime() {
           mode={mode}
           statisticsEnabled={statisticsEnabled}
           nodeStatisticsEnabled={nodeStatisticsEnabled}
+          statisticsDisabledReason={statisticsDisabledReason}
           showDebug={debugMedia}
           onToggleHighContrast={handleToggleHighContrast}
           onToggleHideBackground={handleToggleHideBackground}
@@ -1372,6 +1380,7 @@ function PlayerOverlay({
   soundEnabled,
   statisticsEnabled,
   statisticsDisabled,
+  statisticsDisabledReason,
   navigationStyle,
   navPlacement,
   onBack,
@@ -1393,6 +1402,7 @@ function PlayerOverlay({
   soundEnabled: boolean;
   statisticsEnabled: boolean;
   statisticsDisabled: boolean;
+  statisticsDisabledReason?: string | null;
   navigationStyle: NavStyle;
   navPlacement: NavPlacement;
   onBack: () => void;
@@ -1486,9 +1496,7 @@ function PlayerOverlay({
               />
               <OverlayToggleRow
                 label="Statistics tracking"
-                description={
-                  statisticsDisabled ? "Disabled in preview mode" : "Send node visit data"
-                }
+                description={statisticsDisabledReason ?? "Send node visit data"}
                 value={statisticsEnabled}
                 onToggle={onToggleStatistics}
                 disabled={statisticsDisabled}
@@ -1815,6 +1823,7 @@ function DevToggles({
   mode,
   statisticsEnabled,
   nodeStatisticsEnabled,
+  statisticsDisabledReason,
   showDebug,
   onToggleHighContrast,
   onToggleHideBackground,
@@ -1824,9 +1833,10 @@ function DevToggles({
   subtitleStatus: SubtitleStatus;
   audioDebug: AudioDebugSnapshot | null;
   statsDebug: StatsDebugState;
-  mode: "play" | "preview";
+  mode: "play" | "preview" | "standalone";
   statisticsEnabled: boolean;
   nodeStatisticsEnabled: boolean;
+  statisticsDisabledReason?: string | null;
   showDebug: boolean;
   onToggleHighContrast: () => void;
   onToggleHideBackground: () => void;
@@ -1925,8 +1935,16 @@ function DevToggles({
 
         <div className="rounded-md bg-black/60 px-3 py-2 text-[11px] text-white shadow">
           <p className="font-semibold">Statistics</p>
-          <p>Mode: {mode === "preview" ? "preview" : "normal"}</p>
-          {mode === "preview" ? <p>Stats: disabled in preview mode</p> : null}
+          <p>
+            Mode:{" "}
+            {mode === "preview"
+              ? "preview"
+              : mode === "standalone"
+                ? "standalone"
+                : "normal"}
+          </p>
+          {statisticsDisabledReason ? <p>Stats: {statisticsDisabledReason}</p> : null}
+          {mode === "standalone" ? <p>API: disabled in standalone mode</p> : null}
           <p>
             Toggle: {statisticsEnabled ? "on" : "off"} (node{" "}
             {nodeStatisticsEnabled ? "on" : "off"})

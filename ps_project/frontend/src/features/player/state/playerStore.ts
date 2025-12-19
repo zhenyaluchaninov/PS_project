@@ -16,7 +16,7 @@ import {
   type NodeKind,
 } from "../engine/playerEngine";
 
-export type PlayerMode = "play" | "preview";
+export type PlayerMode = "play" | "preview" | "standalone";
 export type PlayerStatus = "idle" | "loading" | "ready" | "error";
 
 export type PlayerError = {
@@ -41,6 +41,7 @@ type PlayerState = {
   linksBySource?: Record<number, LinkModel[]>;
   linksById?: Record<number, LinkModel>;
   loadBySlug: (slug: string, mode?: PlayerMode) => Promise<void>;
+  loadFromAdventure: (adventure: AdventureModel, mode?: PlayerMode) => void;
   start: (startNodeId?: number) => void;
   chooseLink: (linkId: number) => boolean;
   goBack: () => void;
@@ -150,6 +151,28 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         linksBySource: undefined,
         linksById: undefined,
       }),
+
+    loadFromAdventure: (adventure: AdventureModel, mode: PlayerMode = "standalone") => {
+      const { nodeIndex, linksBySource, linksById } = buildGraphIndexes(adventure);
+      set({
+        status: "ready",
+        slug: adventure.slug || undefined,
+        mode,
+        adventure,
+        loadedAt: Date.now(),
+        error: undefined,
+        currentNodeId: undefined,
+        history: [],
+        rootNodeId: undefined,
+        visited: new Set(),
+        nodeIndex,
+        linksBySource,
+        linksById,
+      });
+      if (isDev) {
+        console.log(`[player] loaded adventure "${adventure.title}" mode=${mode}`);
+      }
+    },
 
     loadBySlug: async (slug: string, mode: PlayerMode = "play") => {
       const apiMode: "play" | "edit" = "play";
