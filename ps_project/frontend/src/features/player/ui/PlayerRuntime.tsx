@@ -183,6 +183,15 @@ const readBooleanParam = (params: SearchParamLike, keys: string[]) => {
   return undefined;
 };
 
+const readNumberParam = (params: SearchParamLike, key: string): number | null => {
+  if (!params) return null;
+  const raw = params.get(key);
+  if (!raw) return null;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return null;
+  return parsed;
+};
+
 const resolveSoundParam = (params: SearchParamLike) => {
   const mute = readBooleanParam(params, ["mute", "muted"]);
   if (mute !== undefined) {
@@ -522,6 +531,10 @@ export function PlayerRuntime() {
     searchParams?.get("debugLayout") ?? searchParams?.get("debuglayout")
   );
   const debugUi = paramIsTruthy(searchParams?.get("debug") ?? searchParams?.get("dev"));
+  const previewStartNodeId = useMemo(
+    () => readNumberParam(searchParams, "nodeId") ?? readNumberParam(searchParams, "nodeid"),
+    [searchParams]
+  );
 
   useViewportDevice({ targetSelector: ".ps-player" });
 
@@ -627,9 +640,9 @@ export function PlayerRuntime() {
 
   useEffect(() => {
     if (!currentNode) {
-      start();
+      start(mode === "preview" ? previewStartNodeId ?? undefined : undefined);
     }
-  }, [currentNode, start]);
+  }, [currentNode, mode, previewStartNodeId, start]);
 
   useEffect(() => {
     if (!debugLayout) return;
@@ -760,6 +773,7 @@ export function PlayerRuntime() {
   const { style: propsStyle, flags, dataProps, layout, media, typography } = propsResult;
   const soundEnabled = preferences.soundEnabled ?? true;
   const statisticsEnabled = preferences.statisticsEnabled ?? true;
+  const statisticsAllowed = mode === "play";
   const nodeStatisticsEnabled = useMemo(
     () => isStatisticsEnabledForNode(currentNode),
     [currentNode?.rawProps]
@@ -817,7 +831,7 @@ export function PlayerRuntime() {
 
     const lastAttempt = { nodeId, adventureSlug };
 
-    if (mode !== "play" || !statisticsEnabled || !nodeStatisticsEnabled) {
+    if (!statisticsAllowed || !statisticsEnabled || !nodeStatisticsEnabled) {
       bumpStatsDebug("skipped", lastAttempt);
       return;
     }
@@ -837,8 +851,8 @@ export function PlayerRuntime() {
     adventure?.slug,
     bumpStatsDebug,
     currentNode?.nodeId,
-    mode,
     nodeStatisticsEnabled,
+    statisticsAllowed,
     statisticsEnabled,
   ]);
 
@@ -1196,6 +1210,7 @@ export function PlayerRuntime() {
         hideBackground={flags.hideBackground}
         soundEnabled={soundEnabled}
         statisticsEnabled={statisticsEnabled}
+        statisticsDisabled={!statisticsAllowed}
         navigationStyle={navigationConfig.style}
         navPlacement={navigationConfig.placement}
         onBack={goBack}
@@ -1216,6 +1231,7 @@ export function PlayerRuntime() {
           subtitleStatus={subtitleStatus}
           audioDebug={audioDebug}
           statsDebug={statsDebug}
+          mode={mode}
           statisticsEnabled={statisticsEnabled}
           nodeStatisticsEnabled={nodeStatisticsEnabled}
           showDebug={debugMedia}
@@ -1355,6 +1371,7 @@ function PlayerOverlay({
   hideBackground,
   soundEnabled,
   statisticsEnabled,
+  statisticsDisabled,
   navigationStyle,
   navPlacement,
   onBack,
@@ -1375,6 +1392,7 @@ function PlayerOverlay({
   hideBackground: boolean;
   soundEnabled: boolean;
   statisticsEnabled: boolean;
+  statisticsDisabled: boolean;
   navigationStyle: NavStyle;
   navPlacement: NavPlacement;
   onBack: () => void;
@@ -1468,9 +1486,12 @@ function PlayerOverlay({
               />
               <OverlayToggleRow
                 label="Statistics tracking"
-                description="Send node visit data"
+                description={
+                  statisticsDisabled ? "Disabled in preview mode" : "Send node visit data"
+                }
                 value={statisticsEnabled}
                 onToggle={onToggleStatistics}
+                disabled={statisticsDisabled}
               />
             </div>
 
@@ -1539,19 +1560,26 @@ function OverlayToggleRow({
   description,
   value,
   onToggle,
+  disabled,
 }: {
   label: string;
   description?: string;
   value: boolean;
   onToggle: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
-      className="ps-overlay__toggle"
+      className={cn(
+        "ps-overlay__toggle",
+        disabled ? "cursor-not-allowed opacity-60" : ""
+      )}
       role="switch"
       aria-checked={value}
-      onClick={onToggle}
+      aria-disabled={disabled}
+      disabled={disabled}
+      onClick={disabled ? undefined : onToggle}
     >
       <div className="ps-overlay__toggle-text">
         <span className="ps-overlay__toggle-label">{label}</span>
@@ -1784,6 +1812,7 @@ function DevToggles({
   subtitleStatus,
   audioDebug,
   statsDebug,
+  mode,
   statisticsEnabled,
   nodeStatisticsEnabled,
   showDebug,
@@ -1795,6 +1824,7 @@ function DevToggles({
   subtitleStatus: SubtitleStatus;
   audioDebug: AudioDebugSnapshot | null;
   statsDebug: StatsDebugState;
+  mode: "play" | "preview";
   statisticsEnabled: boolean;
   nodeStatisticsEnabled: boolean;
   showDebug: boolean;
@@ -1895,7 +1925,8 @@ function DevToggles({
 
         <div className="rounded-md bg-black/60 px-3 py-2 text-[11px] text-white shadow">
           <p className="font-semibold">Statistics</p>
-          <p>Mode: normal</p>
+          <p>Mode: {mode === "preview" ? "preview" : "normal"}</p>
+          {mode === "preview" ? <p>Stats: disabled in preview mode</p> : null}
           <p>
             Toggle: {statisticsEnabled ? "on" : "off"} (node{" "}
             {nodeStatisticsEnabled ? "on" : "off"})

@@ -41,7 +41,7 @@ type PlayerState = {
   linksBySource?: Record<number, LinkModel[]>;
   linksById?: Record<number, LinkModel>;
   loadBySlug: (slug: string, mode?: PlayerMode) => Promise<void>;
-  start: () => void;
+  start: (startNodeId?: number) => void;
   chooseLink: (linkId: number) => boolean;
   goBack: () => void;
   goHome: () => void;
@@ -152,11 +152,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       }),
 
     loadBySlug: async (slug: string, mode: PlayerMode = "play") => {
-      const apiMode = mode === "preview" ? "edit" : "play";
-      const requestUrl =
-        apiMode === "play"
-          ? resolveApiUrl(`/api/adventure/${slug}`)
-          : resolveApiUrl(`/api/adventure/${slug}/edit`);
+      const apiMode: "play" | "edit" = "play";
+      const requestUrl = resolveApiUrl(`/api/adventure/${slug}`);
 
       set({
         status: "loading",
@@ -277,7 +274,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       }
     },
 
-  start: () => {
+  start: (startNodeId?: number) => {
     const { adventure, nodeIndex, currentNodeId } = get();
     if (!adventure || !nodeIndex) return;
     if (currentNodeId != null) {
@@ -294,12 +291,25 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       return;
     }
     set({ rootNodeId: rootNode.nodeId });
-    const started = navigateToNode(rootNode.nodeId, {
+    const startTarget =
+      startNodeId != null && nodeIndex[startNodeId] ? startNodeId : rootNode.nodeId;
+    const started = navigateToNode(startTarget, {
       resetHistory: true,
       resetVisited: true,
     });
+    if (!started && startTarget !== rootNode.nodeId) {
+      const fallback = navigateToNode(rootNode.nodeId, {
+        resetHistory: true,
+        resetVisited: true,
+      });
+      if (isDev && fallback) {
+        console.log(`[player] fallback start at node ${rootNode.nodeId}`);
+      }
+      return;
+    }
     if (isDev && started) {
-      console.log(`[player] start at node ${rootNode.nodeId}`);
+      const label = startTarget === rootNode.nodeId ? "start" : "start override";
+      console.log(`[player] ${label} at node ${startTarget}`);
     }
   },
 
