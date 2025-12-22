@@ -1087,7 +1087,7 @@ web/
 
 ---
 
-### Step 19 – Graph interactions & CRUD operations (gesture-first)
+### [done] Step 19 – Graph interactions & CRUD operations (gesture-first)
 
 **What we do**
 

@@ -29,6 +29,11 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const loadByEditSlug = useEditorStore((s) => s.loadByEditSlug);
   const setSelection = useEditorStore((s) => s.setSelection);
   const clearSelection = useEditorStore((s) => s.clearSelection);
+  const updateNodePositions = useEditorStore((s) => s.updateNodePositions);
+  const addLink = useEditorStore((s) => s.addLink);
+  const addNodeWithLink = useEditorStore((s) => s.addNodeWithLink);
+  const removeNodes = useEditorStore((s) => s.removeNodes);
+  const removeLinks = useEditorStore((s) => s.removeLinks);
 
   useEffect(() => {
     void loadByEditSlug(editSlug);
@@ -49,10 +54,17 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
             /redigera/<span className="font-mono">{editSlug}</span>
           </span>
           {title ? <span className="text-[var(--text)]/80">{title}</span> : null}
+          <span
+            className={dirty
+              ? "inline-flex items-center rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--accent)]"
+              : "inline-flex items-center rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]"}
+          >
+            {dirty ? "Unsaved changes" : "No changes"}
+          </span>
         </div>
       </Toolbar>
     );
-  }, [adventure?.title, editSlug]);
+  }, [adventure?.title, dirty, editSlug]);
 
   if (status === "loading" || status === "idle") {
     return (
@@ -158,6 +170,11 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
             editVersion={editVersion ?? null}
             selection={selection}
             onSelectionChange={setSelection}
+            onNodePositionsChange={updateNodePositions}
+            onCreateLink={addLink}
+            onCreateNodeWithLink={addNodeWithLink}
+            onDeleteNodes={removeNodes}
+            onDeleteLinks={removeLinks}
           />
         }
         sidePanel={

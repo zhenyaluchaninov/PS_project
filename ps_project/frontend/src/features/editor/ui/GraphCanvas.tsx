@@ -1,7 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import ReactFlow, { Background, Controls, type Edge, type Node } from "reactflow";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import ReactFlow, {
+  Background,
+  Controls,
+  Handle,
+  Position,
+  useEdgesState,
+  useNodesState,
+  type Connection,
+  type DefaultEdgeOptions,
+  type Edge,
+  type Node,
+  type NodeProps,
+  type OnConnectStartParams,
+  type ReactFlowInstance,
+} from "reactflow";
 import type { AdventureModel } from "@/domain/models";
 import type { EditorSelection } from "../state/editorStore";
 import { cn } from "@/lib/utils";
@@ -21,12 +35,24 @@ type GraphCanvasProps = {
   editVersion?: number | null;
   selection: EditorSelection;
   onSelectionChange: (selection: EditorSelection) => void;
+  onNodePositionsChange: (
+    updates: Array<{ nodeId: number; position: { x: number; y: number } }>
+  ) => void;
+  onCreateLink: (sourceId: number, targetId: number) => number | null;
+  onCreateNodeWithLink: (
+    sourceId: number,
+    position: { x: number; y: number }
+  ) => { nodeId: number; linkId: number } | null;
+  onDeleteNodes: (nodeIds: number[]) => void;
+  onDeleteLinks: (linkIds: number[]) => void;
   className?: string;
 };
 
 type NodePosition = { x: number; y: number };
 
-function buildFallbackPositions(nodes: AdventureModel["nodes"]): Map<number, NodePosition> {
+function buildFallbackPositions(
+  nodes: AdventureModel["nodes"]
+): Map<number, NodePosition> {
   const positions = new Map<number, NodePosition>();
   if (!nodes.length) return positions;
 
@@ -43,15 +69,152 @@ function buildFallbackPositions(nodes: AdventureModel["nodes"]): Map<number, Nod
   return positions;
 }
 
+function toNumericId(value: string | number | null | undefined): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function getEventClientPosition(
+  event: MouseEvent | TouchEvent
+): { x: number; y: number } | null {
+  if ("touches" in event) {
+    const touch = event.touches[0] ?? event.changedTouches[0];
+    if (!touch) return null;
+    return { x: touch.clientX, y: touch.clientY };
+  }
+  return { x: event.clientX, y: event.clientY };
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    target.isContentEditable
+  );
+}
+
+function buildGraphNodes(
+  nodes: AdventureModel["nodes"],
+  existingNodes: Node<GraphNodeData>[]
+): Node<GraphNodeData>[] {
+  const existingById = new Map(existingNodes.map((node) => [node.id, node]));
+  const fallbackPositions = buildFallbackPositions(nodes);
+
+  return nodes.map((node) => {
+    const existing = existingById.get(String(node.nodeId));
+    const hasPosition = node.position.x !== 0 || node.position.y !== 0;
+    const position = hasPosition
+      ? node.position
+      : existing?.position ??
+        fallbackPositions.get(node.nodeId) ?? { x: 0, y: 0 };
+
+    return {
+      id: String(node.nodeId),
+      type: "adventure",
+      position,
+      data: { label: node.title || `Node ${node.nodeId}`, nodeId: node.nodeId },
+      selected: existing?.selected ?? false,
+    };
+  });
+}
+
+function buildGraphEdges(
+  links: AdventureModel["links"],
+  nodes: AdventureModel["nodes"],
+  existingEdges: Edge<GraphEdgeData>[]
+): Edge<GraphEdgeData>[] {
+  const existingById = new Map(existingEdges.map((edge) => [edge.id, edge]));
+  const nodeIds = new Set(nodes.map((node) => String(node.nodeId)));
+
+  return links
+    .filter(
+      (link) => nodeIds.has(String(link.source)) && nodeIds.has(String(link.target))
+    )
+    .map((link) => {
+      const existing = existingById.get(String(link.linkId));
+      return {
+        id: String(link.linkId),
+        source: String(link.source),
+        target: String(link.target),
+        data: { linkId: link.linkId },
+        selected: existing?.selected ?? false,
+      };
+    });
+}
+
+function AdventureNode({ data, selected }: NodeProps<GraphNodeData>) {
+  return (
+    <div
+      className={cn(
+        "relative rounded-lg border px-3 py-2 text-xs shadow-sm",
+        selected
+          ? "border-[var(--accent)] bg-[var(--editor-node-bg)]"
+          : "border-[var(--editor-node-border)] bg-[var(--editor-node-bg)]"
+      )}
+    >
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="h-2 w-2 border-2 border-[var(--editor-node-bg)] bg-[var(--text)]"
+      />
+      <div className="font-semibold text-[var(--text)]">{data.label}</div>
+      <div className="text-[10px] text-[var(--muted)]">#{data.nodeId}</div>
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="h-2 w-2 border-2 border-[var(--editor-node-bg)] bg-[var(--text)]"
+      />
+    </div>
+  );
+}
+
+const nodeTypes = { adventure: AdventureNode };
+const edgeTypes = {};
+const defaultEdgeOptions = {
+  style: {
+    stroke: "var(--editor-edge)",
+    strokeWidth: 2,
+  },
+} satisfies DefaultEdgeOptions;
+const editorThemeStyle = {
+  "--editor-graph-bg": "#0b1020",
+  "--editor-node-bg": "#162644",
+  "--editor-node-border": "rgba(148,163,184,0.18)",
+  "--editor-grid": "rgba(148,163,184,0.12)",
+  "--editor-edge": "rgba(148,163,184,0.32)",
+} as unknown as CSSProperties;
+
 export function GraphCanvas({
   adventure,
   editSlug,
   editVersion,
   selection,
   onSelectionChange,
+  onNodePositionsChange,
+  onCreateLink,
+  onCreateNodeWithLink,
+  onDeleteNodes,
+  onDeleteLinks,
   className,
 }: GraphCanvasProps) {
   const [hudOpen, setHudOpen] = useState(true);
+  const reactFlowRef = useRef<ReactFlowInstance<GraphNodeData, GraphEdgeData> | null>(
+    null
+  );
+  const connectingNodeIdRef = useRef<number | null>(null);
+  const nodesRef = useRef<Node<GraphNodeData>[]>([]);
+  const edgesRef = useRef<Edge<GraphEdgeData>[]>([]);
+  const nodesAdventureIdRef = useRef<number | null>(null);
+  const edgesAdventureIdRef = useRef<number | null>(null);
 
   const nodeById = useMemo(() => {
     const map = new Map<number, AdventureModel["nodes"][number]>();
@@ -74,78 +237,220 @@ export function GraphCanvas({
   const selectedLink =
     selection.type === "link" ? linkById.get(selection.linkId) : undefined;
 
-  const nodes = useMemo(() => {
-    const hasPosition = adventure.nodes.some(
-      (node) => node.position.x !== 0 || node.position.y !== 0
+  const [nodes, setNodes, onNodesChange] = useNodesState<GraphNodeData>(
+    buildGraphNodes(adventure.nodes, [])
+  );
+  const [edges, setEdges, onEdgesChange] = useEdgesState<GraphEdgeData>(
+    buildGraphEdges(adventure.links, adventure.nodes, [])
+  );
+
+  useEffect(() => {
+    const isNewAdventure = nodesAdventureIdRef.current !== adventure.id;
+    nodesAdventureIdRef.current = adventure.id;
+    setNodes((current) =>
+      buildGraphNodes(adventure.nodes, isNewAdventure ? [] : current)
     );
-    const fallbackPositions = hasPosition
-      ? new Map<number, NodePosition>()
-      : buildFallbackPositions(adventure.nodes);
+  }, [adventure.id, adventure.nodes, setNodes]);
 
-    return adventure.nodes.map((node) => {
-      const position = hasPosition
-        ? node.position
-        : fallbackPositions.get(node.nodeId) ?? { x: 0, y: 0 };
+  useEffect(() => {
+    const isNewAdventure = edgesAdventureIdRef.current !== adventure.id;
+    edgesAdventureIdRef.current = adventure.id;
+    setEdges((current) =>
+      buildGraphEdges(adventure.links, adventure.nodes, isNewAdventure ? [] : current)
+    );
+  }, [adventure.id, adventure.links, adventure.nodes, setEdges]);
 
-      return {
-        id: String(node.nodeId),
-        position,
-        data: { label: node.title || `Node ${node.nodeId}`, nodeId: node.nodeId },
-        selected: selection.type === "node" && selection.nodeId === node.nodeId,
-        draggable: false,
-      } satisfies Node<GraphNodeData>;
-    });
-  }, [adventure.nodes, selection]);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
-  const edges = useMemo(() => {
-    const nodeIds = new Set(adventure.nodes.map((node) => String(node.nodeId)));
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
 
-    return adventure.links
-      .filter(
+  const handleInit = useCallback(
+    (instance: ReactFlowInstance<GraphNodeData, GraphEdgeData>) => {
+      reactFlowRef.current = instance;
+    },
+    []
+  );
+
+  const handleSelectionChange = useCallback(
+    ({ nodes: selectedNodes, edges: selectedEdges }: { nodes: Node[]; edges: Edge[] }) => {
+      const nodeIds = selectedNodes
+        .map((node) => toNumericId(node.data?.nodeId ?? node.id))
+        .filter((id): id is number => id !== null);
+      const linkIds = selectedEdges
+        .map((edge) => toNumericId(edge.data?.linkId ?? edge.id))
+        .filter((id): id is number => id !== null);
+
+      if (nodeIds.length) {
+        onSelectionChange({ type: "node", nodeId: nodeIds[nodeIds.length - 1] });
+        return;
+      }
+      if (linkIds.length) {
+        onSelectionChange({ type: "link", linkId: linkIds[linkIds.length - 1] });
+        return;
+      }
+      onSelectionChange({ type: "none" });
+    },
+    [onSelectionChange]
+  );
+
+  const isValidConnection = useCallback(
+    (connection: Connection | Edge) => {
+      const sourceId = toNumericId(connection.source);
+      const targetId = toNumericId(connection.target);
+      if (sourceId == null || targetId == null) return false;
+      if (sourceId === targetId) return false;
+      if (!nodeById.has(sourceId) || !nodeById.has(targetId)) return false;
+      const exists = adventure.links.some(
         (link) =>
-          nodeIds.has(String(link.source)) && nodeIds.has(String(link.target))
-      )
-      .map((link) => {
-        return {
-          id: String(link.linkId),
-          source: String(link.source),
-          target: String(link.target),
-          data: { linkId: link.linkId },
-          selected: selection.type === "link" && selection.linkId === link.linkId,
-        } satisfies Edge<GraphEdgeData>;
-      });
-  }, [adventure.links, adventure.nodes, selection]);
+          (link.source === sourceId && link.target === targetId) ||
+          (link.source === targetId && link.target === sourceId)
+      );
+      return !exists;
+    },
+    [adventure.links, nodeById]
+  );
+
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      if (!isValidConnection(connection)) return;
+      const sourceId = toNumericId(connection.source);
+      const targetId = toNumericId(connection.target);
+      if (sourceId == null || targetId == null) return;
+      onCreateLink(sourceId, targetId);
+    },
+    [isValidConnection, onCreateLink]
+  );
+
+  const handleConnectStart = useCallback(
+    (_event: unknown, params: OnConnectStartParams) => {
+      if (params.handleType !== "source") {
+        connectingNodeIdRef.current = null;
+        return;
+      }
+      const nodeId = toNumericId(params.nodeId);
+      connectingNodeIdRef.current = nodeId;
+    },
+    []
+  );
+
+  const handleConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent) => {
+      const sourceId = connectingNodeIdRef.current;
+      connectingNodeIdRef.current = null;
+      if (sourceId == null) return;
+      const target = event.target as Element | null;
+      if (!target || !target.classList.contains("react-flow__pane")) {
+        return;
+      }
+      const instance = reactFlowRef.current;
+      if (!instance) return;
+      const clientPosition = getEventClientPosition(event);
+      if (!clientPosition) return;
+      const position = instance.screenToFlowPosition(clientPosition);
+      onCreateNodeWithLink(sourceId, position);
+    },
+    [onCreateNodeWithLink]
+  );
+
+  const handleNodeDragStop = useCallback(
+    (_event: unknown, node: Node<GraphNodeData>, nodesAtStop?: Node[]) => {
+      if (nodesAtStop && nodesAtStop.length > 1) {
+        return;
+      }
+      const nodeId = toNumericId(node.data?.nodeId ?? node.id);
+      if (nodeId == null) return;
+      onNodePositionsChange([{ nodeId, position: node.position }]);
+    },
+    [onNodePositionsChange]
+  );
+
+  const handleSelectionDragStop = useCallback(
+    (_event: unknown, draggedNodes: Node[]) => {
+      if (!draggedNodes.length) return;
+      const updates = draggedNodes
+        .map((node) => {
+          const nodeId = toNumericId(node.data?.nodeId ?? node.id);
+          if (nodeId == null) return null;
+          return { nodeId, position: node.position };
+        })
+        .filter(
+          (update): update is { nodeId: number; position: { x: number; y: number } } =>
+            Boolean(update)
+        );
+      if (!updates.length) return;
+      onNodePositionsChange(updates);
+    },
+    [onNodePositionsChange]
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      if (isEditableTarget(event.target)) return;
+      const selectedNodeIds = nodesRef.current
+        .filter((node) => node.selected)
+        .map((node) => toNumericId(node.data?.nodeId ?? node.id))
+        .filter((id): id is number => id !== null);
+      const selectedLinkIds = edgesRef.current
+        .filter((edge) => edge.selected)
+        .map((edge) => toNumericId(edge.data?.linkId ?? edge.id))
+        .filter((id): id is number => id !== null);
+
+      if (selectedNodeIds.length) {
+        event.preventDefault();
+        onDeleteNodes(selectedNodeIds);
+        onSelectionChange({ type: "none" });
+        return;
+      }
+      if (selectedLinkIds.length) {
+        event.preventDefault();
+        onDeleteLinks(selectedLinkIds);
+        onSelectionChange({ type: "none" });
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onDeleteLinks, onDeleteNodes, onSelectionChange]);
 
   return (
     <div
       className={cn(
-        "relative h-full w-full overflow-hidden bg-[var(--surface-2)]",
+        "relative h-full w-full overflow-hidden bg-[var(--editor-graph-bg)]",
         className
       )}
+      style={editorThemeStyle}
     >
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        defaultEdgeOptions={defaultEdgeOptions}
         fitView
-        nodesDraggable={false}
-        nodesConnectable={false}
+        nodesDraggable
+        nodesConnectable
         edgesUpdatable={false}
-        selectionOnDrag={false}
-        selectNodesOnDrag={false}
-        onNodeClick={(event, node) => {
-          event.stopPropagation();
-          onSelectionChange({ type: "node", nodeId: node.data.nodeId });
-        }}
-        onEdgeClick={(event, edge) => {
-          event.stopPropagation();
-          const linkId = edge.data?.linkId ?? Number(edge.id);
-          if (Number.isFinite(linkId)) {
-            onSelectionChange({ type: "link", linkId });
-          }
-        }}
-        onPaneClick={() => onSelectionChange({ type: "none" })}
+        selectionOnDrag
+        selectNodesOnDrag
+        multiSelectionKeyCode={["Control", "Shift"]}
+        deleteKeyCode={null}
+        onInit={handleInit}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onSelectionChange={handleSelectionChange}
+        onNodeDragStop={handleNodeDragStop}
+        onSelectionDragStop={handleSelectionDragStop}
+        onConnect={handleConnect}
+        onConnectStart={handleConnectStart}
+        onConnectEnd={handleConnectEnd}
+        isValidConnection={isValidConnection}
       >
-        <Background color="var(--border)" gap={24} />
+        <Background color="var(--editor-grid)" gap={32} size={2.5} />
         <Controls position="bottom-right" />
       </ReactFlow>
       <div className="pointer-events-none absolute bottom-3 left-3 z-10">
