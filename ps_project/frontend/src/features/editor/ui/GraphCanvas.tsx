@@ -3,15 +3,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Background,
+  BaseEdge,
   Controls,
+  EdgeLabelRenderer,
   Handle,
+  MarkerType,
   Position,
   ReactFlow,
+  getBezierPath,
   useEdgesState,
   useNodesState,
   type Connection,
   type DefaultEdgeOptions,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeProps,
   type OnConnectStartParams,
@@ -24,10 +29,19 @@ import { cn } from "@/lib/utils";
 type GraphNodeData = {
   label: string;
   nodeId: number;
+  chapterType: string | null;
+  badges: Array<{ key: string; label: string; tone: "flag" | "media" }>;
+  style: {
+    background: string;
+    border: string;
+    accent: string;
+  };
 };
 
 type GraphEdgeData = {
   linkId: number;
+  isBidirectional: boolean;
+  hasConditions: boolean;
 };
 
 type GraphCanvasProps = {
@@ -51,6 +65,65 @@ type GraphCanvasProps = {
 
 type NodePosition = { x: number; y: number };
 
+type NodeVariant =
+  | "start"
+  | "chapter"
+  | "chapter-plain"
+  | "ref"
+  | "ref-tab"
+  | "random"
+  | "video"
+  | "audio"
+  | "default";
+
+const nodeVariantStyles: Record<NodeVariant, GraphNodeData["style"]> = {
+  start: {
+    background: "#143323",
+    border: "rgba(52,211,153,0.65)",
+    accent: "#34d399",
+  },
+  chapter: {
+    background: "#172b4d",
+    border: "rgba(96,165,250,0.65)",
+    accent: "#60a5fa",
+  },
+  "chapter-plain": {
+    background: "#1f2a3a",
+    border: "rgba(148,163,184,0.5)",
+    accent: "#94a3b8",
+  },
+  ref: {
+    background: "#322615",
+    border: "rgba(251,191,36,0.6)",
+    accent: "#fbbf24",
+  },
+  "ref-tab": {
+    background: "#3b2f1a",
+    border: "rgba(245,158,11,0.6)",
+    accent: "#f59e0b",
+  },
+  random: {
+    background: "#3a1f1f",
+    border: "rgba(249,115,22,0.6)",
+    accent: "#f97316",
+  },
+  video: {
+    background: "#331926",
+    border: "rgba(251,113,133,0.6)",
+    accent: "#fb7185",
+  },
+  audio: {
+    background: "#193332",
+    border: "rgba(45,212,191,0.6)",
+    accent: "#2dd4bf",
+  },
+  default: {
+    background: "#162644",
+    border: "rgba(148,163,184,0.25)",
+    accent: "rgba(148,163,184,0.7)",
+  },
+};
+
 function buildFallbackPositions(
   nodes: AdventureModel["nodes"]
 ): Map<number, NodePosition> {
@@ -68,6 +141,161 @@ function buildFallbackPositions(
   });
 
   return positions;
+}
+
+function readStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string");
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((entry): entry is string => typeof entry === "string");
+        }
+      } catch {
+        return [trimmed];
+      }
+    }
+    return [trimmed];
+  }
+  return [];
+}
+
+function isTruthyFlag(value: unknown): boolean {
+  if (value === true) return true;
+  if (value === false || value == null) return false;
+  if (typeof value === "number") return value > 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return false;
+    return (
+      normalized === "on" ||
+      normalized === "true" ||
+      normalized === "yes" ||
+      normalized === "1" ||
+      normalized === "hide_visited"
+    );
+  }
+  return false;
+}
+
+function getChapterType(rawProps: Record<string, unknown> | null): string | null {
+  if (!rawProps) return null;
+  const rawValue =
+    rawProps.settings_chapterType ??
+    rawProps.settingsChapterType ??
+    rawProps.chapterType ??
+    rawProps.chapter_type;
+  const values = readStringArray(rawValue);
+  return values[0] ?? null;
+}
+
+function getNodeVariant(chapterType: string | null, nodeType: string | null): NodeVariant {
+  if (nodeType === "root") return "start";
+  switch (chapterType) {
+    case "start-node":
+      return "start";
+    case "chapter-node":
+      return "chapter";
+    case "chapter-node-plain":
+      return "chapter-plain";
+    case "ref-node":
+      return "ref";
+    case "ref-node-tab":
+      return "ref-tab";
+    case "random-node":
+      return "random";
+    case "videoplayer-node":
+      return "video";
+    case "podplayer-node":
+      return "audio";
+    default:
+      return "default";
+  }
+}
+
+function hasStatisticsFlag(rawProps: Record<string, unknown> | null): boolean {
+  if (!rawProps) return false;
+  const directKeys = ["node_statistics", "nodeStatistics", "node_stats", "nodeStats"];
+  for (const key of directKeys) {
+    if (isTruthyFlag(rawProps[key])) return true;
+  }
+  for (const [key, value] of Object.entries(rawProps)) {
+    if (/statistics/i.test(key) && isTruthyFlag(value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function hasNodeVariableFlag(rawProps: Record<string, unknown> | null): boolean {
+  if (!rawProps) return false;
+  const directKeys = [
+    "node_conditions",
+    "nodeConditions",
+    "node_condition",
+    "nodeCondition",
+    "node_variable",
+    "nodeVariable",
+  ];
+  for (const key of directKeys) {
+    if (isTruthyFlag(rawProps[key])) return true;
+  }
+  for (const [key, value] of Object.entries(rawProps)) {
+    if (/node.*condition/i.test(key) && isTruthyFlag(value)) {
+      return true;
+    }
+    if (/node.*variable/i.test(key) && isTruthyFlag(value)) {
+      return true;
+    }
+  }
+  for (const value of Object.values(rawProps)) {
+    if (typeof value === "string" && value.toLowerCase().includes("hide_visited")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function hasConditionList(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "[]") return false;
+    if (/^\d+$/.test(trimmed)) {
+      return Number(trimmed) > 0;
+    }
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) && parsed.length > 0;
+      } catch {
+        return true;
+      }
+    }
+    return true;
+  }
+  if (typeof value === "number") return value > 0;
+  return false;
+}
+
+function hasEdgeConditions(props: Record<string, unknown> | null): boolean {
+  if (!props) return false;
+  const positive =
+    props.positiveNodeList ??
+    props.positive_node_list ??
+    props.positiveNodes ??
+    props.positive_nodes;
+  const negative =
+    props.negativeNodeList ??
+    props.negative_node_list ??
+    props.negativeNodes ??
+    props.negative_nodes;
+  return hasConditionList(positive) || hasConditionList(negative);
 }
 
 function toNumericId(value: string | number | null | undefined): number | null {
@@ -117,12 +345,46 @@ function buildGraphNodes(
       ? node.position
       : existing?.position ??
         fallbackPositions.get(node.nodeId) ?? { x: 0, y: 0 };
+    const chapterType = getChapterType(node.rawProps);
+    const variant = getNodeVariant(chapterType, node.type ?? null);
+    const style = nodeVariantStyles[variant] ?? nodeVariantStyles.default;
+    const hasStatistics = hasStatisticsFlag(node.rawProps);
+    const hasNodeVariable = hasNodeVariableFlag(node.rawProps);
+    const hasImage = Boolean(node.image.url || node.image.id);
+    const hasAudio =
+      Boolean(node.props?.audioUrl || node.props?.audioUrlAlt) ||
+      chapterType === "podplayer-node";
+    const hasVideo =
+      Boolean(node.props?.subtitlesUrl) || chapterType === "videoplayer-node";
+    const badges: GraphNodeData["badges"] = [];
+
+    if (hasStatistics) {
+      badges.push({ key: "stats", label: "STAT", tone: "flag" });
+    }
+    if (hasNodeVariable) {
+      badges.push({ key: "node-variable", label: "VAR", tone: "flag" });
+    }
+    if (hasImage) {
+      badges.push({ key: "image", label: "IMG", tone: "media" });
+    }
+    if (hasAudio) {
+      badges.push({ key: "audio", label: "AUD", tone: "media" });
+    }
+    if (hasVideo) {
+      badges.push({ key: "video", label: "VID", tone: "media" });
+    }
 
     return {
       id: String(node.nodeId),
       type: "adventure",
       position,
-      data: { label: node.title || `Node ${node.nodeId}`, nodeId: node.nodeId },
+      data: {
+        label: node.title || `Node ${node.nodeId}`,
+        nodeId: node.nodeId,
+        chapterType,
+        badges,
+        style,
+      },
       selected: existing?.selected ?? false,
     };
   });
@@ -142,45 +404,159 @@ function buildGraphEdges(
     )
     .map((link) => {
       const existing = existingById.get(String(link.linkId));
+      const normalizedType = String(link.type ?? "").toLowerCase();
+      const isBidirectional = normalizedType.includes("bidirectional");
+      const hasConditions = hasEdgeConditions(link.props);
+      const markerColor = isBidirectional
+        ? "var(--editor-edge-bidirectional)"
+        : "var(--editor-edge)";
+      const markerEnd = {
+        type: MarkerType.ArrowClosed,
+        color: markerColor,
+        width: 14,
+        height: 14,
+      };
+      const markerStart = isBidirectional ? markerEnd : undefined;
       return {
         id: String(link.linkId),
         source: String(link.source),
         target: String(link.target),
-        data: { linkId: link.linkId },
+        type: "adventure",
+        data: { linkId: link.linkId, isBidirectional, hasConditions },
+        markerEnd,
+        markerStart,
         selected: existing?.selected ?? false,
       };
     });
 }
 
 function AdventureNode({ data, selected }: NodeProps<GraphNodeData>) {
+  const flagBadges = data.badges.filter((badge) => badge.tone === "flag");
+  const mediaBadges = data.badges.filter((badge) => badge.tone === "media");
+  const hasBadges = data.badges.length > 0;
+  const nodeStyle = {
+    "--node-bg": data.style.background,
+    "--node-border": data.style.border,
+    "--node-accent": data.style.accent,
+  } as CSSProperties;
+
   return (
     <div
       className={cn(
-        "relative rounded-lg border px-3 py-2 text-xs shadow-sm",
+        "relative rounded-xl border px-4 pb-3 text-xs shadow-[0_10px_30px_-26px_rgba(0,0,0,0.8)]",
+        hasBadges ? "pt-6" : "pt-3",
         selected
-          ? "border-[var(--accent)] bg-[var(--editor-node-bg)]"
-          : "border-[var(--editor-node-border)] bg-[var(--editor-node-bg)]"
+          ? "border-[var(--node-border)] bg-[var(--node-bg)] ring-2 ring-[var(--accent)] shadow-[0_0_0_1px_var(--accent),0_16px_40px_-24px_rgba(0,0,0,0.9)]"
+          : "border-[var(--node-border)] bg-[var(--node-bg)]"
       )}
+      style={nodeStyle}
     >
+      <span className="absolute left-0 top-0 h-full w-1 rounded-l-xl bg-[var(--node-accent)]" />
+      {mediaBadges.length ? (
+        <div className="absolute left-3 top-2 flex flex-wrap gap-1">
+          {mediaBadges.map((badge) => (
+            <span
+              key={badge.key}
+              className="rounded border border-[var(--editor-badge-media-border)] bg-[var(--editor-badge-media-bg)] px-1 py-[1px] text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--editor-badge-media-text)]"
+            >
+              {badge.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {flagBadges.length ? (
+        <div className="absolute right-3 top-2 flex flex-wrap gap-1">
+          {flagBadges.map((badge) => (
+            <span
+              key={badge.key}
+              className="rounded border border-[var(--editor-badge-flag-border)] bg-[var(--editor-badge-flag-bg)] px-1 py-[1px] text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--editor-badge-flag-text)]"
+            >
+              {badge.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
       <Handle
         type="target"
         position={Position.Top}
-        className="h-2 w-2 border-2 border-[var(--editor-node-bg)] bg-[var(--text)]"
+        className="h-2 w-2 border-2 border-[var(--node-bg)] bg-[var(--node-accent)]"
       />
       <div className="font-semibold text-[var(--text)]">{data.label}</div>
-      <div className="text-[10px] text-[var(--muted)]">#{data.nodeId}</div>
+      <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
+        #{data.nodeId}
+      </div>
       <Handle
         type="source"
         position={Position.Bottom}
-        className="h-2 w-2 border-2 border-[var(--editor-node-bg)] bg-[var(--text)]"
+        className="h-2 w-2 border-2 border-[var(--node-bg)] bg-[var(--node-accent)]"
       />
     </div>
   );
 }
 
+function AdventureEdge({
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  data,
+  markerEnd,
+  markerStart,
+  selected,
+  style,
+}: EdgeProps<GraphEdgeData>) {
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+  });
+  const isBidirectional = data?.isBidirectional ?? false;
+  const hasConditions = data?.hasConditions ?? false;
+  const stroke = selected
+    ? "var(--editor-edge-selected)"
+    : isBidirectional
+      ? "var(--editor-edge-bidirectional)"
+      : "var(--editor-edge)";
+  const edgeStyle = {
+    ...style,
+    stroke,
+    strokeWidth: selected ? 2.8 : 2,
+    strokeDasharray: isBidirectional ? "6 5" : undefined,
+  } as CSSProperties;
+
+  return (
+    <>
+      <BaseEdge
+        path={edgePath}
+        style={edgeStyle}
+        markerEnd={markerEnd}
+        markerStart={markerStart}
+      />
+      {hasConditions ? (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan pointer-events-none absolute rounded-full border border-[var(--editor-edge-condition-border)] bg-[var(--editor-edge-condition-bg)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--editor-edge-condition-text)] shadow-[0_8px_18px_-12px_rgba(0,0,0,0.8)]"
+            style={{
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            }}
+          >
+            IF
+          </div>
+        </EdgeLabelRenderer>
+      ) : null}
+    </>
+  );
+}
+
 const nodeTypes = { adventure: AdventureNode };
-const edgeTypes = {};
+const edgeTypes = { adventure: AdventureEdge };
 const defaultEdgeOptions = {
+  type: "adventure",
   style: {
     stroke: "var(--editor-edge)",
     strokeWidth: 2,
@@ -192,6 +568,17 @@ const editorThemeStyle = {
   "--editor-node-border": "rgba(148,163,184,0.18)",
   "--editor-grid": "rgba(148,163,184,0.12)",
   "--editor-edge": "rgba(148,163,184,0.32)",
+  "--editor-edge-bidirectional": "rgba(148,163,184,0.65)",
+  "--editor-edge-selected": "var(--accent)",
+  "--editor-edge-condition-bg": "rgba(226,232,240,0.9)",
+  "--editor-edge-condition-border": "rgba(15,23,42,0.35)",
+  "--editor-edge-condition-text": "#0f172a",
+  "--editor-badge-media-bg": "rgba(56,189,248,0.18)",
+  "--editor-badge-media-border": "rgba(56,189,248,0.35)",
+  "--editor-badge-media-text": "#7dd3fc",
+  "--editor-badge-flag-bg": "rgba(251,191,36,0.18)",
+  "--editor-badge-flag-border": "rgba(251,191,36,0.35)",
+  "--editor-badge-flag-text": "#fcd34d",
 } as unknown as CSSProperties;
 
 export function GraphCanvas({

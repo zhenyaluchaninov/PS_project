@@ -1140,7 +1140,7 @@ web/editor.html             # Buttons & forms: create link dropdown, delete node
 
 ---
 
-### Step 20 – Graph styling & advanced readability
+### [done] Step 20 – Graph styling & advanced readability
 
 **What we do**
 
