@@ -25,28 +25,28 @@ export default function EditorLayout({
       )}
     >
       {toolbar ? (
-        <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface-2)]/80 px-4 py-3 backdrop-blur">
+        <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface-2)]/90 px-5 py-3 backdrop-blur">
           {toolbar}
         </div>
       ) : null}
-      <div className="flex-1 min-h-0 p-4">
-        <PanelGroup
-          direction="horizontal"
-          className="h-full min-h-0 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/70"
+      <PanelGroup direction="horizontal" className="flex-1 min-h-0">
+        <Panel
+          defaultSize={72}
+          minSize={40}
+          className="min-h-0 overflow-hidden bg-[var(--surface-2)]"
         >
-          <Panel defaultSize={65} minSize={40} className="min-h-0 overflow-auto p-4">
-            {graph}
-          </Panel>
-          <PanelResizeHandle className="w-1.5 cursor-col-resize bg-[var(--border)]" />
-          <Panel
-            defaultSize={35}
-            minSize={25}
-            className="min-h-0 overflow-auto border-l border-[var(--border)] bg-[var(--surface)] p-4"
-          >
-            {sidePanel}
-          </Panel>
-        </PanelGroup>
-      </div>
+          {graph}
+        </Panel>
+        <PanelResizeHandle className="w-1.5 cursor-col-resize bg-[var(--border)] opacity-70 hover:bg-[var(--accent)] hover:opacity-100" />
+        <Panel
+          defaultSize={28}
+          minSize={18}
+          maxSize={45}
+          className="min-h-0 overflow-hidden bg-[var(--surface)]/95"
+        >
+          <div className="h-full min-h-0 overflow-y-auto">{sidePanel}</div>
+        </Panel>
+      </PanelGroup>
     </div>
   );
 }

@@ -12,6 +12,11 @@ export type EditorError = {
   url?: string;
 };
 
+export type EditorSelection =
+  | { type: "none" }
+  | { type: "node"; nodeId: number }
+  | { type: "link"; linkId: number };
+
 type EditorState = {
   status: EditorStatus;
   error?: EditorError;
@@ -19,10 +24,13 @@ type EditorState = {
   adventure?: AdventureModel;
   editVersion?: number;
   dirty: boolean;
+  selection: EditorSelection;
   loadByEditSlug: (editSlug: string) => Promise<void>;
   reset: () => void;
   markDirty: () => void;
   clearDirty: () => void;
+  setSelection: (selection: EditorSelection) => void;
+  clearSelection: () => void;
 };
 
 const isDev = process.env.NODE_ENV !== "production";
@@ -34,6 +42,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   adventure: undefined,
   editVersion: undefined,
   dirty: false,
+  selection: { type: "none" },
 
   reset: () =>
     set({
@@ -43,10 +52,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       adventure: undefined,
       editVersion: undefined,
       dirty: false,
+      selection: { type: "none" },
     }),
 
   markDirty: () => set({ dirty: true }),
   clearDirty: () => set({ dirty: false }),
+  setSelection: (selection) => set({ selection }),
+  clearSelection: () => set({ selection: { type: "none" } }),
 
   loadByEditSlug: async (editSlug: string) => {
     const requestUrl = resolveApiUrl(`/api/adventure/${editSlug}/edit`);
@@ -57,6 +69,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       adventure: undefined,
       editVersion: undefined,
       dirty: false,
+      selection: { type: "none" },
     });
 
     try {
@@ -118,3 +131,4 @@ export const selectEditorAdventure = (state: EditorState) => state.adventure;
 export const selectEditorError = (state: EditorState) => state.error;
 export const selectEditorDirty = (state: EditorState) => state.dirty;
 export const selectEditorEditVersion = (state: EditorState) => state.editVersion;
+export const selectEditorSelection = (state: EditorState) => state.selection;

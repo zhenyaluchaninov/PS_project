@@ -10,7 +10,7 @@ export function Toolbar({ children, className }: ToolbarProps) {
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/80 px-4 py-3",
+        "flex flex-wrap items-center gap-3",
         className
       )}
     >

@@ -973,7 +973,7 @@ web/
 
 ---
 
-### Step 17 – Scrollytelling & advanced mobile behavior
+### [done] Step 17 – Scrollytelling & advanced mobile behavior
 
 **What we do**
 
@@ -1038,22 +1038,23 @@ web/
 
 ## Block E – Editor Graph
 
-### Step 18 – Editor route + read-only GraphCanvas
+### [done] Step 18 – Editor route + read-only GraphCanvas
 
 **What we do**
 
-Implement `app/redigera/[slug]/page.tsx` to:
-- Call `loadAdventure(slug, "edit")`.
-- Put GraphCanvas on the left and a placeholder Node Panel on the right.
+Implement the editor route (per plan) to:
+- Load adventure data in **edit** mode.
+- Render a split layout: GraphCanvas (left) + Inspector placeholder (right).
+- Support basic selection: node/link select + background deselect.
 
 Implement GraphCanvas with React Flow:
-- Map nodes & links from adventureStore into React Flow nodes/edges.
-- Basic selection of node/link and background deselect.
+- Map nodes/links from editor/adventure store into React Flow nodes/edges.
+- Centralize selection state (node/link/none).
 
 **What we get**
 
-- Editor opens adventures and shows their graph visually.
-- Selection state is available for the upcoming Node Panel.
+- Editor opens an adventure and shows the graph visually.
+- A stable selection state exists for upcoming Node/Link/Adventure panels.
 
 **Feature Map coverage**
 
@@ -1086,24 +1087,21 @@ web/
 
 ---
 
-### Step 19 – Graph interactions & CRUD operations
+### Step 19 – Graph interactions & CRUD operations (gesture-first)
 
 **What we do**
 
-Enhance GraphCanvas + useGraph:
-- Drag node to reposition → update node x,y.
-- Pan canvas, zoom in/out.
-- Multi-select nodes (Ctrl/Shift + click or box selection).
-- Hover states on nodes/links; double-click quick actions hook (e.g., select + open Node Panel).
-
-Wire node/link create/delete:
-- "Create node" tool: adds node + default link from current node.
-- "Create link" tool: connect source/target nodes.
-- Delete node removes associated links.
+Enhance GraphCanvas interactions:
+- Drag node to reposition (persist x/y in editor state).
+- Create link by connecting handles (source → target).
+- Create node by dragging a connection to empty space (create + auto-link).
+- Delete selected node/link via **Delete/Backspace**.
+- Add baseline multi-select (Ctrl/Shift + click or box select).
 
 **What we get**
 
-Functional graph editor where authors can visually shape story structure.
+- The graph is fully editable using modern gestures and keyboard actions.
+- Fewer “Create/Delete” buttons are needed because the graph itself becomes the tool.
 
 **Feature Map coverage**
 
@@ -1142,20 +1140,20 @@ web/editor.html             # Buttons & forms: create link dropdown, delete node
 
 ---
 
-### Step 20 – Graph styling & advanced features
+### Step 20 – Graph styling & advanced readability
 
 **What we do**
 
-Implement:
-- Different node styles for node types (root, chapter, video, random, ref, etc.).
-- Bidirectional link styling & clear direction indicators.
-- Optional auto-layout using a React Flow layout plugin.
-- Keyboard shortcuts (delete node, undo/redo) when feasible.
+Improve graph readability (derived from existing data, no schema changes):
+- Node visuals reflect node type (`settings_chapterType`).
+- Node badges reflect flags (e.g., statistics / node-variable).
+- Node media indicators (image/video/audio present).
+- Link indicator if link has conditions (positive/negative lists not empty).
 
 **What we get**
 
-- Graph visual fidelity matches legacy.
-- Power-user features available in new editor.
+- Large adventures become readable “at a glance”.
+- Authors can spot logic-heavy areas without opening panels.
 
 **Feature Map coverage**
 
@@ -1179,23 +1177,60 @@ web/editor.html             # Loads Cytoscape + graph module (legacy styling is 
 
 ---
 
-## Block F – Editor Node Panel & Adventure Settings
-
-### Step 21 – NodePanel skeleton & basic NodeForm
+### Step 20A – Command Palette (Ctrl/Cmd+K)
 
 **What we do**
 
-Implement `NodePanel.tsx` with tabs (Node / Link / Settings).
+Add a keyboard-first command palette:
+- Ctrl+K / Cmd+K opens palette.
+- Fuzzy search commands.
+- Commands are context-aware (node selected vs link selected vs none).
 
-Implement minimal `NodeForm.tsx`:
-- Title, node type selector, icon/emoji placeholder (without rich editor/media yet).
-
-Wire useEditorPanel to selection from editorStore and adventureStore.
+Initial commands:
+- Jump to node (by title/id)
+- Delete selection
+- Duplicate selected node
+- Create linked node from selection (fallback to drag-to-create)
+- Open inspector sections/tabs (Node / Link / Adventure)
 
 **What we get**
 
-- Right-side panel appears when node is selected.
-- Basic node metadata is editable.
+- A modern editor feel (VS Code / Notion style).
+- Discoverability without reintroducing lots of UI buttons.
+
+**Feature Map coverage**
+
+No new Feature Map items implemented in this step (workflow accelerator for the editor).
+
+**Source of Truth**
+
+```
+New editor code (frontend/)
++ relies on selection/CRUD from Steps 18–19
+```
+
+---
+
+## Block F – Editor Node Panel & Adventure Settings
+
+### Step 21 – Inspector skeleton (Node / Link / Adventure) + Node inner tabs
+
+**What we do**
+
+Implement the right-side inspector with selection-driven modes:
+- Node selected → Node panel
+- Link selected → Link panel
+- Nothing selected → Adventure panel
+
+Inside **Node panel**, implement inner tabs:
+- Content / Style / Buttons / Logic (structure defined in `EDITOR_SETTINGS_CATALOG_CODE_VERIFIED.md`)
+
+Wire panels to selection state and editor store.
+
+**What we get**
+
+- The editor’s “authoring surface” exists early.
+- We can add functionality incrementally without reworking layout later.
 
 **Feature Map coverage**
 
@@ -1214,28 +1249,62 @@ EDITOR
 
 ```
 web/
-|-- editor.html             # Node/Link/Adventure panel markup (#area_node/#area_link/#area_adventure)
+|-- editor.html            # legacy panel areas + input ids
 `-- js/
-    |-- aventyr.editor.js    # Panel controller: toggle(), editNode(), editLink(), updateAdventure(), handlers
-    `-- aventyr.props.js     # Reads/writes node/link/adventure props from panel inputs (prop-input fields)
+    |-- aventyr.editor.js   # panel controller: editNode/editLink/updateAdventure
+    `-- aventyr.props.js    # prop read/write patterns
 ```
 
 ---
 
-### Step 22 – RichTextEditor & emoji integration
+### Step 21.5 – Non-destructive props editing layer (merge-preserving)
 
 **What we do**
 
-Implement `RichTextEditor.tsx` using Tiptap + emoji-mart:
-- Load legacy HTML into editor.
-- Provide toolbar with basic formatting & emoji picker.
+Before building the full props UI, implement a shared update layer for:
+- `node.props` JSON
+- `link.props` JSON
+- `adventure.props` JSON
 
-Integrate RichTextEditor into NodeForm for node content.
+Requirements:
+- Update only edited keys.
+- Preserve unknown keys (do not drop/zero).
+- Keep legacy value shapes (notably arrays-of-strings from select inputs).
 
 **What we get**
 
-- Modern rich text editing; no more SimpleMDE/TinyMCE.
-- Emoji picker integrated into editor.
+- Safe editing and forward-compatibility.
+- No accidental data loss when the UI doesn’t expose every possible prop.
+
+**Feature Map coverage**
+
+No new Feature Map items implemented in this step (data-safety layer to preserve unknown props keys).
+
+**Source of Truth**
+
+```
+EDITOR_SETTINGS_CATALOG.md
+web/js/aventyr.props.js    # legacy schema patterns (but legacy save is destructive)
+```
+
+---
+
+### Step 22 – RichTextEditor & emoji integration (ref-node aware)
+
+**What we do**
+
+Implement modern rich text editing (Tiptap) for `node.text`:
+- Load legacy HTML content.
+- Provide toolbar + emoji support.
+
+Add ref-node special-case:
+- If `settings_chapterType` starts with `ref-node*`, show a dedicated “Reference URL” field
+  but still store it in **`node.text`** (legacy quirk).
+
+**What we get**
+
+- Modern writing workflow.
+- Ref nodes become obvious to edit (no “where do I paste the URL?” confusion).
 
 **Feature Map coverage**
 
@@ -1259,13 +1328,10 @@ UI CORE
 
 ```
 web/
-|-- editor.html                 # Content textarea (#node_text) + script includes (tinymce, emoji-button, markdown)
-|-- tinymce/tinymce.min.js      # [LIB] TinyMCE WYSIWYG
+|-- editor.html
 `-- js/
-    |-- aventyr.editor.js        # initTextEditor(): tinymce.init + saves editor HTML into node.text
-    |-- emoji-button-2.12.1.min.js # [LIB] Emoji picker
-    |-- markdown-it.min.js       # [LIB] markdown-it parser
-    `-- markdownhelper.js        # markDownText()/markDownTextForView() used for legacy markdown compatibility
+    |-- aventyr.editor.js    # legacy text editor behavior
+    `-- aventyr.props.js     # ref-node label swap, storage remains node.text
 ```
 
 ---
@@ -1274,18 +1340,21 @@ web/
 
 **What we do**
 
-Expand Node properties section:
-- Background/foreground/text colors, button colors (+ alpha).
-- Navigation style selector (default, swipe, swipeWithButton, leftright, right, noButtons).
-- Scroll speed, vertical position, container width/margins.
-- Text shadow, grayscale, blur.
-- Font selector (from adventure font list).
-- Navigation font size, button order, node conditions (hide_visited), node condition colors, show current node button toggle, navigation opacity, statistics tracking toggle, audio volume.
+Implement the “Style / Buttons / Logic” props UI for nodes using the verified key catalog:
+- Colors + alpha (background/foreground/text background, button colors)
+- Navigation style (`background.navigation_style`)
+- Navigation properties (`playerNavigation.settings`, includes show-current-node + navigation-opaque)
+- Scroll speed, vertical position, margins
+- Text shadow, grayscale, blur (`color_blur`)
+- Font selector (`background.font`) including uploaded fonts
+- Navigation font size, node-conditions styling
+- Statistics toggle, node-variable toggle
+- Audio volume restores correctly (fix legacy UI reset)
 
 **What we get**
 
-- Node-level props fully editable from Node Panel.
-- All player visual/behavior options configured in one place.
+- Node-level visual + behavioral settings editable from the modern inspector.
+- Existing adventures stay compatible (no schema changes).
 
 **Feature Map coverage**
 
@@ -1322,34 +1391,28 @@ EDITOR
 **Source of Truth**
 
 ```
+EDITOR_SETTINGS_CATALOG.md
 web/
-|-- editor.html          # Node props UI (.prop-input) + props modal (#modalProps)
+|-- editor.html
 `-- js/
-    |-- aventyr.props.js  # Prop schema + legacy conversion + read/write from DOM inputs
-    |-- aventyr.editor.js # Persists node.props from inputs + bulk-edit plumbing
-    `-- aventyr.viewer.js # Consumes props in player (visual + behavioral)
+    |-- aventyr.props.js
+    |-- aventyr.editor.js
+    `-- aventyr.viewer.js
 ```
 
 ---
 
-### Step 23b – Multi-Node Bulk Editing
+### Step 23b – Multi-Node Bulk Editing (explicit UX)
 
 **What we do**
 
-Implement bulk editing UI when multiple nodes are selected in graph:
-
-- `BulkEditModal.tsx` or dedicated panel section:
-  - Shows count and list of affected nodes.
-  - Displays editable properties (same as single-node props).
-  - Changed properties are highlighted (orange indicator or similar).
-  - "Apply" button calls `bulkUpdateNodes(nodeIds, changedValues)`.
-
-- Only show properties that make sense for bulk editing (colors, fonts, nav style, etc. — not title/content).
+Implement bulk editing for multi-select:
+- When multiple nodes are selected, show an explicit “Apply to selection” UI.
+- Apply supported props to all selected nodes (using merge-preserving updates).
 
 **What we get**
 
-- Authors can style multiple nodes at once (e.g., set all chapter nodes to same background color).
-- Matches legacy bulk editing workflow.
+- Legacy bulk power, but with a clearer UX than “hidden orange fields”.
 
 **Feature Map coverage**
 
@@ -1363,28 +1426,28 @@ EDITOR
 │   └── [x] Apply changes button
 ```
 
+**Source of Truth**
+
+```
+web/js/aventyr.editor.js    # legacy bulk-edit plumbing
+EDITOR_SETTINGS_CATALOG.md
+```
+
 ---
 
 ### Step 24 – Node media: image, audio, audio_alt, subtitles, video
 
 **What we do**
 
-Integrate MediaPicker into NodeForm:
-- Image picker opening MediaLibrary modal.
-- Image preview thumbnail & delete button.
-
-Add audio section:
-- Upload/select audio & audio_alt, show labels, delete buttons.
-
-Add subtitles section:
-- Upload .vtt, delete.
-
-Ensure video support when node image is .mp4 or mapped to a video URL.
+Implement media management in the Node “Content” tab:
+- Background image/video (store in `node.image_url`)
+- Subtitles upload (.vtt) (store via `subtitles_url` in props)
+- Audio main + alt (store via `audio_url` / `audio_url_alt` in props)
+- Media options: loop, fades, video audio behavior, extra-audio semantics
 
 **What we get**
 
-- All media fields for nodes fully managed in UI.
-- Reuses shared Media feature for uploads/listing.
+- Nodes become fully authorable for real adventures (media-heavy workflows).
 
 **Feature Map coverage**
 
@@ -1408,39 +1471,30 @@ EDITOR
 **Source of Truth**
 
 ```
-web/Important Docs PS_project/
-`-- API_CONTRACT_FRONTEND.md  # Backend contract (primary)
-
-web/
-|-- editor.html          # Media inputs: #node_image/#node_audio/#node_audio_alt/#node_subtitles + #modalImageBank
-`-- js/
-    |-- aventyr.editor.js # Upload/delete handlers; sets image_url/audio_url/audio_url_alt/subtitles_url
-    |-- aventyr.model.js  # uploadMedia()/removeMedia() wrappers
-    |-- aventyr.storage.js# POST /api/media + DELETE /api/media/:adventure/:hash
-    `-- restclient.js     # REST client used by uploads
+EDITOR_SETTINGS_CATALOG.md
+web/js/aventyr.props.js
+web/js/aventyr.viewer.js
+API_CONTRACT_FRONTEND.md
 ```
 
 ---
 
-### Step 25 – Node actions & Link list for current node
+### Step 25 – Node actions & outgoing Link list (clean UI + palette support)
 
 **What we do**
 
-Add Node actions section:
-- Create new node (linked from current).
-- Create new link to existing node (dropdown list of potential targets).
-- Delete node (and connected links).
-- Preview node in new Player tab.
-- "Play from here" button using Player engine + preview route.
+Implement node-centric link management (Buttons tab):
+- Outgoing links list (label + target), click selects link.
+- Reorder outgoing links (persist `ordered_link_ids`).
 
-Add link list:
-- Show all outgoing links from current node with target titles.
-- Click link in list → select that link (and focus Link tab).
+Actions:
+- Prefer gesture-first workflows (drag-to-create, keyboard delete) and command palette.
+- Keep minimal fallback UI where needed for discoverability (context menu / small actions).
 
 **What we get**
 
-- Quick authoring workflow from node context.
-- Smooth jump between editing node and link.
+- Fast authoring loop with minimal “button clutter”.
+- Button order in player matches editor ordering.
 
 **Feature Map coverage**
 
@@ -1477,29 +1531,30 @@ STATE & API
 
 ```
 web/
-|-- editor.html          # Node actions: #btnCreateNode/#btnCreateLink/#btnDeleteNode/#btnPreviewNode + #link_order_list
+|-- editor.html            # link list + ordering UI
 `-- js/
-    |-- aventyr.editor.js # Node action handlers + target dropdown population (updateLinks)
-    |-- aventyr.props.js  # Button/link order list UI (setEditorButtonList) -> ordered_link_ids
-    |-- aventyr.model.js  # addNode/addLink/removeNode/removeLink/getLinksByNodeID/getPossibleNodeTargetsByNodeID
-    `-- aventyr.app.js    # Wires editor actions <-> model <-> graph
+    |-- aventyr.editor.js
+    `-- aventyr.props.js   # ordered_link_ids
 ```
 
 ---
 
-### Step 26 – Link Panel and LinkForm
+### Step 26 – Link panel (labels, direction, conditions)
 
 **What we do**
 
-Implement `LinkForm.tsx` under Node Panel's Link tab:
-- Edit link source_title, target_title, type (default / bidirectional).
-- Switch link direction, validate target selection, delete link.
-- Extra props as needed (e.g. conditions).
+Implement Link panel:
+- Edit label forward (`target_title`)
+- If bidirectional: edit reverse (`source_title`)
+- Link direction mode
+- Conditions:
+  - `positiveNodeList` (show if visited)
+  - `negativeNodeList` (hide if visited)
 
 **What we get**
 
-- Dedicated UI to configure links independent of graph view.
-- Clear overview of link titles and types.
+- Full control over choices/conditions without leaving the inspector.
+- Link condition indicator stays in sync with graph visuals.
 
 **Feature Map coverage**
 
@@ -1526,31 +1581,27 @@ STATE & API
 **Source of Truth**
 
 ```
-web/
-|-- editor.html          # Link panel markup (#area_link/#formLink + radioDefault/radioBidirectional + #btnChangeDirection)
-`-- js/
-    |-- aventyr.editor.js # Link form controller: editLink()/showLink()/onChangeLink()/onClickChangeDirection()
-    |-- aventyr.model.js  # updateLink()/removeLink() + persistence trigger
-    `-- aventyr.props.js  # Link props UI (link-variable lists for conditions)
+EDITOR_SETTINGS_CATALOG.md
+web/js/aventyr.props.js
+web/js/aventyr.editor.js
 ```
 
 ---
 
-### Step 27 – AdventureSettings: metadata, categories, fonts, lists, menu props
+### Step 27 – Adventure settings (metadata, cover, fonts, menu, shortcuts)
 
 **What we do**
 
-Implement `AdventureSettings.tsx`:
-- Adventure title, description, category dropdown (from `/api/categories`).
-- Cover image (reuse MediaPicker).
-- Font list management (add/remove fonts).
-- Menu options (show/hide overlay items, default sound settings, high contrast defaults).
-- Optional (admin-only): list management/ordering via `/api/admin/lists` + `/api/admin/list/:id` (no public `/api/lists`).
+Implement Adventure settings panel:
+- Title/description/category
+- Cover image upload/selection
+- Menu options + sound override
+- Menu shortcuts (home + 8 links) target + label
+- Font upload + font list management; ensure fonts appear in node font selector
 
 **What we get**
 
-- Adventure-level settings editable in one panel.
-- Data matches adventure table fields and props.
+- Adventure-level configuration works end-to-end in new editor.
 
 **Feature Map coverage**
 
@@ -1603,20 +1654,19 @@ backend (lists reference; not in legacy editor UI)
 
 ---
 
-### Step 28 – Editor-level behaviors: autosave UX, manual save, locks, preview/share
+### Step 28 – Editor behaviors: autosave, locks (423), preview/share
 
 **What we do**
 
-Add top-bar actions in editor:
-- Autosave status indicator (saving/saved/error).
-- Manual "Save now" button (force saveAdventure).
-- Lock state banner when backend returns HTTP 423; disable editing accordingly.
-- "Preview" / "Play" buttons that open player in preview or normal mode from root/selected node.
-- Share/QR actions if needed (reusing existing backend routes).
+Add editor reliability features:
+- Autosave + visible status
+- Handle lock responses (HTTP 423) with clear read-only UX
+- Preview / Play-from-here integration (start at selected node when possible)
 
 **What we get**
 
-Editor UX matches legacy expectations: autosave plus manual save, visible lock behavior, easy preview.
+- Safe editing experience (no silent data loss).
+- Collaboration constraints handled gracefully.
 
 **Feature Map coverage**
 
@@ -1663,16 +1713,14 @@ router/
 
 **What we do**
 
-Implement `MediaLibrary.tsx`:
-- Grid of images/audio with selection.
-- Filter by category or adventure.
-
-Implement `MediaUploader.tsx` + useMediaUpload:
-- Drag-and-drop uploads, progress, error handling, refresh list on success.
+Implement a Media Library picker:
+- Browse existing media
+- Search/filter
+- Apply media to node without re-upload
 
 **What we get**
 
-- Central media browser reusable across editor contexts (node image, cover, etc.).
+- Reusable media workflow (faster authoring, less duplication).
 
 **Feature Map coverage**
 
@@ -1712,22 +1760,15 @@ web/
 
 ---
 
-## Block H – Public Pages & Navigation
-
 ### Step 30 – Public layout & navigation header
 
 **What we do**
 
-Flesh out `(public)` layout:
-- Use Header + Footer.
-- Responsive navigation (logo, nav links, hamburger menu).
-
-Setup base routes:
-- `/` (home), `/(public)/info` pages placeholders, custom `not-found.tsx` for 404.
+Add a public layout with header navigation consistent with legacy.
 
 **What we get**
 
-Shared public layout with navigation across all public pages.
+- Public pages align with legacy look & navigation affordances.
 
 **Feature Map coverage**
 
@@ -1758,18 +1799,14 @@ web/
 
 **What we do**
 
-Implement `HomePage.tsx` + `AdventureCard.tsx`:
-- Load lists of adventures via `GET /api/adventures/:listId` (where `listId` is a list title slug like `front`).
-- Category filter component (tabs/dropdown).
-- Adventure cards with thumbnails and meta.
-
-Implement "Edit adventure" dropdown populated from localStorage cached adventures.
-
-Add "Create new adventure" button (logged-in only, or redirect to login first) that calls `GET /api/newAdventure` and redirects to `/redigera/{slug}`.
+Implement homepage features:
+- List adventures
+- Category filter
+- “Edit” dropdown linking into editor route
 
 **What we get**
 
-New home page replicating legacy index behavior with listing, filtering, and quick editing access.
+- Discoverable entry point into editor + browsing.
 
 **Feature Map coverage**
 
@@ -1790,7 +1827,6 @@ PUBLIC PAGES
     ├── [x] Edit adventure dropdown
     │       └── Populated from localStorage
 ```
-
 
 **Source of Truth**
 
@@ -1818,15 +1854,11 @@ web/
 
 **What we do**
 
-Implement `not-found.tsx` with custom design.
-
-Optionally add "typing animation effect" using a lightweight React implementation (nice-to-have).
-
-Add simple static info pages (about, help) using InfoPageLayout.
+Add a 404 page and required static pages.
 
 **What we get**
 
-Polished public experience when pages are missing or when showing static info.
+- Basic completeness + user-friendly routing.
 
 **Feature Map coverage**
 
@@ -1837,7 +1869,6 @@ PUBLIC PAGES
 │   ├── [~] Typing animation effect
 │   └── [x] Navigation back to home
 ```
-
 
 **Source of Truth**
 
@@ -1860,16 +1891,11 @@ web/
 
 **What we do**
 
-Implement auth helper that calls `POST /api/auth` to obtain JWT.
-
-Build login page (likely under `(public)`):
-- Username/password fields.
-- Save token to localStorage and propagate to api/client (send `Authorization: Bearer <token>` on protected routes).
+Implement login UI + token handling per backend contract.
 
 **What we get**
 
-- Users can log in with existing backend auth.
-- Token-based access to protected editor APIs.
+- Authenticated access for editor/admin flows.
 
 **Feature Map coverage**
 
@@ -1878,7 +1904,6 @@ STATE & API
 ├── REST Client
 │   ├── [x] Auth token from localStorage
 ```
-
 
 **Source of Truth**
 
@@ -1902,22 +1927,15 @@ web/
 
 **What we do**
 
-Add client-side guard for `/redigera/[slug]`:
-- Redirect to login if no token.
-
-Ensure all protected API calls include `Authorization: Bearer <token>` header.
-
-Optional: show different nav items based on auth state (e.g., "My adventures").
+Add route guards and ensure authenticated API calls for editor pages.
 
 **What we get**
 
-- Editor experience matches legacy security expectations.
-- Auth wiring is encapsulated in API client + simple context/hook.
+- Secure editor access consistent with legacy expectations.
 
 **Feature Map coverage**
 
 No Feature Map items implemented in this step (route protection is not defined in FEATURE_MAP).
-
 
 **Source of Truth**
 
@@ -1943,20 +1961,15 @@ web/
 
 **What we do**
 
-Implement consistent UX for:
-- API errors (toasts using Sonner).
-- Empty states (no adventures, no media, error loading adventure).
-- Unsaved changes when navigating away (beforeunload prompt / warning banners).
-- Lock conflicts (HTTP 423) with clear messaging and disabled inputs.
-
-Add small docs:
-- Design system usage (buttons, spacing, color tokens).
-- Short explanation of API layer and DTOs.
+Polish:
+- Unified error/toast UX
+- Consistent locked/read-only states
+- Unsaved changes prompts
+- Update docs/TODO list
 
 **What we get**
 
-- Production-ready feel for the new frontend.
-- The rest of the team can work confidently on remaining polish or future features.
+- A production-ready “authoring tool” feel.
 
 **Feature Map coverage**
 
@@ -1989,7 +2002,6 @@ BEHAVIOR CHANGES TO CONSIDER
 ├── [?] Standalone player mode — still needed?
 └── [?] Admin role features — clarify requirements
 ```
-
 
 **Source of Truth**
 
