@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import ReactFlow, {
+import {
   Background,
   Controls,
   Handle,
   Position,
+  ReactFlow,
   useEdgesState,
   useNodesState,
   type Connection,
@@ -15,7 +16,7 @@ import ReactFlow, {
   type NodeProps,
   type OnConnectStartParams,
   type ReactFlowInstance,
-} from "reactflow";
+} from "@xyflow/react";
 import type { AdventureModel } from "@/domain/models";
 import type { EditorSelection } from "../state/editorStore";
 import { cn } from "@/lib/utils";
@@ -434,7 +435,7 @@ export function GraphCanvas({
         fitView
         nodesDraggable
         nodesConnectable
-        edgesUpdatable={false}
+        edgesReconnectable={false}
         selectionOnDrag
         selectNodesOnDrag
         multiSelectionKeyCode={["Control", "Shift"]}

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import "reactflow/dist/style.css";
+import "@xyflow/react/dist/style.css";
 
 export default function EditorShell({ children }: { children: ReactNode }) {
   return (
