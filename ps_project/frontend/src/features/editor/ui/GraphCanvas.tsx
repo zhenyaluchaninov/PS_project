@@ -24,10 +24,12 @@ import {
 } from "@xyflow/react";
 import {
   Activity,
+  BarChart3,
   BookOpen,
   Bookmark,
   ExternalLink,
   FileText,
+  FunctionSquare,
   Film,
   GitBranch,
   Headphones,
@@ -107,8 +109,8 @@ const badgeIcons: Record<string, LucideIcon> = {
   image: ImageIcon,
   video: Film,
   audio: Music,
-  stats: Activity,
-  "node-variable": GitBranch,
+  stats: BarChart3,
+  "node-variable": FunctionSquare,
 };
 
 function readCssColor(variableName: string, fallback: string): string {
@@ -178,6 +180,14 @@ function isTruthyFlag(value: unknown): boolean {
   return false;
 }
 
+function isFlagEnabled(value: unknown): boolean {
+  const entries = readStringArray(value);
+  if (entries.length) {
+    return entries.some((entry) => isTruthyFlag(entry));
+  }
+  return isTruthyFlag(value);
+}
+
 function getChapterType(rawProps: Record<string, unknown> | null): string | null {
   if (!rawProps) return null;
   const rawValue =
@@ -217,10 +227,10 @@ function hasStatisticsFlag(rawProps: Record<string, unknown> | null): boolean {
   if (!rawProps) return false;
   const directKeys = ["node_statistics", "nodeStatistics", "node_stats", "nodeStats"];
   for (const key of directKeys) {
-    if (isTruthyFlag(rawProps[key])) return true;
+    if (isFlagEnabled(rawProps[key])) return true;
   }
   for (const [key, value] of Object.entries(rawProps)) {
-    if (/statistics/i.test(key) && isTruthyFlag(value)) {
+    if (/statistics/i.test(key) && isFlagEnabled(value)) {
       return true;
     }
   }
@@ -238,18 +248,13 @@ function hasNodeVariableFlag(rawProps: Record<string, unknown> | null): boolean 
     "nodeVariable",
   ];
   for (const key of directKeys) {
-    if (isTruthyFlag(rawProps[key])) return true;
+    if (isFlagEnabled(rawProps[key])) return true;
   }
   for (const [key, value] of Object.entries(rawProps)) {
-    if (/node.*condition/i.test(key) && isTruthyFlag(value)) {
+    if (/node.*condition/i.test(key) && isFlagEnabled(value)) {
       return true;
     }
-    if (/node.*variable/i.test(key) && isTruthyFlag(value)) {
-      return true;
-    }
-  }
-  for (const value of Object.values(rawProps)) {
-    if (typeof value === "string" && value.toLowerCase().includes("hide_visited")) {
+    if (/node.*variable/i.test(key) && isFlagEnabled(value)) {
       return true;
     }
   }
@@ -345,11 +350,8 @@ function buildGraphNodes(
     const hasStatistics = hasStatisticsFlag(node.rawProps);
     const hasNodeVariable = hasNodeVariableFlag(node.rawProps);
     const hasImage = Boolean(node.image.url || node.image.id);
-    const hasAudio =
-      Boolean(node.props?.audioUrl || node.props?.audioUrlAlt) ||
-      chapterType === "podplayer-node";
-    const hasVideo =
-      Boolean(node.props?.subtitlesUrl) || chapterType === "videoplayer-node";
+    const hasAudio = Boolean(node.props?.audioUrl || node.props?.audioUrlAlt);
+    const hasVideo = Boolean(node.props?.subtitlesUrl) || chapterType === "videoplayer-node";
     const badges: GraphNodeData["badges"] = [];
 
     if (hasStatistics) {
@@ -358,14 +360,13 @@ function buildGraphNodes(
     if (hasNodeVariable) {
       badges.push({ key: "node-variable", label: "VAR", tone: "flag" });
     }
-    if (hasImage) {
+    if (hasVideo) {
+      badges.push({ key: "video", label: "VID", tone: "media" });
+    } else if (hasImage) {
       badges.push({ key: "image", label: "IMG", tone: "media" });
     }
     if (hasAudio) {
       badges.push({ key: "audio", label: "AUD", tone: "media" });
-    }
-    if (hasVideo) {
-      badges.push({ key: "video", label: "VID", tone: "media" });
     }
 
     return {
@@ -413,6 +414,14 @@ function buildGraphEdges(
 }
 
 function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
+  const flagBadges = data.badges
+    .filter((badge) => badge.tone === "flag")
+    .sort((a, b) => {
+      if (a.key === b.key) return 0;
+      if (a.key === "stats") return 1;
+      if (b.key === "stats") return -1;
+      return a.key.localeCompare(b.key);
+    });
   const mediaBadges = data.badges.filter((badge) => badge.tone === "media");
   const isStart = data.variant === "start";
   const NodeTypeIcon = nodeTypeIcons[data.variant] ?? FileText;
@@ -420,7 +429,7 @@ function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
   return (
     <div
       className={cn(
-        "relative min-w-[160px] rounded-lg border transition-all duration-150",
+        "relative min-w-[160px] max-w-[240px] w-fit rounded-lg border transition-all duration-150",
         isStart
           ? "border-[var(--editor-node-start-border)] shadow-[0_0_20px_-16px_var(--editor-node-start-border)]"
           : "border-[var(--editor-node-border)]",
@@ -449,15 +458,31 @@ function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
         >
           <NodeTypeIcon className="h-4 w-4" aria-hidden="true" />
         </span>
+        {flagBadges.length > 0 ? (
+          <div className="ml-auto flex items-center gap-1">
+            {flagBadges.map((badge) => {
+              const BadgeIcon = badgeIcons[badge.key] ?? FileText;
+              return (
+                <span
+                  key={badge.key}
+                  title={badge.label}
+                  className="flex h-5 w-5 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--muted)]"
+                >
+                  <BadgeIcon className="h-3 w-3" aria-hidden="true" />
+                </span>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       <div
         className={cn(
-          "flex min-h-[64px] items-center justify-center px-4 py-3",
+          "flex min-h-[64px] items-center justify-center px-4 py-3 w-full",
           isStart ? "bg-[var(--editor-node-start-bg)]" : "bg-[var(--editor-node-bg)]"
         )}
       >
-        <div className="break-words text-center text-[15px] font-semibold leading-snug text-[var(--text)]">
+        <div className="w-full break-words whitespace-normal text-center text-[15px] font-semibold leading-snug text-[var(--text)]">
           {data.label}
         </div>
       </div>
@@ -545,14 +570,21 @@ function AdventureEdge({
       <defs>
         <marker
           id={markerId}
-          viewBox="0 0 8 8"
-          refX="8"
-          refY="4"
-          markerWidth="6"
-          markerHeight="6"
+          viewBox="-10 -10 20 20"
+          refX="0"
+          refY="0"
+          markerWidth="12.5"
+          markerHeight="12.5"
+          markerUnits="strokeWidth"
           orient="auto-start-reverse"
         >
-          <path d="M 0 0 L 8 4 L 0 8 z" fill={markerColor} />
+          <polyline
+            className="arrowclosed"
+            style={{ stroke: markerColor, fill: markerColor, strokeWidth: 1 }}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            points="-5,-4 0,0 -5,4 -5,-4"
+          />
         </marker>
       </defs>
       <BaseEdge
