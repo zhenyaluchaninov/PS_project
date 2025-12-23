@@ -7,9 +7,11 @@ import {
   selectEditorDirty,
   selectEditorEditVersion,
   selectEditorError,
+  selectEditorFocusNodeId,
   selectEditorSelectedLinkIds,
   selectEditorSelectedNodeIds,
   selectEditorSelection,
+  selectEditorSelectionToolActive,
   selectEditorStatus,
   useEditorStore,
 } from "../state/editorStore";
@@ -32,11 +34,15 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const selection = useEditorStore(selectEditorSelection);
   const selectedNodeIds = useEditorStore(selectEditorSelectedNodeIds);
   const selectedLinkIds = useEditorStore(selectEditorSelectedLinkIds);
+  const selectionToolActive = useEditorStore(selectEditorSelectionToolActive);
+  const focusNodeId = useEditorStore(selectEditorFocusNodeId);
   const loadByEditSlug = useEditorStore((s) => s.loadByEditSlug);
   const setSelection = useEditorStore((s) => s.setSelection);
   const clearSelection = useEditorStore((s) => s.clearSelection);
   const setSelectionSnapshot = useEditorStore((s) => s.setSelectionSnapshot);
   const setViewportCenter = useEditorStore((s) => s.setViewportCenter);
+  const clearFocusNode = useEditorStore((s) => s.clearFocusNode);
+  const setSelectionToolActive = useEditorStore((s) => s.setSelectionToolActive);
   const updateNodePositions = useEditorStore((s) => s.updateNodePositions);
   const addLink = useEditorStore((s) => s.addLink);
   const addNodeWithLink = useEditorStore((s) => s.addNodeWithLink);
@@ -178,9 +184,13 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
               selection={selection}
               selectedNodeIds={selectedNodeIds}
               selectedLinkIds={selectedLinkIds}
+              selectionToolActive={selectionToolActive}
+              onSelectionToolActiveChange={setSelectionToolActive}
               onSelectionChange={setSelection}
               onSelectionSnapshotChange={setSelectionSnapshot}
               onViewportCenterChange={setViewportCenter}
+              focusNodeId={focusNodeId}
+              onFocusNodeHandled={clearFocusNode}
               onNodePositionsChange={updateNodePositions}
               onCreateLink={addLink}
               onCreateNodeWithLink={addNodeWithLink}

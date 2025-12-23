@@ -38,6 +38,7 @@ export function EditorHotkeys() {
   const copySelection = useEditorStore((s) => s.copySelection);
   const pasteClipboard = useEditorStore((s) => s.pasteClipboard);
   const undo = useEditorStore((s) => s.undo);
+  const setSelectionToolActive = useEditorStore((s) => s.setSelectionToolActive);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -51,10 +52,16 @@ export function EditorHotkeys() {
         return;
       }
 
+      const key = event.key.toLowerCase();
+      if (!event.metaKey && !event.ctrlKey && !event.altKey && key === "v") {
+        event.preventDefault();
+        setSelectionToolActive(true);
+        return;
+      }
+
       const isShortcut = event.metaKey || event.ctrlKey;
       if (!isShortcut) return;
 
-      const key = event.key.toLowerCase();
       if (key === "d") {
         if (selection.type === "node" && selectedNodeIds.length === 1) {
           event.preventDefault();
@@ -111,6 +118,7 @@ export function EditorHotkeys() {
     selectedLinkIds,
     selectedNodeIds,
     selection,
+    setSelectionToolActive,
     undo,
     undoStack.length,
     viewportCenter,

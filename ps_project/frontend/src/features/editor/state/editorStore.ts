@@ -17,6 +17,8 @@ export type EditorSelection =
   | { type: "node"; nodeId: number }
   | { type: "link"; linkId: number };
 
+export type EditorToolPanel = "search" | null;
+
 export type EditorNodePositionUpdate = {
   nodeId: number;
   position: { x: number; y: number };
@@ -55,19 +57,26 @@ type EditorState = {
   editVersion?: number;
   dirty: boolean;
   selection: EditorSelection;
+  selectionToolActive: boolean;
+  toolPanel: EditorToolPanel;
   selectedNodeIds: number[];
   selectedLinkIds: number[];
   clipboard: EditorClipboard | null;
   undoStack: EditorHistoryEntry[];
   viewportCenter: { x: number; y: number } | null;
+  focusNodeId: number | null;
   loadByEditSlug: (editSlug: string) => Promise<void>;
   reset: () => void;
   markDirty: () => void;
   clearDirty: () => void;
   setSelection: (selection: EditorSelection) => void;
+  setSelectionToolActive: (active: boolean) => void;
+  setToolPanel: (panel: EditorToolPanel) => void;
   clearSelection: () => void;
   setSelectionSnapshot: (nodeIds: number[], linkIds: number[]) => void;
   setViewportCenter: (center: { x: number; y: number }) => void;
+  setFocusNodeId: (nodeId: number) => void;
+  clearFocusNode: () => void;
   updateNodePositions: (updates: EditorNodePositionUpdate[]) => void;
   addLink: (sourceId: number, targetId: number) => number | null;
   addNodeWithLink: (
@@ -99,6 +108,22 @@ function cloneRawProps(value: Record<string, unknown> | null): Record<string, un
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
 }
 
+function normalizeSelectionIds(ids: number[]): number[] {
+  return [...new Set(ids)].sort((a, b) => a - b);
+}
+
+function arraysEqual(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+}
+
+function selectionsEqual(a: EditorSelection, b: EditorSelection): boolean {
+  if (a.type !== b.type) return false;
+  if (a.type === "node" && b.type === "node") return a.nodeId === b.nodeId;
+  if (a.type === "link" && b.type === "link") return a.linkId === b.linkId;
+  return true;
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   status: "idle",
   error: undefined,
@@ -107,11 +132,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   editVersion: undefined,
   dirty: false,
   selection: { type: "none" },
+  selectionToolActive: false,
+  toolPanel: null,
   selectedNodeIds: [],
   selectedLinkIds: [],
   clipboard: null,
   undoStack: [],
   viewportCenter: null,
+  focusNodeId: null,
 
   reset: () =>
     set({
@@ -122,16 +150,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       editVersion: undefined,
       dirty: false,
       selection: { type: "none" },
+      selectionToolActive: false,
+      toolPanel: null,
       selectedNodeIds: [],
       selectedLinkIds: [],
       clipboard: null,
       undoStack: [],
       viewportCenter: null,
+      focusNodeId: null,
     }),
 
   markDirty: () => set({ dirty: true }),
   clearDirty: () => set({ dirty: false }),
-  setSelection: (selection) => set({ selection }),
+  setSelection: (selection) =>
+    set((state) => (selectionsEqual(state.selection, selection) ? {} : { selection })),
+  setSelectionToolActive: (selectionToolActive) => set({ selectionToolActive }),
+  setToolPanel: (toolPanel) => set({ toolPanel }),
   clearSelection: () =>
     set({
       selection: { type: "none" },
@@ -139,11 +173,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedLinkIds: [],
     }),
   setSelectionSnapshot: (nodeIds, linkIds) =>
-    set({
-      selectedNodeIds: nodeIds,
-      selectedLinkIds: linkIds,
+    set((state) => {
+      const normalizedNodes = normalizeSelectionIds(nodeIds);
+      const normalizedLinks = normalizeSelectionIds(linkIds);
+      if (
+        arraysEqual(state.selectedNodeIds, normalizedNodes) &&
+        arraysEqual(state.selectedLinkIds, normalizedLinks)
+      ) {
+        return {};
+      }
+      return {
+        selectedNodeIds: normalizedNodes,
+        selectedLinkIds: normalizedLinks,
+      };
     }),
   setViewportCenter: (center) => set({ viewportCenter: center }),
+  setFocusNodeId: (nodeId) => set({ focusNodeId: nodeId }),
+  clearFocusNode: () => set({ focusNodeId: null }),
   updateNodePositions: (updates) => {
     if (!updates.length) return;
     set((state) => {
@@ -592,11 +638,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       editVersion: undefined,
       dirty: false,
       selection: { type: "none" },
+      selectionToolActive: false,
+      toolPanel: null,
       selectedNodeIds: [],
       selectedLinkIds: [],
       clipboard: null,
       undoStack: [],
       viewportCenter: null,
+      focusNodeId: null,
     });
 
     try {
@@ -660,6 +709,9 @@ export const selectEditorError = (state: EditorState) => state.error;
 export const selectEditorDirty = (state: EditorState) => state.dirty;
 export const selectEditorEditVersion = (state: EditorState) => state.editVersion;
 export const selectEditorSelection = (state: EditorState) => state.selection;
+export const selectEditorSelectionToolActive = (state: EditorState) =>
+  state.selectionToolActive;
+export const selectEditorToolPanel = (state: EditorState) => state.toolPanel;
 export const selectEditorSelectedNodeIds = (state: EditorState) =>
   state.selectedNodeIds;
 export const selectEditorSelectedLinkIds = (state: EditorState) =>
@@ -668,3 +720,4 @@ export const selectEditorClipboard = (state: EditorState) => state.clipboard;
 export const selectEditorUndoStack = (state: EditorState) => state.undoStack;
 export const selectEditorViewportCenter = (state: EditorState) =>
   state.viewportCenter;
+export const selectEditorFocusNodeId = (state: EditorState) => state.focusNodeId;

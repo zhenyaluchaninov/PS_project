@@ -5,6 +5,7 @@ import {
   selectEditorSelectedLinkIds,
   selectEditorSelectedNodeIds,
   selectEditorSelection,
+  selectEditorSelectionToolActive,
   selectEditorUndoStack,
   useEditorStore,
 } from "../state/editorStore";
@@ -19,6 +20,7 @@ export function ShortcutHud() {
   const selectedLinkIds = useEditorStore(selectEditorSelectedLinkIds);
   const clipboard = useEditorStore(selectEditorClipboard);
   const undoStack = useEditorStore(selectEditorUndoStack);
+  const selectionToolActive = useEditorStore(selectEditorSelectionToolActive);
 
   const totalSelected = selectedNodeIds.length + selectedLinkIds.length;
   const hasSelection = totalSelected > 0;
@@ -29,6 +31,9 @@ export function ShortcutHud() {
 
   const hints: ShortcutHint[] = [];
 
+  if (!selectionToolActive) {
+    hints.push({ keys: "V", label: "Select tool" });
+  }
   if (hasSelection) {
     hints.push({ keys: "Del/Backspace", label: "Delete" });
   }

@@ -1229,7 +1229,7 @@ Implement the right-side inspector with selection-driven modes:
 - Nothing selected → Adventure panel
 
 Inside **Node panel**, implement inner tabs:
-- Content / Style / Buttons / Logic (structure defined in `EDITOR_SETTINGS_CATALOG_CODE_VERIFIED.md`)
+- Content / Style / Buttons / Logic (structure defined in `EDITOR_SETTINGS_CATALOG.md`)
 
 Wire panels to selection state and editor store.
 

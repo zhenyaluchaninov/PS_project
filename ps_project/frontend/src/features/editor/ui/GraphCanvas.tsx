@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+} from "react";
 import {
   Background,
   BackgroundVariant,
@@ -44,6 +52,7 @@ import type { AdventureModel } from "@/domain/models";
 import type { EditorSelection } from "../state/editorStore";
 import { cn } from "@/lib/utils";
 import { ShortcutHud } from "./ShortcutHud";
+import { EditorToolStrip } from "./EditorToolStrip";
 
 type GraphNodeData = {
   label: string;
@@ -69,9 +78,13 @@ type GraphCanvasProps = {
   selection: EditorSelection;
   selectedNodeIds: number[];
   selectedLinkIds: number[];
+  selectionToolActive: boolean;
+  onSelectionToolActiveChange: (active: boolean) => void;
   onSelectionChange: (selection: EditorSelection) => void;
   onSelectionSnapshotChange: (nodeIds: number[], linkIds: number[]) => void;
   onViewportCenterChange: (center: { x: number; y: number }) => void;
+  focusNodeId: number | null;
+  onFocusNodeHandled: () => void;
   onNodePositionsChange: (
     updates: Array<{ nodeId: number; position: { x: number; y: number } }>
   ) => void;
@@ -365,6 +378,7 @@ function buildGraphNodes(
       id: String(node.nodeId),
       type: "adventure",
       position,
+      selectable: true,
       data: {
         label: node.title || `Node ${node.nodeId}`,
         nodeId: node.nodeId,
@@ -380,7 +394,8 @@ function buildGraphNodes(
 function buildGraphEdges(
   links: AdventureModel["links"],
   nodes: AdventureModel["nodes"],
-  existingEdges: GraphEdge[]
+  existingEdges: GraphEdge[],
+  selectable: boolean
 ): GraphEdge[] {
   const existingById = new Map(existingEdges.map((edge) => [edge.id, edge]));
   const nodeIds = new Set(nodes.map((node) => String(node.nodeId)));
@@ -399,10 +414,53 @@ function buildGraphEdges(
         source: String(link.source),
         target: String(link.target),
         type: "adventure",
+        selectable,
         data: { linkId: link.linkId, isBidirectional, hasConditions },
-        selected: existing?.selected ?? false,
+        selected: selectable ? (existing?.selected ?? false) : false,
       };
     });
+}
+
+function normalizeIds(ids: number[]): number[] {
+  return [...ids].sort((a, b) => a - b);
+}
+
+function arraysEqual(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+}
+
+function deriveSelection(
+  currentSelection: EditorSelection,
+  nodeIds: number[],
+  linkIds: number[]
+): EditorSelection {
+  if (nodeIds.length) {
+    if (
+      currentSelection.type === "node" &&
+      nodeIds.includes(currentSelection.nodeId)
+    ) {
+      return currentSelection;
+    }
+    return { type: "node", nodeId: nodeIds[nodeIds.length - 1] };
+  }
+  if (linkIds.length) {
+    if (
+      currentSelection.type === "link" &&
+      linkIds.includes(currentSelection.linkId)
+    ) {
+      return currentSelection;
+    }
+    return { type: "link", linkId: linkIds[linkIds.length - 1] };
+  }
+  return { type: "none" };
+}
+
+function selectionsEqual(a: EditorSelection, b: EditorSelection): boolean {
+  if (a.type !== b.type) return false;
+  if (a.type === "node" && b.type === "node") return a.nodeId === b.nodeId;
+  if (a.type === "link" && b.type === "link") return a.linkId === b.linkId;
+  return true;
 }
 
 function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
@@ -618,9 +676,13 @@ export function GraphCanvas({
   selection,
   selectedNodeIds,
   selectedLinkIds,
+  selectionToolActive,
+  onSelectionToolActiveChange,
   onSelectionChange,
   onSelectionSnapshotChange,
   onViewportCenterChange,
+  focusNodeId,
+  onFocusNodeHandled,
   onNodePositionsChange,
   onCreateLink,
   onCreateNodeWithLink,
@@ -634,6 +696,8 @@ export function GraphCanvas({
   const connectingNodeIdRef = useRef<number | null>(null);
   const nodesAdventureIdRef = useRef<number | null>(null);
   const edgesAdventureIdRef = useRef<number | null>(null);
+  const suppressSelectionChangeRef = useRef(false);
+  const selectionSourceRef = useRef<"reactflow" | "store" | null>(null);
 
   const nodeById = useMemo(() => {
     const map = new Map<number, AdventureModel["nodes"][number]>();
@@ -660,7 +724,7 @@ export function GraphCanvas({
     buildGraphNodes(adventure.nodes, [])
   );
   const [edges, setEdges, onEdgesChange] = useEdgesState<GraphEdge>(
-    buildGraphEdges(adventure.links, adventure.nodes, [])
+    buildGraphEdges(adventure.links, adventure.nodes, [], !selectionToolActive)
   );
 
   useEffect(() => {
@@ -675,9 +739,14 @@ export function GraphCanvas({
     const isNewAdventure = edgesAdventureIdRef.current !== adventure.id;
     edgesAdventureIdRef.current = adventure.id;
     setEdges((current) =>
-      buildGraphEdges(adventure.links, adventure.nodes, isNewAdventure ? [] : current)
+      buildGraphEdges(
+        adventure.links,
+        adventure.nodes,
+        isNewAdventure ? [] : current,
+        !selectionToolActive
+      )
     );
-  }, [adventure.id, adventure.links, adventure.nodes, setEdges]);
+  }, [adventure.id, adventure.links, adventure.nodes, selectionToolActive, setEdges]);
 
   const reportViewportCenter = useCallback(() => {
     const instance = reactFlowRef.current;
@@ -703,26 +772,44 @@ export function GraphCanvas({
 
   const handleSelectionChange = useCallback(
     ({ nodes: selectedNodes, edges: selectedEdges }: { nodes: GraphNode[]; edges: GraphEdge[] }) => {
-      const nodeIds = selectedNodes
-        .map((node) => toNumericId(node.data?.nodeId ?? node.id))
-        .filter((id): id is number => id !== null);
-      const linkIds = selectedEdges
-        .map((edge) => toNumericId(edge.data?.linkId ?? edge.id))
-        .filter((id): id is number => id !== null);
-
-      onSelectionSnapshotChange(nodeIds, linkIds);
-
-      if (nodeIds.length) {
-        onSelectionChange({ type: "node", nodeId: nodeIds[nodeIds.length - 1] });
+      if (suppressSelectionChangeRef.current) {
         return;
       }
-      if (linkIds.length) {
-        onSelectionChange({ type: "link", linkId: linkIds[linkIds.length - 1] });
+      const nodeIds = normalizeIds(
+        selectedNodes
+          .map((node) => toNumericId(node.data?.nodeId ?? node.id))
+          .filter((id): id is number => id !== null)
+      );
+      const linkIds = normalizeIds(
+        selectedEdges
+          .map((edge) => toNumericId(edge.data?.linkId ?? edge.id))
+          .filter((id): id is number => id !== null)
+      );
+      const effectiveLinkIds = selectionToolActive ? [] : linkIds;
+      const nextSelection = deriveSelection(selection, nodeIds, effectiveLinkIds);
+      const currentNodeIds = normalizeIds(selectedNodeIds);
+      const currentLinkIds = normalizeIds(selectedLinkIds);
+      const selectionUnchanged =
+        arraysEqual(nodeIds, currentNodeIds) &&
+        arraysEqual(effectiveLinkIds, currentLinkIds) &&
+        selectionsEqual(selection, nextSelection);
+
+      if (selectionUnchanged) {
         return;
       }
-      onSelectionChange({ type: "none" });
+
+      selectionSourceRef.current = "reactflow";
+      onSelectionSnapshotChange(nodeIds, effectiveLinkIds);
+      onSelectionChange(nextSelection);
     },
-    [onSelectionChange, onSelectionSnapshotChange]
+    [
+      onSelectionChange,
+      onSelectionSnapshotChange,
+      selection,
+      selectedLinkIds,
+      selectedNodeIds,
+      selectionToolActive,
+    ]
   );
 
   const isValidConnection = useCallback(
@@ -831,26 +918,89 @@ export function GraphCanvas({
   }, [reportViewportCenter]);
 
   useEffect(() => {
+    if (selectionSourceRef.current === "reactflow") {
+      selectionSourceRef.current = null;
+      return;
+    }
     const nodeIdSet = new Set(selectedNodeIds);
-    setNodes((current) =>
-      current.map((node) => {
+    const linkIdSet = new Set(selectedLinkIds);
+    let didUpdateNodes = false;
+    let didUpdateEdges = false;
+
+    suppressSelectionChangeRef.current = true;
+
+    setNodes((current) => {
+      let changed = false;
+      const next = current.map((node) => {
         const nodeId = toNumericId(node.data?.nodeId ?? node.id);
         const shouldSelect = nodeId != null && nodeIdSet.has(nodeId);
-        return node.selected === shouldSelect ? node : { ...node, selected: shouldSelect };
-      })
-    );
-  }, [selectedNodeIds, setNodes]);
+        if (node.selected === shouldSelect) return node;
+        changed = true;
+        return { ...node, selected: shouldSelect };
+      });
+      didUpdateNodes = changed;
+      return changed ? next : current;
+    });
 
-  useEffect(() => {
-    const linkIdSet = new Set(selectedLinkIds);
-    setEdges((current) =>
-      current.map((edge) => {
+    setEdges((current) => {
+      let changed = false;
+      const next = current.map((edge) => {
         const linkId = toNumericId(edge.data?.linkId ?? edge.id);
         const shouldSelect = linkId != null && linkIdSet.has(linkId);
-        return edge.selected === shouldSelect ? edge : { ...edge, selected: shouldSelect };
-      })
-    );
-  }, [selectedLinkIds, setEdges]);
+        if (edge.selected === shouldSelect) return edge;
+        changed = true;
+        return { ...edge, selected: shouldSelect };
+      });
+      didUpdateEdges = changed;
+      return changed ? next : current;
+    });
+
+    if (!didUpdateNodes && !didUpdateEdges) {
+      suppressSelectionChangeRef.current = false;
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      suppressSelectionChangeRef.current = false;
+    });
+  }, [selectedLinkIds, selectedNodeIds, setEdges, setNodes]);
+
+  useEffect(() => {
+    if (focusNodeId == null) return;
+    const instance = reactFlowRef.current;
+    if (!instance) return;
+
+    const attemptFocus = (remaining: number) => {
+      const target = nodes.find(
+        (node) => toNumericId(node.data?.nodeId ?? node.id) === focusNodeId
+      );
+      if (!target) {
+        if (remaining > 0) {
+          requestAnimationFrame(() => attemptFocus(remaining - 1));
+        } else {
+          onFocusNodeHandled();
+        }
+        return;
+      }
+      instance.fitView({
+        nodes: [target],
+        padding: 0.35,
+        duration: 320,
+        maxZoom: 1.4,
+      });
+      onSelectionSnapshotChange([focusNodeId], []);
+      onSelectionChange({ type: "node", nodeId: focusNodeId });
+      onFocusNodeHandled();
+    };
+
+    attemptFocus(2);
+  }, [
+    focusNodeId,
+    nodes,
+    onFocusNodeHandled,
+    onSelectionChange,
+    onSelectionSnapshotChange,
+  ]);
 
   return (
     <div
@@ -870,14 +1020,22 @@ export function GraphCanvas({
         nodesDraggable
         nodesConnectable
         edgesReconnectable={false}
-        selectionOnDrag
-        selectNodesOnDrag
+        elementsSelectable
+        selectionOnDrag={selectionToolActive}
+        selectNodesOnDrag={selectionToolActive}
+        selectionKeyCode={null}
+        panOnDrag={selectionToolActive ? [1, 2] : true}
         multiSelectionKeyCode={["Control", "Shift"]}
         deleteKeyCode={null}
         onInit={handleInit}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onSelectionChange={handleSelectionChange}
+        onSelectionEnd={() => {
+          if (selectionToolActive) {
+            onSelectionToolActiveChange(false);
+          }
+        }}
         onNodeDragStop={handleNodeDragStop}
         onSelectionDragStop={handleSelectionDragStop}
         onConnect={handleConnect}
@@ -889,7 +1047,10 @@ export function GraphCanvas({
         <Background color="var(--editor-edge)" gap={36} size={3} variant={BackgroundVariant.Dots} />
         <Controls position="bottom-right" />
       </ReactFlow>
-      <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-2">
+      <div className="absolute inset-y-0 left-0 z-20">
+        <EditorToolStrip adventure={adventure} />
+      </div>
+      <div className="absolute bottom-3 left-[60px] z-10 flex flex-col gap-2">
         <div className="pointer-events-auto w-[240px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 text-[var(--text)] shadow-[0_12px_40px_-30px_rgba(0,0,0,0.8)] backdrop-blur">
           <button
             type="button"
