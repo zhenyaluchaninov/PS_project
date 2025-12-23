@@ -1177,26 +1177,32 @@ web/editor.html             # Loads Cytoscape + graph module (legacy styling is 
 
 ---
 
-### Step 20A – Command Palette (Ctrl/Cmd+K)
+### [done] Step 20A – Command Palette (Ctrl/Cmd+K)
 
-**What we do**
+**What we did**
 
-Add a keyboard-first command palette:
-- Ctrl+K / Cmd+K opens palette.
-- Fuzzy search commands.
-- Commands are context-aware (node selected vs link selected vs none).
+* Prototyped a Ctrl/Cmd+K command palette to explore a keyboard-driven editor workflow.
+* Implemented fuzzy search and basic context awareness (node / link / empty).
+* Tested key commands, especially **Jump to node**, as a fast navigation concept.
 
-Initial commands:
-- Jump to node (by title/id)
-- Delete selection
-- Duplicate selected node
-- Create linked node from selection (fallback to drag-to-create)
-- Open inspector sections/tabs (Node / Link / Adventure)
+**What we learned**
 
-**What we get**
+* *Jump to node* is genuinely useful and worth keeping as a concept.
+* A general command palette creates maintenance overhead:
+  every new editor action must be duplicated as a “command”.
+* For this editor, a palette duplicates functionality better served by:
 
-- A modern editor feel (VS Code / Notion style).
-- Discoverability without reintroducing lots of UI buttons.
+  * direct keyboard shortcuts
+  * contextual HUD/tool panels
+
+**Outcome**
+
+* Command palette was **intentionally removed**.
+* Editor UX direction shifted to:
+
+  * real, working keyboard shortcuts
+  * non-interactive contextual shortcut HUD
+  * dedicated UI tools (e.g. search panel) instead of a global command catalog.
 
 **Feature Map coverage**
 

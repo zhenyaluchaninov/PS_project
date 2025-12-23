@@ -43,6 +43,7 @@ import {
 import type { AdventureModel } from "@/domain/models";
 import type { EditorSelection } from "../state/editorStore";
 import { cn } from "@/lib/utils";
+import { ShortcutHud } from "./ShortcutHud";
 
 type GraphNodeData = {
   label: string;
@@ -66,7 +67,11 @@ type GraphCanvasProps = {
   editSlug?: string;
   editVersion?: number | null;
   selection: EditorSelection;
+  selectedNodeIds: number[];
+  selectedLinkIds: number[];
   onSelectionChange: (selection: EditorSelection) => void;
+  onSelectionSnapshotChange: (nodeIds: number[], linkIds: number[]) => void;
+  onViewportCenterChange: (center: { x: number; y: number }) => void;
   onNodePositionsChange: (
     updates: Array<{ nodeId: number; position: { x: number; y: number } }>
   ) => void;
@@ -75,8 +80,6 @@ type GraphCanvasProps = {
     sourceId: number,
     position: { x: number; y: number }
   ) => { nodeId: number; linkId: number } | null;
-  onDeleteNodes: (nodeIds: number[]) => void;
-  onDeleteLinks: (linkIds: number[]) => void;
   className?: string;
 };
 
@@ -320,17 +323,6 @@ function getEventClientPosition(
   return { x: event.clientX, y: event.clientY };
 }
 
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  return (
-    tag === "INPUT" ||
-    tag === "TEXTAREA" ||
-    tag === "SELECT" ||
-    target.isContentEditable
-  );
-}
-
 function buildGraphNodes(
   nodes: AdventureModel["nodes"],
   existingNodes: GraphNode[]
@@ -434,7 +426,7 @@ function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
           ? "border-[var(--editor-node-start-border)] shadow-[0_0_20px_-16px_var(--editor-node-start-border)]"
           : "border-[var(--editor-node-border)]",
         selected
-          ? "border-[var(--accent)] ring-2 ring-[var(--accent-muted)] shadow-lg"
+          ? "border-[var(--editor-edge-selected)] shadow-[0_0_0_2.2px_var(--editor-edge-selected)]"
           : isStart
             ? "hover:border-[var(--success)]"
             : "hover:border-[var(--border-light)]"
@@ -466,9 +458,9 @@ function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
                 <span
                   key={badge.key}
                   title={badge.label}
-                  className="flex h-5 w-5 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--muted)]"
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--muted)]"
                 >
-                  <BadgeIcon className="h-3 w-3" aria-hidden="true" />
+                  <BadgeIcon className="h-4 w-4" aria-hidden="true" />
                 </span>
               );
             })}
@@ -624,21 +616,22 @@ export function GraphCanvas({
   editSlug,
   editVersion,
   selection,
+  selectedNodeIds,
+  selectedLinkIds,
   onSelectionChange,
+  onSelectionSnapshotChange,
+  onViewportCenterChange,
   onNodePositionsChange,
   onCreateLink,
   onCreateNodeWithLink,
-  onDeleteNodes,
-  onDeleteLinks,
   className,
 }: GraphCanvasProps) {
   const [hudOpen, setHudOpen] = useState(true);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const reactFlowRef = useRef<ReactFlowInstance<GraphNode, GraphEdge> | null>(
     null
   );
   const connectingNodeIdRef = useRef<number | null>(null);
-  const nodesRef = useRef<GraphNode[]>([]);
-  const edgesRef = useRef<GraphEdge[]>([]);
   const nodesAdventureIdRef = useRef<number | null>(null);
   const edgesAdventureIdRef = useRef<number | null>(null);
 
@@ -686,19 +679,26 @@ export function GraphCanvas({
     );
   }, [adventure.id, adventure.links, adventure.nodes, setEdges]);
 
-  useEffect(() => {
-    nodesRef.current = nodes;
-  }, [nodes]);
-
-  useEffect(() => {
-    edgesRef.current = edges;
-  }, [edges]);
+  const reportViewportCenter = useCallback(() => {
+    const instance = reactFlowRef.current;
+    const container = containerRef.current;
+    if (!instance || !container) return;
+    const rect = container.getBoundingClientRect();
+    const center = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+    onViewportCenterChange(instance.screenToFlowPosition(center));
+  }, [onViewportCenterChange]);
 
   const handleInit = useCallback(
     (instance: ReactFlowInstance<GraphNode, GraphEdge>) => {
       reactFlowRef.current = instance;
+      requestAnimationFrame(() => {
+        reportViewportCenter();
+      });
     },
-    []
+    [reportViewportCenter]
   );
 
   const handleSelectionChange = useCallback(
@@ -710,6 +710,8 @@ export function GraphCanvas({
         .map((edge) => toNumericId(edge.data?.linkId ?? edge.id))
         .filter((id): id is number => id !== null);
 
+      onSelectionSnapshotChange(nodeIds, linkIds);
+
       if (nodeIds.length) {
         onSelectionChange({ type: "node", nodeId: nodeIds[nodeIds.length - 1] });
         return;
@@ -720,7 +722,7 @@ export function GraphCanvas({
       }
       onSelectionChange({ type: "none" });
     },
-    [onSelectionChange]
+    [onSelectionChange, onSelectionSnapshotChange]
   );
 
   const isValidConnection = useCallback(
@@ -814,34 +816,41 @@ export function GraphCanvas({
   );
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Delete" && event.key !== "Backspace") return;
-      if (isEditableTarget(event.target)) return;
-      const selectedNodeIds = nodesRef.current
-        .filter((node) => node.selected)
-        .map((node) => toNumericId(node.data?.nodeId ?? node.id))
-        .filter((id): id is number => id !== null);
-      const selectedLinkIds = edgesRef.current
-        .filter((edge) => edge.selected)
-        .map((edge) => toNumericId(edge.data?.linkId ?? edge.id))
-        .filter((id): id is number => id !== null);
+    if (!reactFlowRef.current) return;
+    reportViewportCenter();
+  }, [reportViewportCenter, adventure.id]);
 
-      if (selectedNodeIds.length) {
-        event.preventDefault();
-        onDeleteNodes(selectedNodeIds);
-        onSelectionChange({ type: "none" });
-        return;
-      }
-      if (selectedLinkIds.length) {
-        event.preventDefault();
-        onDeleteLinks(selectedLinkIds);
-        onSelectionChange({ type: "none" });
-      }
-    };
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      reportViewportCenter();
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [reportViewportCenter]);
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onDeleteLinks, onDeleteNodes, onSelectionChange]);
+  useEffect(() => {
+    const nodeIdSet = new Set(selectedNodeIds);
+    setNodes((current) =>
+      current.map((node) => {
+        const nodeId = toNumericId(node.data?.nodeId ?? node.id);
+        const shouldSelect = nodeId != null && nodeIdSet.has(nodeId);
+        return node.selected === shouldSelect ? node : { ...node, selected: shouldSelect };
+      })
+    );
+  }, [selectedNodeIds, setNodes]);
+
+  useEffect(() => {
+    const linkIdSet = new Set(selectedLinkIds);
+    setEdges((current) =>
+      current.map((edge) => {
+        const linkId = toNumericId(edge.data?.linkId ?? edge.id);
+        const shouldSelect = linkId != null && linkIdSet.has(linkId);
+        return edge.selected === shouldSelect ? edge : { ...edge, selected: shouldSelect };
+      })
+    );
+  }, [selectedLinkIds, setEdges]);
 
   return (
     <div
@@ -849,6 +858,7 @@ export function GraphCanvas({
         "relative h-full w-full overflow-hidden bg-[var(--editor-graph-bg)]",
         className
       )}
+      ref={containerRef}
     >
       <ReactFlow
         nodes={nodes}
@@ -873,12 +883,13 @@ export function GraphCanvas({
         onConnect={handleConnect}
         onConnectStart={handleConnectStart}
         onConnectEnd={handleConnectEnd}
+        onMoveEnd={reportViewportCenter}
         isValidConnection={isValidConnection}
       >
         <Background color="var(--editor-edge)" gap={36} size={3} variant={BackgroundVariant.Dots} />
         <Controls position="bottom-right" />
       </ReactFlow>
-      <div className="pointer-events-none absolute bottom-3 left-3 z-10">
+      <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-2">
         <div className="pointer-events-auto w-[240px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 text-[var(--text)] shadow-[0_12px_40px_-30px_rgba(0,0,0,0.8)] backdrop-blur">
           <button
             type="button"
@@ -985,6 +996,7 @@ export function GraphCanvas({
             </div>
           ) : null}
         </div>
+        <ShortcutHud />
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import type { AdventureModel } from "@/domain/models";
 import { loadAdventureForEdit } from "@/features/state/api";
-import { ApiError, isApiError, resolveApiUrl } from "@/features/state/api/client";
+import { isApiError, resolveApiUrl } from "@/features/state/api/client";
 import { create } from "zustand";
 
 export type EditorStatus = "idle" | "loading" | "ready" | "error";
@@ -22,6 +22,31 @@ export type EditorNodePositionUpdate = {
   position: { x: number; y: number };
 };
 
+type ClipboardNode = {
+  title: string;
+  text: string;
+  icon?: string | null;
+  position: { x: number; y: number };
+  image: AdventureModel["nodes"][number]["image"];
+  type: string | null;
+  props: AdventureModel["nodes"][number]["props"];
+  rawProps: Record<string, unknown> | null;
+};
+
+type EditorClipboard = {
+  nodes: ClipboardNode[];
+  bounds: { width: number; height: number };
+};
+
+type EditorHistoryEntry = {
+  nodes: AdventureModel["nodes"];
+  links: AdventureModel["links"];
+  selection: EditorSelection;
+  selectedNodeIds: number[];
+  selectedLinkIds: number[];
+  dirty: boolean;
+};
+
 type EditorState = {
   status: EditorStatus;
   error?: EditorError;
@@ -30,23 +55,49 @@ type EditorState = {
   editVersion?: number;
   dirty: boolean;
   selection: EditorSelection;
+  selectedNodeIds: number[];
+  selectedLinkIds: number[];
+  clipboard: EditorClipboard | null;
+  undoStack: EditorHistoryEntry[];
+  viewportCenter: { x: number; y: number } | null;
   loadByEditSlug: (editSlug: string) => Promise<void>;
   reset: () => void;
   markDirty: () => void;
   clearDirty: () => void;
   setSelection: (selection: EditorSelection) => void;
   clearSelection: () => void;
+  setSelectionSnapshot: (nodeIds: number[], linkIds: number[]) => void;
+  setViewportCenter: (center: { x: number; y: number }) => void;
   updateNodePositions: (updates: EditorNodePositionUpdate[]) => void;
   addLink: (sourceId: number, targetId: number) => number | null;
   addNodeWithLink: (
     sourceId: number,
     position: { x: number; y: number }
   ) => { nodeId: number; linkId: number } | null;
+  duplicateNode: (nodeId: number) => number | null;
+  copySelection: () => void;
+  pasteClipboard: (target: { x: number; y: number }) => number[];
+  undo: () => void;
+  removeSelection: (nodeIds: number[], linkIds: number[]) => void;
   removeNodes: (nodeIds: number[]) => void;
   removeLinks: (linkIds: number[]) => void;
 };
 
 const isDev = process.env.NODE_ENV !== "production";
+const MAX_UNDO_STACK = 60;
+
+function getNextNodeId(adventure: AdventureModel): number {
+  return adventure.nodes.reduce((maxId, node) => Math.max(maxId, node.nodeId), -1) + 1;
+}
+
+function getNextLinkId(adventure: AdventureModel): number {
+  return adventure.links.reduce((maxId, link) => Math.max(maxId, link.linkId), -1) + 1;
+}
+
+function cloneRawProps(value: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!value) return null;
+  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   status: "idle",
@@ -56,6 +107,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   editVersion: undefined,
   dirty: false,
   selection: { type: "none" },
+  selectedNodeIds: [],
+  selectedLinkIds: [],
+  clipboard: null,
+  undoStack: [],
+  viewportCenter: null,
 
   reset: () =>
     set({
@@ -66,12 +122,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       editVersion: undefined,
       dirty: false,
       selection: { type: "none" },
+      selectedNodeIds: [],
+      selectedLinkIds: [],
+      clipboard: null,
+      undoStack: [],
+      viewportCenter: null,
     }),
 
   markDirty: () => set({ dirty: true }),
   clearDirty: () => set({ dirty: false }),
   setSelection: (selection) => set({ selection }),
-  clearSelection: () => set({ selection: { type: "none" } }),
+  clearSelection: () =>
+    set({
+      selection: { type: "none" },
+      selectedNodeIds: [],
+      selectedLinkIds: [],
+    }),
+  setSelectionSnapshot: (nodeIds, linkIds) =>
+    set({
+      selectedNodeIds: nodeIds,
+      selectedLinkIds: linkIds,
+    }),
+  setViewportCenter: (center) => set({ viewportCenter: center }),
   updateNodePositions: (updates) => {
     if (!updates.length) return;
     set((state) => {
@@ -97,9 +169,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         };
       });
       if (!changed) return {};
+      const historyEntry: EditorHistoryEntry = {
+        nodes: state.adventure.nodes,
+        links: state.adventure.links,
+        selection: state.selection,
+        selectedNodeIds: state.selectedNodeIds,
+        selectedLinkIds: state.selectedLinkIds,
+        dirty: state.dirty,
+      };
       return {
         adventure: { ...state.adventure, nodes },
         dirty: true,
+        undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
       };
     });
   },
@@ -115,9 +196,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         (link.source === targetId && link.target === sourceId)
     );
     if (hasLink) return null;
-    const nextLinkId =
-      adventure.links.reduce((maxId, link) => Math.max(maxId, link.linkId), -1) +
-      1;
+    const nextLinkId = getNextLinkId(adventure);
     const newLink = {
       id: 0,
       linkId: nextLinkId,
@@ -132,12 +211,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       changed: true,
       props: null,
     };
-    set({
-      adventure: {
-        ...adventure,
-        links: [...adventure.links, newLink],
-      },
-      dirty: true,
+    set((state) => {
+      if (!state.adventure) return {};
+      const historyEntry: EditorHistoryEntry = {
+        nodes: state.adventure.nodes,
+        links: state.adventure.links,
+        selection: state.selection,
+        selectedNodeIds: state.selectedNodeIds,
+        selectedLinkIds: state.selectedLinkIds,
+        dirty: state.dirty,
+      };
+      return {
+        adventure: {
+          ...state.adventure,
+          links: [...state.adventure.links, newLink],
+        },
+        dirty: true,
+        undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
+      };
     });
     return nextLinkId;
   },
@@ -146,12 +237,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!adventure) return null;
     const sourceExists = adventure.nodes.some((node) => node.nodeId === sourceId);
     if (!sourceExists) return null;
-    const nextNodeId =
-      adventure.nodes.reduce((maxId, node) => Math.max(maxId, node.nodeId), -1) +
-      1;
-    const nextLinkId =
-      adventure.links.reduce((maxId, link) => Math.max(maxId, link.linkId), -1) +
-      1;
+    const nextNodeId = getNextNodeId(adventure);
+    const nextLinkId = getNextLinkId(adventure);
     const newNode = {
       id: 0,
       nodeId: nextNodeId,
@@ -179,15 +266,232 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       changed: true,
       props: null,
     };
-    set({
-      adventure: {
-        ...adventure,
-        nodes: [...adventure.nodes, newNode],
-        links: [...adventure.links, newLink],
-      },
-      dirty: true,
+    set((state) => {
+      if (!state.adventure) return {};
+      const historyEntry: EditorHistoryEntry = {
+        nodes: state.adventure.nodes,
+        links: state.adventure.links,
+        selection: state.selection,
+        selectedNodeIds: state.selectedNodeIds,
+        selectedLinkIds: state.selectedLinkIds,
+        dirty: state.dirty,
+      };
+      return {
+        adventure: {
+          ...state.adventure,
+          nodes: [...state.adventure.nodes, newNode],
+          links: [...state.adventure.links, newLink],
+        },
+        dirty: true,
+        undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
+      };
     });
     return { nodeId: nextNodeId, linkId: nextLinkId };
+  },
+  duplicateNode: (nodeId) => {
+    const adventure = get().adventure;
+    if (!adventure) return null;
+    const sourceNode = adventure.nodes.find((node) => node.nodeId === nodeId);
+    if (!sourceNode) return null;
+    const nextNodeId = getNextNodeId(adventure);
+    const clonedRawProps = cloneRawProps(sourceNode.rawProps);
+    const offset = { x: 60, y: 60 };
+    const newNode = {
+      ...sourceNode,
+      id: 0,
+      nodeId: nextNodeId,
+      position: {
+        x: sourceNode.position.x + offset.x,
+        y: sourceNode.position.y + offset.y,
+      },
+      image: { ...sourceNode.image },
+      props: sourceNode.props ? { ...sourceNode.props } : null,
+      rawProps: clonedRawProps,
+      changed: true,
+    };
+    set((state) => {
+      if (!state.adventure) return {};
+      const historyEntry: EditorHistoryEntry = {
+        nodes: state.adventure.nodes,
+        links: state.adventure.links,
+        selection: state.selection,
+        selectedNodeIds: state.selectedNodeIds,
+        selectedLinkIds: state.selectedLinkIds,
+        dirty: state.dirty,
+      };
+      return {
+        adventure: {
+          ...state.adventure,
+          nodes: [...state.adventure.nodes, newNode],
+        },
+        dirty: true,
+        selection: { type: "node", nodeId: nextNodeId },
+        selectedNodeIds: [nextNodeId],
+        selectedLinkIds: [],
+        undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
+      };
+    });
+    return nextNodeId;
+  },
+  copySelection: () => {
+    const { adventure, selectedNodeIds } = get();
+    if (!adventure || selectedNodeIds.length === 0) return;
+    const nodes = adventure.nodes.filter((node) =>
+      selectedNodeIds.includes(node.nodeId)
+    );
+    if (!nodes.length) return;
+    const minX = Math.min(...nodes.map((node) => node.position.x));
+    const minY = Math.min(...nodes.map((node) => node.position.y));
+    const maxX = Math.max(...nodes.map((node) => node.position.x));
+    const maxY = Math.max(...nodes.map((node) => node.position.y));
+    const clipboardNodes: ClipboardNode[] = nodes.map((node) => ({
+      title: node.title,
+      text: node.text,
+      icon: node.icon ?? null,
+      position: {
+        x: node.position.x - minX,
+        y: node.position.y - minY,
+      },
+      image: { ...node.image },
+      type: node.type ?? null,
+      props: node.props ? { ...node.props } : null,
+      rawProps: cloneRawProps(node.rawProps),
+    }));
+    set({
+      clipboard: {
+        nodes: clipboardNodes,
+        bounds: { width: maxX - minX, height: maxY - minY },
+      },
+    });
+  },
+  pasteClipboard: (target) => {
+    const { adventure, clipboard } = get();
+    if (!adventure || !clipboard || clipboard.nodes.length === 0) return [];
+    let createdIds: number[] = [];
+    set((state) => {
+      if (!state.adventure || !state.clipboard) return {};
+      const { nodes: clipNodes, bounds } = state.clipboard;
+      if (!clipNodes.length) return {};
+      let nextNodeId = getNextNodeId(state.adventure);
+      const offsetX = target.x - bounds.width / 2;
+      const offsetY = target.y - bounds.height / 2;
+      const newNodes = clipNodes.map((node) => {
+        const nodeId = nextNodeId;
+        nextNodeId += 1;
+        return {
+          id: 0,
+          nodeId,
+          title: node.title,
+          text: node.text,
+          icon: node.icon ?? null,
+          position: {
+            x: node.position.x + offsetX,
+            y: node.position.y + offsetY,
+          },
+          image: { ...node.image },
+          type: node.type ?? null,
+          changed: true,
+          props: node.props ? { ...node.props } : null,
+          rawProps: cloneRawProps(node.rawProps),
+        };
+      });
+      createdIds = newNodes.map((node) => node.nodeId);
+      const historyEntry: EditorHistoryEntry = {
+        nodes: state.adventure.nodes,
+        links: state.adventure.links,
+        selection: state.selection,
+        selectedNodeIds: state.selectedNodeIds,
+        selectedLinkIds: state.selectedLinkIds,
+        dirty: state.dirty,
+      };
+      return {
+        adventure: {
+          ...state.adventure,
+          nodes: [...state.adventure.nodes, ...newNodes],
+        },
+        dirty: true,
+        selection: { type: "node", nodeId: createdIds[createdIds.length - 1] },
+        selectedNodeIds: createdIds,
+        selectedLinkIds: [],
+        undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
+      };
+    });
+    return createdIds;
+  },
+  undo: () => {
+    set((state) => {
+      if (!state.adventure || state.undoStack.length === 0) return {};
+      const undoStack = state.undoStack.slice(0, -1);
+      const entry = state.undoStack[state.undoStack.length - 1];
+      return {
+        adventure: {
+          ...state.adventure,
+          nodes: entry.nodes,
+          links: entry.links,
+        },
+        selection: entry.selection,
+        selectedNodeIds: entry.selectedNodeIds,
+        selectedLinkIds: entry.selectedLinkIds,
+        dirty: entry.dirty,
+        undoStack,
+      };
+    });
+  },
+  removeSelection: (nodeIds, linkIds) => {
+    if (!nodeIds.length && !linkIds.length) return;
+    set((state) => {
+      if (!state.adventure) return {};
+      const nodeIdSet = new Set(nodeIds);
+      const linkIdSet = new Set(linkIds);
+      const nodes = nodeIdSet.size
+        ? state.adventure.nodes.filter((node) => !nodeIdSet.has(node.nodeId))
+        : state.adventure.nodes;
+      const removedLinkIds = new Set<number>();
+      const links = state.adventure.links.filter((link) => {
+        const remove =
+          linkIdSet.has(link.linkId) ||
+          nodeIdSet.has(link.source) ||
+          nodeIdSet.has(link.target);
+        if (remove) {
+          removedLinkIds.add(link.linkId);
+        }
+        return !remove;
+      });
+      if (
+        nodes.length === state.adventure.nodes.length &&
+        links.length === state.adventure.links.length
+      ) {
+        return {};
+      }
+      let selection = state.selection;
+      if (selection.type === "node" && nodeIdSet.has(selection.nodeId)) {
+        selection = { type: "none" };
+      } else if (selection.type === "link" && removedLinkIds.has(selection.linkId)) {
+        selection = { type: "none" };
+      }
+      const selectedNodeIds = state.selectedNodeIds.filter(
+        (id) => !nodeIdSet.has(id)
+      );
+      const selectedLinkIds = state.selectedLinkIds.filter(
+        (id) => !removedLinkIds.has(id)
+      );
+      const historyEntry: EditorHistoryEntry = {
+        nodes: state.adventure.nodes,
+        links: state.adventure.links,
+        selection: state.selection,
+        selectedNodeIds: state.selectedNodeIds,
+        selectedLinkIds: state.selectedLinkIds,
+        dirty: state.dirty,
+      };
+      return {
+        adventure: { ...state.adventure, nodes, links },
+        dirty: true,
+        selection,
+        selectedNodeIds,
+        selectedLinkIds,
+        undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
+      };
+    });
   },
   removeNodes: (nodeIds) => {
     if (!nodeIds.length) return;
@@ -218,10 +522,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ) {
         selection = { type: "none" };
       }
+      const selectedNodeIds = state.selectedNodeIds.filter(
+        (id) => !nodeIdSet.has(id)
+      );
+      const selectedLinkIds = state.selectedLinkIds.filter(
+        (id) => !removedLinkIds.has(id)
+      );
+      const historyEntry: EditorHistoryEntry = {
+        nodes: state.adventure.nodes,
+        links: state.adventure.links,
+        selection: state.selection,
+        selectedNodeIds: state.selectedNodeIds,
+        selectedLinkIds: state.selectedLinkIds,
+        dirty: state.dirty,
+      };
       return {
         adventure: { ...state.adventure, nodes, links },
         dirty: true,
         selection,
+        selectedNodeIds,
+        selectedLinkIds,
+        undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
       };
     });
   },
@@ -240,10 +561,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (selection.type === "link" && linkIdSet.has(selection.linkId)) {
         selection = { type: "none" };
       }
+      const selectedLinkIds = state.selectedLinkIds.filter(
+        (id) => !linkIdSet.has(id)
+      );
+      const historyEntry: EditorHistoryEntry = {
+        nodes: state.adventure.nodes,
+        links: state.adventure.links,
+        selection: state.selection,
+        selectedNodeIds: state.selectedNodeIds,
+        selectedLinkIds: state.selectedLinkIds,
+        dirty: state.dirty,
+      };
       return {
         adventure: { ...state.adventure, links },
         dirty: true,
         selection,
+        selectedLinkIds,
+        undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
       };
     });
   },
@@ -258,6 +592,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       editVersion: undefined,
       dirty: false,
       selection: { type: "none" },
+      selectedNodeIds: [],
+      selectedLinkIds: [],
+      clipboard: null,
+      undoStack: [],
+      viewportCenter: null,
     });
 
     try {
@@ -273,6 +612,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         editVersion,
         error: undefined,
         dirty: false,
+        undoStack: [],
       });
 
       if (isDev) {
@@ -320,3 +660,11 @@ export const selectEditorError = (state: EditorState) => state.error;
 export const selectEditorDirty = (state: EditorState) => state.dirty;
 export const selectEditorEditVersion = (state: EditorState) => state.editVersion;
 export const selectEditorSelection = (state: EditorState) => state.selection;
+export const selectEditorSelectedNodeIds = (state: EditorState) =>
+  state.selectedNodeIds;
+export const selectEditorSelectedLinkIds = (state: EditorState) =>
+  state.selectedLinkIds;
+export const selectEditorClipboard = (state: EditorState) => state.clipboard;
+export const selectEditorUndoStack = (state: EditorState) => state.undoStack;
+export const selectEditorViewportCenter = (state: EditorState) =>
+  state.viewportCenter;

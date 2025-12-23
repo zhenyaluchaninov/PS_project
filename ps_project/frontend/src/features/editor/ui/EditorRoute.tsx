@@ -7,12 +7,16 @@ import {
   selectEditorDirty,
   selectEditorEditVersion,
   selectEditorError,
+  selectEditorSelectedLinkIds,
+  selectEditorSelectedNodeIds,
   selectEditorSelection,
   selectEditorStatus,
   useEditorStore,
 } from "../state/editorStore";
 import { Toolbar } from "@/ui-core/Toolbar";
 import EditorLayout from "@/features/ui-core/components/EditorLayout";
+import { EditorHotkeys } from "./EditorHotkeys";
+import { EditorInspector } from "./EditorInspector";
 import { GraphCanvas } from "./GraphCanvas";
 
 type EditorRouteProps = {
@@ -26,14 +30,16 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const dirty = useEditorStore(selectEditorDirty);
   const editVersion = useEditorStore(selectEditorEditVersion);
   const selection = useEditorStore(selectEditorSelection);
+  const selectedNodeIds = useEditorStore(selectEditorSelectedNodeIds);
+  const selectedLinkIds = useEditorStore(selectEditorSelectedLinkIds);
   const loadByEditSlug = useEditorStore((s) => s.loadByEditSlug);
   const setSelection = useEditorStore((s) => s.setSelection);
   const clearSelection = useEditorStore((s) => s.clearSelection);
+  const setSelectionSnapshot = useEditorStore((s) => s.setSelectionSnapshot);
+  const setViewportCenter = useEditorStore((s) => s.setViewportCenter);
   const updateNodePositions = useEditorStore((s) => s.updateNodePositions);
   const addLink = useEditorStore((s) => s.addLink);
   const addNodeWithLink = useEditorStore((s) => s.addNodeWithLink);
-  const removeNodes = useEditorStore((s) => s.removeNodes);
-  const removeLinks = useEditorStore((s) => s.removeLinks);
 
   useEffect(() => {
     void loadByEditSlug(editSlug);
@@ -161,26 +167,31 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
 
   if (status === "ready" && adventure) {
     return (
-      <EditorLayout
-        toolbar={toolbar}
-        graph={
-          <GraphCanvas
-            adventure={adventure}
-            editSlug={editSlug}
-            editVersion={editVersion ?? null}
-            selection={selection}
-            onSelectionChange={setSelection}
-            onNodePositionsChange={updateNodePositions}
-            onCreateLink={addLink}
-            onCreateNodeWithLink={addNodeWithLink}
-            onDeleteNodes={removeNodes}
-            onDeleteLinks={removeLinks}
-          />
-        }
-        sidePanel={
-          <div className="h-full w-full" />
-        }
-      />
+      <>
+        <EditorLayout
+          toolbar={toolbar}
+          graph={
+            <GraphCanvas
+              adventure={adventure}
+              editSlug={editSlug}
+              editVersion={editVersion ?? null}
+              selection={selection}
+              selectedNodeIds={selectedNodeIds}
+              selectedLinkIds={selectedLinkIds}
+              onSelectionChange={setSelection}
+              onSelectionSnapshotChange={setSelectionSnapshot}
+              onViewportCenterChange={setViewportCenter}
+              onNodePositionsChange={updateNodePositions}
+              onCreateLink={addLink}
+              onCreateNodeWithLink={addNodeWithLink}
+            />
+          }
+          sidePanel={
+            <EditorInspector />
+          }
+        />
+        <EditorHotkeys />
+      </>
     );
   }
 
