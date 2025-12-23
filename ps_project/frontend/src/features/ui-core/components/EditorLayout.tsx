@@ -25,7 +25,7 @@ export default function EditorLayout({
       )}
     >
       {toolbar ? (
-        <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface-2)]/90 px-5 py-3 backdrop-blur">
+        <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2">
           {toolbar}
         </div>
       ) : null}
@@ -33,16 +33,16 @@ export default function EditorLayout({
         <Panel
           defaultSize={72}
           minSize={40}
-          className="min-h-0 overflow-hidden bg-[var(--surface-2)]"
+          className="min-h-0 overflow-hidden"
         >
           {graph}
         </Panel>
-        <PanelResizeHandle className="w-1.5 cursor-col-resize bg-[var(--border)] opacity-70 hover:bg-[var(--accent)] hover:opacity-100" />
+        <PanelResizeHandle className="w-1 cursor-col-resize bg-[var(--border)] hover:bg-[var(--accent)] transition-colors" />
         <Panel
           defaultSize={28}
           minSize={18}
           maxSize={45}
-          className="min-h-0 overflow-hidden bg-[var(--surface)]/95"
+          className="min-h-0 overflow-hidden bg-[var(--bg-secondary)]"
         >
           <div className="h-full min-h-0 overflow-y-auto">{sidePanel}</div>
         </Panel>

@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Background,
+  BackgroundVariant,
   BaseEdge,
   Controls,
   EdgeLabelRenderer,
   Handle,
-  MarkerType,
   Position,
   ReactFlow,
   getBezierPath,
@@ -22,6 +22,22 @@ import {
   type OnConnectStartParams,
   type ReactFlowInstance,
 } from "@xyflow/react";
+import {
+  Activity,
+  BookOpen,
+  Bookmark,
+  ExternalLink,
+  FileText,
+  Film,
+  GitBranch,
+  Headphones,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  Music,
+  PlayCircle,
+  Shuffle,
+  type LucideIcon,
+} from "lucide-react";
 import type { AdventureModel } from "@/domain/models";
 import type { EditorSelection } from "../state/editorStore";
 import { cn } from "@/lib/utils";
@@ -30,12 +46,8 @@ type GraphNodeData = {
   label: string;
   nodeId: number;
   chapterType: string | null;
+  variant: NodeVariant;
   badges: Array<{ key: string; label: string; tone: "flag" | "media" }>;
-  style: {
-    background: string;
-    border: string;
-    accent: string;
-  };
 };
 
 type GraphEdgeData = {
@@ -43,6 +55,9 @@ type GraphEdgeData = {
   isBidirectional: boolean;
   hasConditions: boolean;
 };
+
+type GraphNode = Node<GraphNodeData>;
+type GraphEdge = Edge<GraphEdgeData>;
 
 type GraphCanvasProps = {
   adventure: AdventureModel;
@@ -76,53 +91,33 @@ type NodeVariant =
   | "audio"
   | "default";
 
-const nodeVariantStyles: Record<NodeVariant, GraphNodeData["style"]> = {
-  start: {
-    background: "#143323",
-    border: "rgba(52,211,153,0.65)",
-    accent: "#34d399",
-  },
-  chapter: {
-    background: "#172b4d",
-    border: "rgba(96,165,250,0.65)",
-    accent: "#60a5fa",
-  },
-  "chapter-plain": {
-    background: "#1f2a3a",
-    border: "rgba(148,163,184,0.5)",
-    accent: "#94a3b8",
-  },
-  ref: {
-    background: "#322615",
-    border: "rgba(251,191,36,0.6)",
-    accent: "#fbbf24",
-  },
-  "ref-tab": {
-    background: "#3b2f1a",
-    border: "rgba(245,158,11,0.6)",
-    accent: "#f59e0b",
-  },
-  random: {
-    background: "#3a1f1f",
-    border: "rgba(249,115,22,0.6)",
-    accent: "#f97316",
-  },
-  video: {
-    background: "#331926",
-    border: "rgba(251,113,133,0.6)",
-    accent: "#fb7185",
-  },
-  audio: {
-    background: "#193332",
-    border: "rgba(45,212,191,0.6)",
-    accent: "#2dd4bf",
-  },
-  default: {
-    background: "#162644",
-    border: "rgba(148,163,184,0.25)",
-    accent: "rgba(148,163,184,0.7)",
-  },
+const nodeTypeIcons: Record<NodeVariant, LucideIcon> = {
+  start: PlayCircle,
+  chapter: BookOpen,
+  "chapter-plain": Bookmark,
+  ref: LinkIcon,
+  "ref-tab": ExternalLink,
+  random: Shuffle,
+  video: Film,
+  audio: Headphones,
+  default: FileText,
 };
+
+const badgeIcons: Record<string, LucideIcon> = {
+  image: ImageIcon,
+  video: Film,
+  audio: Music,
+  stats: Activity,
+  "node-variable": GitBranch,
+};
+
+function readCssColor(variableName: string, fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(variableName)
+    .trim();
+  return value || fallback;
+}
 
 function buildFallbackPositions(
   nodes: AdventureModel["nodes"]
@@ -131,8 +126,8 @@ function buildFallbackPositions(
   if (!nodes.length) return positions;
 
   const columns = Math.max(1, Math.ceil(Math.sqrt(nodes.length)));
-  const spacingX = 220;
-  const spacingY = 140;
+  const spacingX = 240;
+  const spacingY = 180;
 
   nodes.forEach((node, index) => {
     const col = index % columns;
@@ -333,8 +328,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 function buildGraphNodes(
   nodes: AdventureModel["nodes"],
-  existingNodes: Node<GraphNodeData>[]
-): Node<GraphNodeData>[] {
+  existingNodes: GraphNode[]
+): GraphNode[] {
   const existingById = new Map(existingNodes.map((node) => [node.id, node]));
   const fallbackPositions = buildFallbackPositions(nodes);
 
@@ -347,7 +342,6 @@ function buildGraphNodes(
         fallbackPositions.get(node.nodeId) ?? { x: 0, y: 0 };
     const chapterType = getChapterType(node.rawProps);
     const variant = getNodeVariant(chapterType, node.type ?? null);
-    const style = nodeVariantStyles[variant] ?? nodeVariantStyles.default;
     const hasStatistics = hasStatisticsFlag(node.rawProps);
     const hasNodeVariable = hasNodeVariableFlag(node.rawProps);
     const hasImage = Boolean(node.image.url || node.image.id);
@@ -382,8 +376,8 @@ function buildGraphNodes(
         label: node.title || `Node ${node.nodeId}`,
         nodeId: node.nodeId,
         chapterType,
+        variant,
         badges,
-        style,
       },
       selected: existing?.selected ?? false,
     };
@@ -393,8 +387,8 @@ function buildGraphNodes(
 function buildGraphEdges(
   links: AdventureModel["links"],
   nodes: AdventureModel["nodes"],
-  existingEdges: Edge<GraphEdgeData>[]
-): Edge<GraphEdgeData>[] {
+  existingEdges: GraphEdge[]
+): GraphEdge[] {
   const existingById = new Map(existingEdges.map((edge) => [edge.id, edge]));
   const nodeIds = new Set(nodes.map((node) => String(node.nodeId)));
 
@@ -407,94 +401,108 @@ function buildGraphEdges(
       const normalizedType = String(link.type ?? "").toLowerCase();
       const isBidirectional = normalizedType.includes("bidirectional");
       const hasConditions = hasEdgeConditions(link.props);
-      const markerColor = isBidirectional
-        ? "var(--editor-edge-bidirectional)"
-        : "var(--editor-edge)";
-      const markerEnd = {
-        type: MarkerType.ArrowClosed,
-        color: markerColor,
-        width: 14,
-        height: 14,
-      };
-      const markerStart = isBidirectional ? markerEnd : undefined;
       return {
         id: String(link.linkId),
         source: String(link.source),
         target: String(link.target),
         type: "adventure",
         data: { linkId: link.linkId, isBidirectional, hasConditions },
-        markerEnd,
-        markerStart,
         selected: existing?.selected ?? false,
       };
     });
 }
 
-function AdventureNode({ data, selected }: NodeProps<GraphNodeData>) {
-  const flagBadges = data.badges.filter((badge) => badge.tone === "flag");
+function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
   const mediaBadges = data.badges.filter((badge) => badge.tone === "media");
-  const hasBadges = data.badges.length > 0;
-  const nodeStyle = {
-    "--node-bg": data.style.background,
-    "--node-border": data.style.border,
-    "--node-accent": data.style.accent,
-  } as CSSProperties;
+  const isStart = data.variant === "start";
+  const NodeTypeIcon = nodeTypeIcons[data.variant] ?? FileText;
 
   return (
     <div
       className={cn(
-        "relative rounded-xl border px-4 pb-3 text-xs shadow-[0_10px_30px_-26px_rgba(0,0,0,0.8)]",
-        hasBadges ? "pt-6" : "pt-3",
+        "relative min-w-[160px] rounded-lg border transition-all duration-150",
+        isStart
+          ? "border-[var(--editor-node-start-border)] shadow-[0_0_20px_-16px_var(--editor-node-start-border)]"
+          : "border-[var(--editor-node-border)]",
         selected
-          ? "border-[var(--node-border)] bg-[var(--node-bg)] ring-2 ring-[var(--accent)] shadow-[0_0_0_1px_var(--accent),0_16px_40px_-24px_rgba(0,0,0,0.9)]"
-          : "border-[var(--node-border)] bg-[var(--node-bg)]"
+          ? "border-[var(--accent)] ring-2 ring-[var(--accent-muted)] shadow-lg"
+          : isStart
+            ? "hover:border-[var(--success)]"
+            : "hover:border-[var(--border-light)]"
       )}
-      style={nodeStyle}
     >
-      <span className="absolute left-0 top-0 h-full w-1 rounded-l-xl bg-[var(--node-accent)]" />
-      {mediaBadges.length ? (
-        <div className="absolute left-3 top-2 flex flex-wrap gap-1">
-          {mediaBadges.map((badge) => (
-            <span
-              key={badge.key}
-              className="rounded border border-[var(--editor-badge-media-border)] bg-[var(--editor-badge-media-bg)] px-1 py-[1px] text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--editor-badge-media-text)]"
-            >
-              {badge.label}
-            </span>
-          ))}
+      <div
+        className={cn(
+          "flex items-center rounded-t-lg border-b px-3 py-1.5",
+          isStart
+            ? "border-[var(--editor-node-start-border)] bg-[var(--editor-node-start-header-bg)]"
+            : "border-[var(--editor-node-border)] bg-[var(--bg-tertiary)]"
+        )}
+      >
+        <span
+          className={cn(
+            "flex h-7 w-7 items-center justify-center rounded-md border",
+            isStart
+              ? "border-[var(--editor-node-start-border)] bg-[var(--editor-node-start-bg)] text-[var(--success)]"
+              : "border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--warning)]"
+          )}
+        >
+          <NodeTypeIcon className="h-4 w-4" aria-hidden="true" />
+        </span>
+      </div>
+
+      <div
+        className={cn(
+          "flex min-h-[64px] items-center justify-center px-4 py-3",
+          isStart ? "bg-[var(--editor-node-start-bg)]" : "bg-[var(--editor-node-bg)]"
+        )}
+      >
+        <div className="break-words text-center text-[15px] font-semibold leading-snug text-[var(--text)]">
+          {data.label}
         </div>
-      ) : null}
-      {flagBadges.length ? (
-        <div className="absolute right-3 top-2 flex flex-wrap gap-1">
-          {flagBadges.map((badge) => (
-            <span
-              key={badge.key}
-              className="rounded border border-[var(--editor-badge-flag-border)] bg-[var(--editor-badge-flag-bg)] px-1 py-[1px] text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--editor-badge-flag-text)]"
-            >
-              {badge.label}
-            </span>
-          ))}
+      </div>
+
+      <div
+        className={cn(
+          "flex items-center justify-between gap-2 rounded-b-lg border-t px-3 py-1.5",
+          isStart
+            ? "border-[var(--editor-node-start-border)] bg-[var(--editor-node-start-bg)]"
+            : "border-[var(--border)] bg-[var(--editor-node-bg)]"
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-1.5">
+          {mediaBadges.map((badge) => {
+            const BadgeIcon = badgeIcons[badge.key] ?? FileText;
+            return (
+              <span key={badge.key} title={badge.label}>
+                <BadgeIcon
+                  className={cn("h-4 w-4 text-[var(--accent)]")}
+                  aria-hidden="true"
+                />
+              </span>
+            );
+          })}
         </div>
-      ) : null}
+        <div className="shrink-0 font-mono text-xs text-[var(--muted)]">#{data.nodeId}</div>
+      </div>
+
+      {/* Handles */}
       <Handle
         type="target"
         position={Position.Top}
-        className="h-2 w-2 border-2 border-[var(--node-bg)] bg-[var(--node-accent)]"
+        className="!h-2 !w-2 !border-2 !border-[var(--border)] !bg-[var(--bg-tertiary)]"
       />
-      <div className="font-semibold text-[var(--text)]">{data.label}</div>
-      <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
-        #{data.nodeId}
-      </div>
       <Handle
         type="source"
         position={Position.Bottom}
-        className="h-2 w-2 border-2 border-[var(--node-bg)] bg-[var(--node-accent)]"
+        className="!h-2 !w-2 !border-2 !border-[var(--border)] !bg-[var(--bg-tertiary)]"
       />
     </div>
   );
 }
 
 function AdventureEdge({
+  id,
   sourceX,
   sourceY,
   targetX,
@@ -502,11 +510,9 @@ function AdventureEdge({
   sourcePosition,
   targetPosition,
   data,
-  markerEnd,
-  markerStart,
   selected,
   style,
-}: EdgeProps<GraphEdgeData>) {
+}: EdgeProps<GraphEdge>) {
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -522,20 +528,38 @@ function AdventureEdge({
     : isBidirectional
       ? "var(--editor-edge-bidirectional)"
       : "var(--editor-edge)";
+  const markerColor = selected
+    ? readCssColor("--accent", "#d08770")
+    : readCssColor("--border-light", "#5c6678");
+  const markerId = `edge-arrow-${id}${isBidirectional ? "-bi" : ""}-${selected ? "on" : "off"}`;
+  const markerUrl = `url(#${markerId})`;
   const edgeStyle = {
     ...style,
     stroke,
-    strokeWidth: selected ? 2.8 : 2,
+    strokeWidth: selected ? 3.2 : 2.4,
     strokeDasharray: isBidirectional ? "6 5" : undefined,
   } as CSSProperties;
 
   return (
     <>
+      <defs>
+        <marker
+          id={markerId}
+          viewBox="0 0 8 8"
+          refX="8"
+          refY="4"
+          markerWidth="6"
+          markerHeight="6"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 0 L 8 4 L 0 8 z" fill={markerColor} />
+        </marker>
+      </defs>
       <BaseEdge
         path={edgePath}
         style={edgeStyle}
-        markerEnd={markerEnd}
-        markerStart={markerStart}
+        markerEnd={markerUrl}
+        markerStart={isBidirectional ? markerUrl : undefined}
       />
       {hasConditions ? (
         <EdgeLabelRenderer>
@@ -559,27 +583,9 @@ const defaultEdgeOptions = {
   type: "adventure",
   style: {
     stroke: "var(--editor-edge)",
-    strokeWidth: 2,
+    strokeWidth: 2.4,
   },
 } satisfies DefaultEdgeOptions;
-const editorThemeStyle = {
-  "--editor-graph-bg": "#0b1020",
-  "--editor-node-bg": "#162644",
-  "--editor-node-border": "rgba(148,163,184,0.18)",
-  "--editor-grid": "rgba(148,163,184,0.12)",
-  "--editor-edge": "rgba(148,163,184,0.32)",
-  "--editor-edge-bidirectional": "rgba(148,163,184,0.65)",
-  "--editor-edge-selected": "var(--accent)",
-  "--editor-edge-condition-bg": "rgba(226,232,240,0.9)",
-  "--editor-edge-condition-border": "rgba(15,23,42,0.35)",
-  "--editor-edge-condition-text": "#0f172a",
-  "--editor-badge-media-bg": "rgba(56,189,248,0.18)",
-  "--editor-badge-media-border": "rgba(56,189,248,0.35)",
-  "--editor-badge-media-text": "#7dd3fc",
-  "--editor-badge-flag-bg": "rgba(251,191,36,0.18)",
-  "--editor-badge-flag-border": "rgba(251,191,36,0.35)",
-  "--editor-badge-flag-text": "#fcd34d",
-} as unknown as CSSProperties;
 
 export function GraphCanvas({
   adventure,
@@ -595,12 +601,12 @@ export function GraphCanvas({
   className,
 }: GraphCanvasProps) {
   const [hudOpen, setHudOpen] = useState(true);
-  const reactFlowRef = useRef<ReactFlowInstance<GraphNodeData, GraphEdgeData> | null>(
+  const reactFlowRef = useRef<ReactFlowInstance<GraphNode, GraphEdge> | null>(
     null
   );
   const connectingNodeIdRef = useRef<number | null>(null);
-  const nodesRef = useRef<Node<GraphNodeData>[]>([]);
-  const edgesRef = useRef<Edge<GraphEdgeData>[]>([]);
+  const nodesRef = useRef<GraphNode[]>([]);
+  const edgesRef = useRef<GraphEdge[]>([]);
   const nodesAdventureIdRef = useRef<number | null>(null);
   const edgesAdventureIdRef = useRef<number | null>(null);
 
@@ -625,10 +631,10 @@ export function GraphCanvas({
   const selectedLink =
     selection.type === "link" ? linkById.get(selection.linkId) : undefined;
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<GraphNodeData>(
+  const [nodes, setNodes, onNodesChange] = useNodesState<GraphNode>(
     buildGraphNodes(adventure.nodes, [])
   );
-  const [edges, setEdges, onEdgesChange] = useEdgesState<GraphEdgeData>(
+  const [edges, setEdges, onEdgesChange] = useEdgesState<GraphEdge>(
     buildGraphEdges(adventure.links, adventure.nodes, [])
   );
 
@@ -657,14 +663,14 @@ export function GraphCanvas({
   }, [edges]);
 
   const handleInit = useCallback(
-    (instance: ReactFlowInstance<GraphNodeData, GraphEdgeData>) => {
+    (instance: ReactFlowInstance<GraphNode, GraphEdge>) => {
       reactFlowRef.current = instance;
     },
     []
   );
 
   const handleSelectionChange = useCallback(
-    ({ nodes: selectedNodes, edges: selectedEdges }: { nodes: Node[]; edges: Edge[] }) => {
+    ({ nodes: selectedNodes, edges: selectedEdges }: { nodes: GraphNode[]; edges: GraphEdge[] }) => {
       const nodeIds = selectedNodes
         .map((node) => toNumericId(node.data?.nodeId ?? node.id))
         .filter((id): id is number => id !== null);
@@ -745,7 +751,7 @@ export function GraphCanvas({
   );
 
   const handleNodeDragStop = useCallback(
-    (_event: unknown, node: Node<GraphNodeData>, nodesAtStop?: Node[]) => {
+    (_event: unknown, node: GraphNode, nodesAtStop?: GraphNode[]) => {
       if (nodesAtStop && nodesAtStop.length > 1) {
         return;
       }
@@ -757,7 +763,7 @@ export function GraphCanvas({
   );
 
   const handleSelectionDragStop = useCallback(
-    (_event: unknown, draggedNodes: Node[]) => {
+    (_event: unknown, draggedNodes: GraphNode[]) => {
       if (!draggedNodes.length) return;
       const updates = draggedNodes
         .map((node) => {
@@ -811,7 +817,6 @@ export function GraphCanvas({
         "relative h-full w-full overflow-hidden bg-[var(--editor-graph-bg)]",
         className
       )}
-      style={editorThemeStyle}
     >
       <ReactFlow
         nodes={nodes}
@@ -838,7 +843,7 @@ export function GraphCanvas({
         onConnectEnd={handleConnectEnd}
         isValidConnection={isValidConnection}
       >
-        <Background color="var(--editor-grid)" gap={32} size={2.5} />
+        <Background color="var(--editor-edge)" gap={36} size={3} variant={BackgroundVariant.Dots} />
         <Controls position="bottom-right" />
       </ReactFlow>
       <div className="pointer-events-none absolute bottom-3 left-3 z-10">

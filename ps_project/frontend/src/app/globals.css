@@ -3,19 +3,65 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0c111b;
-  --surface: #111827;
-  --surface-2: #0f1722;
-  --text: #e5e7eb;
-  --muted: #9ca3af;
-  --border: #1f2937;
-  --accent: #7c3aed;
-  --accent-strong: #7c3aed;
-  --danger: #ef4444;
-  --warning: #f59e0b;
-  /* Legacy names for Tailwind tokens used across the app */
+  /* ===== NORD ORANGE PALETTE ===== */
+
+  /* Backgrounds */
+  --bg: #2e3440;
+  --bg-primary: #2e3440;
+  --bg-secondary: #3b4252;
+  --bg-tertiary: #434c5e;
+  --bg-hover: #4c566a;
+
+  /* Surfaces (aliases for compatibility) */
+  --surface: #3b4252;
+  --surface-2: #434c5e;
   --background: var(--bg);
+
+  /* Borders */
+  --border: #4c566a;
+  --border-light: #5c6678;
+
+  /* Text */
+  --text: #eceff4;
+  --text-primary: #eceff4;
+  --text-secondary: #d8dee9;
+  --muted: #7b88a1;
   --foreground: var(--text);
+
+  /* Accent (Orange) */
+  --accent: #d08770;
+  --accent-hover: #e09980;
+  --accent-muted: rgba(208, 135, 112, 0.2);
+  --accent-strong: #d08770;
+
+  /* Semantic */
+  --success: #a3be8c;
+  --warning: #ebcb8b;
+  --danger: #bf616a;
+
+  /* Editor-specific (used by GraphCanvas) */
+  --editor-graph-bg: #2e3440;
+  --editor-node-bg: #3b4252;
+  --editor-node-border: rgba(76, 86, 106, 0.6);
+  --editor-node-selected: #d08770;
+  --editor-node-start-bg: #2f4833;
+  --editor-node-start-header-bg: #3d5b3f;
+  --editor-node-start-border: #6f8f6a;
+  --editor-grid: rgba(76, 86, 106, 0.3);
+  --editor-edge: rgba(92, 102, 120, 0.5);
+  --editor-edge-selected: #d08770;
+  --editor-edge-bidirectional: rgba(92, 102, 120, 0.7);
+  --editor-edge-condition-bg: rgba(191, 97, 106, 0.9);
+  --editor-edge-condition-border: rgba(191, 97, 106, 0.5);
+  --editor-edge-condition-text: #eceff4;
+
+  /* Badges */
+  --editor-badge-media-bg: rgba(136, 192, 208, 0.15);
+  --editor-badge-media-border: rgba(136, 192, 208, 0.3);
+  --editor-badge-media-text: #88c0d0;
+  --editor-badge-flag-bg: rgba(235, 203, 139, 0.15);
+  --editor-badge-flag-border: rgba(235, 203, 139, 0.3);
+  --editor-badge-flag-text: #ebcb8b;
 }
 
 * {
@@ -29,9 +75,7 @@ body {
 
 body {
   color: var(--text);
-  background: radial-gradient(circle at 10% 20%, #131b2a 0, transparent 30%),
-    radial-gradient(circle at 80% 0%, #182233 0, transparent 35%),
-    linear-gradient(145deg, #0c111b 0%, #0b1019 100%);
+  background: var(--bg);
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -46,4 +90,22 @@ a {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-light);
 }

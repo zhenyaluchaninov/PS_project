@@ -82,7 +82,7 @@ export const resolveNodeKind = (node?: NodeModel | null): NodeKind => {
   return "unknown";
 };
 
-export const EMPTY_LINKS: LinkModel[] = Object.freeze([]);
+export const EMPTY_LINKS: LinkModel[] = Object.freeze([]) as unknown as LinkModel[];
 
 export const getOutgoingLinksForNode = (
   nodeId: number | null | undefined,
