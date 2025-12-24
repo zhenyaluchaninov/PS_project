@@ -1219,7 +1219,7 @@ New editor code (frontend/)
 
 ## Block F – Editor Node Panel & Adventure Settings
 
-### Step 21 – Inspector skeleton (Node / Link / Adventure) + Node inner tabs
+### [done] Step 21 – Inspector skeleton (Node / Link / Adventure) + Node inner tabs
 
 **What we do**
 

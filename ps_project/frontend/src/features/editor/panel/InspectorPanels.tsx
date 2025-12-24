@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { AdventureModel, LinkModel, NodeModel } from "@/domain/models";
 import {
   Tabs,
@@ -11,6 +11,7 @@ import {
 import { LabelValue } from "@/ui-core/LabelValue";
 import { cn } from "@/lib/utils";
 import type { EditorNodeInspectorTab } from "../state/editorStore";
+import { ChevronDown, Clock } from "lucide-react";
 
 const chapterTypeOptions = [
   { value: "", label: "Default" },
@@ -32,9 +33,9 @@ const tabOptions: Array<{ value: EditorNodeInspectorTab; label: string }> = [
 ];
 
 const placeholderText = {
-  style: "Style controls arrive in a later step.",
-  buttons: "Button settings arrive in a later step.",
-  logic: "Logic tools arrive in a later step.",
+  style: "Style controls coming in the next update.",
+  buttons: "Button controls coming in the next update.",
+  logic: "Logic tools coming in the next update.",
 };
 
 const readStringArray = (value: unknown): string[] => {
@@ -77,7 +78,7 @@ const getNodeChapterType = (node: NodeModel): string => {
 
 type InspectorShellProps = {
   title: string;
-  subtitle?: string | null;
+  subtitle?: ReactNode | null;
   meta?: string | null;
   children: ReactNode;
 };
@@ -85,25 +86,24 @@ type InspectorShellProps = {
 function InspectorShell({ title, subtitle, meta, children }: InspectorShellProps) {
   return (
     <div className="flex min-h-full flex-col">
-      <div className="border-b border-[var(--border)] px-5 py-4">
-        <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">
-          Inspector
-        </p>
-        <div className="mt-2 flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-[var(--text)]">{title}</p>
+      <div className="border-b border-[var(--border)] px-4 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <p className="truncate text-sm font-semibold text-[var(--text)]">
+              {title}
+            </p>
             {subtitle ? (
-              <p className="text-xs text-[var(--muted)]">{subtitle}</p>
+              <div className="text-xs text-[var(--muted)]">{subtitle}</div>
             ) : null}
           </div>
           {meta ? (
-            <span className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs font-mono text-[var(--muted)]">
+            <span className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-[10px] font-mono text-[var(--muted)]">
               {meta}
             </span>
           ) : null}
         </div>
       </div>
-      <div className="flex-1 space-y-6 px-5 py-5 text-sm text-[var(--text)]">
+      <div className="flex-1 space-y-4 px-4 py-4 text-sm text-[var(--text)]">
         {children}
       </div>
     </div>
@@ -129,15 +129,14 @@ export function NodeInspectorPanel({
 
   return (
     <InspectorShell
-      title={node.title || "Untitled node"}
-      subtitle="Node properties"
+      title="Node settings"
       meta={`#${node.nodeId}`}
     >
       <Tabs
         value={activeTab}
         onValueChange={(value) => onTabChange(value as EditorNodeInspectorTab)}
       >
-        <TabsList className="w-full flex-wrap justify-start">
+        <TabsList className="w-full">
           {tabOptions.map((tab) => (
             <TabsTrigger key={tab.value} value={tab.value} className="flex-1">
               {tab.label}
@@ -147,8 +146,8 @@ export function NodeInspectorPanel({
 
         <TabsContent value="content">
           <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--muted)]">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-medium uppercase tracking-widest text-[var(--muted)]">
                 Title
               </label>
               <input
@@ -159,22 +158,16 @@ export function NodeInspectorPanel({
               />
             </div>
 
-            <details className="rounded-xl border border-[var(--border)] bg-[var(--bg)]/40" open>
-              <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)] list-none">
-                <span>Node properties</span>
-                <span className="text-[10px] tracking-[0.18em] text-[var(--muted)]">
-                  Basics
-                </span>
-              </summary>
-              <div className="space-y-3 border-t border-[var(--border)] px-3 py-3">
-                <div className="space-y-2">
-                  <label className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--muted)]">
-                    Chapter type
-                  </label>
+            <CollapsibleSection title="Node properties" defaultOpen>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+                  Chapter type
+                </label>
+                <div className="relative">
                   <select
                     value={chapterType}
                     onChange={(event) => onNodeTypeChange(event.target.value)}
-                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-muted)]"
+                    className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 pr-9 text-sm text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-muted)]"
                   >
                     {chapterTypeOptions.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -182,9 +175,13 @@ export function NodeInspectorPanel({
                       </option>
                     ))}
                   </select>
+                  <ChevronDown
+                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]"
+                    aria-hidden="true"
+                  />
                 </div>
               </div>
-            </details>
+            </CollapsibleSection>
           </div>
         </TabsContent>
 
@@ -207,19 +204,32 @@ type LinkInspectorPanelProps = {
 };
 
 export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
+  const isBidirectional = String(link.type ?? "")
+    .toLowerCase()
+    .includes("bidirectional");
+  const arrow = isBidirectional ? "<->" : "->";
+
   return (
     <InspectorShell
-      title="Link"
-      subtitle={`From #${link.source} to #${link.target}`}
+      title="Link settings"
       meta={`#${link.linkId}`}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <LabelValue label="From" value={`#${link.source}`} />
-        <LabelValue label="To" value={`#${link.target}`} />
-        <LabelValue label="Type" value={link.type || "default"} />
-        <LabelValue label="Label" value={link.label || "Untitled"} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <InfoCard
+          label="Connection"
+          value={
+            <span className="inline-flex items-center gap-2 font-mono">
+              <span>#{link.source}</span>
+              <span className="text-[var(--muted)]">{arrow}</span>
+              <span>#{link.target}</span>
+            </span>
+          }
+          className="sm:col-span-2"
+        />
+        <InfoCard label="Type" value={link.type || "default"} />
+        <InfoCard label="Label" value={link.label || "Untitled"} />
       </div>
-      <PlaceholderPanel>Editing links arrives in Step 26.</PlaceholderPanel>
+      <PlaceholderPanel>Link editing coming in the next update.</PlaceholderPanel>
     </InspectorShell>
   );
 }
@@ -237,13 +247,15 @@ export function AdventureInspectorPanel({
       subtitle="Adventure overview"
       meta={`#${adventure.id}`}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <LabelValue label="Nodes" value={adventure.nodes.length} />
-        <LabelValue label="Links" value={adventure.links.length} />
-        <LabelValue label="Slug" value={adventure.slug || "n/a"} />
-        <LabelValue label="View" value={adventure.viewSlug || "n/a"} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <StatCard label="Nodes" value={adventure.nodes.length} />
+        <StatCard label="Links" value={adventure.links.length} />
       </div>
-      <PlaceholderPanel>Adventure settings arrive in Step 27.</PlaceholderPanel>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <InfoCard label="Edit slug" value={adventure.slug || "n/a"} />
+        <InfoCard label="View slug" value={adventure.viewSlug || "n/a"} />
+      </div>
+      <PlaceholderPanel>Adventure settings coming in the next update.</PlaceholderPanel>
     </InspectorShell>
   );
 }
@@ -258,14 +270,92 @@ function PlaceholderPanel({
   return (
     <div
       className={cn(
-        "rounded-xl border border-[var(--border)] bg-[var(--bg)]/40 p-4 text-sm text-[var(--muted)]",
+        "flex min-h-[120px] items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-6 text-xs text-[var(--muted)]",
         className
       )}
     >
-      <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-        Coming soon
+      <div className="flex items-center gap-2">
+        <Clock className="h-4 w-4 text-[var(--muted)]" aria-hidden="true" />
+        <p className="text-[var(--muted)]">{children}</p>
+      </div>
+    </div>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)]">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        className={cn(
+          "flex w-full items-center justify-between gap-2 px-3 py-2 text-left",
+          open ? "border-b border-[var(--border)]" : ""
+        )}
+      >
+        <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+          {title}
+        </span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 text-[var(--muted)] transition-transform",
+            open ? "rotate-180" : ""
+          )}
+          aria-hidden="true"
+        />
+      </button>
+      {open ? <div className="space-y-3 px-3 py-3">{children}</div> : null}
+    </div>
+  );
+}
+
+function InfoCard({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2",
+        className
+      )}
+    >
+      <LabelValue label={label} value={value} className="gap-1" />
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-3">
+      <p className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
+        {label}
       </p>
-      <p className="mt-2 text-[var(--text-secondary)]">{children}</p>
+      <p className="mt-2 text-2xl font-semibold text-[var(--text)]">
+        {value}
+      </p>
     </div>
   );
 }
