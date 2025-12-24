@@ -78,6 +78,10 @@ const textShadowValues = new Set(
   textShadowOptions.map((option) => option.value)
 );
 
+const NAV_TEXT_SIZE_MIN = 8;
+const NAV_TEXT_SIZE_MAX = 18;
+const NAV_TEXT_SIZE_DEFAULT = 14;
+
 const verticalPositionOptions = [
   { value: "vertical-align-top", label: "Top" },
   { value: "vertical-align-center", label: "Center" },
@@ -197,6 +201,16 @@ const clampAlpha = (value: number): number =>
 const clampNumber = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
+const parseFontEntry = (entry: string) => {
+  const trimmed = entry.trim();
+  const isUrl = /^https?:\/\//.test(trimmed) || trimmed.startsWith("/");
+  const name =
+    isUrl && trimmed.includes("/")
+      ? trimmed.split("/").pop()?.replace(/\.[^/.]+$/, "") ?? trimmed
+      : trimmed;
+  return { name, url: isUrl ? trimmed : undefined };
+};
+
 const readNodePropValue = (node: NodeModel, key: string): unknown => {
   const rawProps = node.rawProps ?? {};
   const fallbackProps = (node.props as Record<string, unknown> | null) ?? {};
@@ -287,6 +301,14 @@ const getNavigationStyle = (node: NodeModel): string => {
 const getNavigationSettings = (node: NodeModel): string[] =>
   readStringArray(readNodePropValue(node, "playerNavigation.settings"));
 
+const getFontToken = (node: NodeModel): string => {
+  const value =
+    readNodePropValue(node, "background.font") ??
+    readNodePropValue(node, "background_font");
+  const tokens = readStringArray(value);
+  return tokens[0]?.trim() ?? "";
+};
+
 const getTextShadow = (node: NodeModel): string => {
   const tokens = readStringArray(
     readNodePropValue(node, "outer_container.textShadow")
@@ -320,6 +342,11 @@ const getHideVisitedEnabled = (node: NodeModel): boolean =>
 
 const getStatisticsEnabled = (node: NodeModel): boolean =>
   isToggleOn(readNodePropValue(node, "node_statistics"));
+
+const getNavTextSize = (node: NodeModel): number => {
+  const raw = getNumberProp(node, "playerNavigation_textSize", NAV_TEXT_SIZE_DEFAULT);
+  return clampNumber(raw, NAV_TEXT_SIZE_MIN, NAV_TEXT_SIZE_MAX);
+};
 
 const getAudioVolume = (node: NodeModel): number => {
   const volume = getNumberProp(node, "audio_volume", AUDIO_VOLUME_MAX);
@@ -705,6 +732,7 @@ function RichTextEditor({
 
 type NodeInspectorPanelProps = {
   node: NodeModel;
+  fontList?: string[];
   activeTab: EditorNodeInspectorTab;
   onTabChange: (tab: EditorNodeInspectorTab) => void;
   onTitleChange: (title: string) => void;
@@ -715,6 +743,7 @@ type NodeInspectorPanelProps = {
 
 export function NodeInspectorPanel({
   node,
+  fontList,
   activeTab,
   onTabChange,
   onTitleChange,
@@ -722,6 +751,20 @@ export function NodeInspectorPanel({
   onNodeTypeChange,
   onNodePropChange,
 }: NodeInspectorPanelProps) {
+  const [sectionState, setSectionState] = useState<Record<string, boolean>>({
+    "Node type": false,
+    Text: false,
+    Background: false,
+    Typography: false,
+    Layout: false,
+    Navigation: false,
+    Audio: false,
+    "Button appearance": false,
+    Conditions: false,
+    Tracking: false,
+  });
+  const setSectionOpen = (key: string, next: boolean) =>
+    setSectionState((prev) => ({ ...prev, [key]: next }));
   const chapterType = getNodeChapterType(node);
   const isRefNode = chapterType.startsWith("ref-node");
   const navigationStyle = getNavigationStyle(node);
@@ -733,6 +776,7 @@ export function NodeInspectorPanel({
   const blurAmount = getBlurAmount(node);
   const hideVisitedEnabled = getHideVisitedEnabled(node);
   const statisticsEnabled = getStatisticsEnabled(node);
+  const navTextSize = getNavTextSize(node);
   const audioVolume = getAudioVolume(node);
   const marginLeft = getNumberProp(
     node,
@@ -754,6 +798,24 @@ export function NodeInspectorPanel({
     "alpha_nodeconditions",
     CONDITIONS_ALPHA_DEFAULT
   );
+  const fontToken = getFontToken(node);
+  const uploadedFonts = Array.from(
+    new Set(
+      (fontList ?? [])
+        .map((entry) => parseFontEntry(entry).name)
+        .filter((name) => name.length > 0)
+    )
+  );
+  const fontOptions = uploadedFonts.map((name) => ({
+    value: `xfont-${name}`,
+    label: name,
+  }));
+  const hasUploadedFonts = fontOptions.length > 0;
+  const fontOptionValues = new Set(fontOptions.map((option) => option.value));
+  const fontSelectValue = fontToken ?? "";
+  const needsLegacyOption =
+    fontSelectValue !== "" && !fontOptionValues.has(fontSelectValue);
+  const legacyFontLabel = fontSelectValue.replace(/^xfont-/, "").replace(/^font-/, "");
   const hasNavigationSetting = (token: string) =>
     navigationSettings.some(
       (entry) => entry.toLowerCase() === token.toLowerCase()
@@ -854,7 +916,11 @@ export function NodeInspectorPanel({
             </div>
 
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-              <CollapsibleSection title="Node type">
+              <CollapsibleSection
+                title="Node type"
+                open={sectionState["Node type"]}
+                onToggle={(next) => setSectionOpen("Node type", next)}
+              >
                 <div className="flex items-center justify-between gap-3">
                   <label className="text-sm font-medium text-[var(--text-secondary)]">
                     Type
@@ -879,7 +945,11 @@ export function NodeInspectorPanel({
                 </div>
               </CollapsibleSection>
 
-              <CollapsibleSection title="Text">
+              <CollapsibleSection
+                title="Text"
+                open={sectionState.Text}
+                onToggle={(next) => setSectionOpen("Text", next)}
+              >
                 <div className="space-y-3">
                   {isRefNode ? (
                     <>
@@ -969,31 +1039,30 @@ export function NodeInspectorPanel({
         <TabsContent value="style">
           <div className="space-y-4">
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-              <CollapsibleSection title="Scene colors">
-                <div className="space-y-4">
-                  <ColorOnlyField
-                    label="Background"
-                    value={sceneColors.background}
-                    onChange={(value) =>
-                      onNodePropChange("color_background", value)
-                    }
-                  />
-                  <ColorAlphaField
-                    label="Foreground overlay"
-                    colorValue={sceneColors.foreground}
-                    alphaValue={sceneColors.foregroundAlpha}
-                    onColorChange={(value) =>
-                      onNodePropChange("color_foreground", value)
-                    }
-                    onAlphaChange={(value) =>
-                      onNodePropChange("alpha_foreground", String(value))
-                    }
-                  />
-                  </div>
-                </CollapsibleSection>
-
-                <CollapsibleSection title="Effects">
+                <CollapsibleSection
+                  title="Background"
+                  open={sectionState.Background}
+                  onToggle={(next) => setSectionOpen("Background", next)}
+                >
                   <div className="space-y-4">
+                    <ColorOnlyField
+                      label="Background"
+                      value={sceneColors.background}
+                      onChange={(value) =>
+                        onNodePropChange("color_background", value)
+                      }
+                    />
+                    <ColorAlphaField
+                      label="Foreground overlay"
+                      colorValue={sceneColors.foreground}
+                      alphaValue={sceneColors.foregroundAlpha}
+                      onColorChange={(value) =>
+                        onNodePropChange("color_foreground", value)
+                      }
+                      onAlphaChange={(value) =>
+                        onNodePropChange("alpha_foreground", String(value))
+                      }
+                    />
                     <ToggleRow
                       label="Grayscale"
                       checked={grayscaleEnabled}
@@ -1018,7 +1087,71 @@ export function NodeInspectorPanel({
                   </div>
                 </CollapsibleSection>
 
-                <CollapsibleSection title="Layout">
+                <CollapsibleSection
+                  title="Typography"
+                  open={sectionState.Typography}
+                  onToggle={(next) => setSectionOpen("Typography", next)}
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-sm font-medium text-[var(--text-secondary)]">
+                        Font
+                      </label>
+                      <div className="relative w-56">
+                        <select
+                          value={fontSelectValue}
+                          onChange={(event) =>
+                            onNodePropChange("background.font", [
+                              event.target.value,
+                            ])
+                          }
+                          disabled={!hasUploadedFonts}
+                          className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <option value="">Default</option>
+                          {fontOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                          {needsLegacyOption ? (
+                            <option value={fontSelectValue}>
+                              Current: {legacyFontLabel}
+                            </option>
+                          ) : null}
+                        </select>
+                        <ChevronDown
+                          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                          aria-hidden="true"
+                        />
+                      </div>
+                    </div>
+                    {!hasUploadedFonts ? (
+                      <p className="text-xs text-[var(--muted)]">
+                        No uploaded fonts.
+                      </p>
+                    ) : null}
+
+                    <RangeField
+                      label="Navigation font size"
+                      value={navTextSize}
+                      min={NAV_TEXT_SIZE_MIN}
+                      max={NAV_TEXT_SIZE_MAX}
+                      step={2}
+                      onChange={(next) =>
+                        onNodePropChange("playerNavigation_textSize", [
+                          String(next),
+                        ])
+                      }
+                    />
+                  </div>
+                </CollapsibleSection>
+
+                <CollapsibleSection
+                  title="Layout"
+                  open={sectionState.Layout}
+                  onToggle={(next) => setSectionOpen("Layout", next)}
+                >
                   <div className="space-y-4">
                     <div className="flex items-center justify-between gap-3">
                       <label className="text-sm font-medium text-[var(--text-secondary)]">
@@ -1130,7 +1263,11 @@ export function NodeInspectorPanel({
                   </div>
                 </CollapsibleSection>
 
-                <CollapsibleSection title="Navigation">
+                <CollapsibleSection
+                  title="Navigation"
+                  open={sectionState.Navigation}
+                  onToggle={(next) => setSectionOpen("Navigation", next)}
+                >
                   <div className="space-y-4">
                     <div className="flex items-center justify-between gap-3">
                       <label className="text-sm font-medium text-[var(--text-secondary)]">
@@ -1176,7 +1313,11 @@ export function NodeInspectorPanel({
                   </div>
                 </CollapsibleSection>
 
-                <CollapsibleSection title="Audio">
+                <CollapsibleSection
+                  title="Audio"
+                  open={sectionState.Audio}
+                  onToggle={(next) => setSectionOpen("Audio", next)}
+                >
                   <div className="space-y-4">
                     <RangeField
                       label="Audio volume"
@@ -1196,7 +1337,11 @@ export function NodeInspectorPanel({
         <TabsContent value="buttons">
           <div className="space-y-4">
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-              <CollapsibleSection title="Button appearance">
+              <CollapsibleSection
+                title="Button appearance"
+                open={sectionState["Button appearance"]}
+                onToggle={(next) => setSectionOpen("Button appearance", next)}
+              >
                 <div className="space-y-4">
                   <ColorAlphaField
                     label="Button text"
@@ -1228,7 +1373,11 @@ export function NodeInspectorPanel({
         <TabsContent value="logic">
           <div className="space-y-4">
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-              <CollapsibleSection title="Conditions">
+              <CollapsibleSection
+                title="Conditions"
+                open={sectionState.Conditions}
+                onToggle={(next) => setSectionOpen("Conditions", next)}
+              >
                 <div className="space-y-4">
                   <ToggleRow
                     label="Hide visited"
@@ -1252,7 +1401,11 @@ export function NodeInspectorPanel({
                   />
                 </div>
               </CollapsibleSection>
-              <CollapsibleSection title="Tracking">
+              <CollapsibleSection
+                title="Tracking"
+                open={sectionState.Tracking}
+                onToggle={(next) => setSectionOpen("Tracking", next)}
+              >
                 <div className="space-y-4">
                   <ToggleRow
                     label="Statistics tracking"
@@ -1367,21 +1520,34 @@ function CollapsibleSection({
   title,
   defaultOpen = false,
   titleClassName,
+  open,
+  onToggle,
   children,
 }: {
   title: string;
   defaultOpen?: boolean;
   titleClassName?: string;
+  open?: boolean;
+  onToggle?: (next: boolean) => void;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const isOpen = open ?? internalOpen;
+  const handleToggle = () => {
+    const next = !isOpen;
+    if (onToggle) {
+      onToggle(next);
+    } else {
+      setInternalOpen(next);
+    }
+  };
 
   return (
     <div className="border-b border-[var(--border)] last:border-b-0">
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
-        aria-expanded={open}
+        onClick={handleToggle}
+        aria-expanded={isOpen}
         className={cn(
           "flex w-full items-center gap-3 px-4 py-2 text-left",
           "hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)] focus-visible:ring-inset"
@@ -1390,7 +1556,7 @@ function CollapsibleSection({
         <ChevronDown
           className={cn(
             "h-3.5 w-3.5 shrink-0 text-[var(--muted)] transition-transform",
-            open ? "rotate-0" : "-rotate-90"
+            isOpen ? "rotate-0" : "-rotate-90"
           )}
           aria-hidden="true"
         />
@@ -1403,7 +1569,7 @@ function CollapsibleSection({
           {title}
         </span>
       </button>
-      {open ? (
+      {isOpen ? (
         <div className="space-y-3 px-4 pb-3 pt-2">{children}</div>
       ) : null}
     </div>

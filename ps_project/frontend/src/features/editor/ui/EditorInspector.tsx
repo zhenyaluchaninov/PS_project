@@ -41,6 +41,7 @@ export function EditorInspector() {
     return (
       <NodeInspectorPanel
         node={selectedNode}
+        fontList={adventure.props?.fontList}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onTitleChange={(title) => updateNodeTitle(selectedNode.nodeId, title)}
