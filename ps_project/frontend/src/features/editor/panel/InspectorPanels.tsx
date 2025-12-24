@@ -61,6 +61,19 @@ const emojiOptions = [
   "\u{1F517}",
 ];
 
+const navigationStyleOptions = [
+  { value: "default", label: "Default" },
+  { value: "swipe", label: "Swipe" },
+  { value: "swipeWithButton", label: "Swipe with button" },
+  { value: "leftright", label: "Left/right" },
+  { value: "right", label: "Right" },
+  { value: "noButtons", label: "No buttons" },
+];
+
+const navigationStyleValues = new Set(
+  navigationStyleOptions.map((option) => option.value)
+);
+
 const normalizeNewlines = (value: string): string =>
   value.replace(/\r\n/g, "\n");
 
@@ -186,6 +199,17 @@ const getAlphaProp = (
         : Number.NaN;
   return Number.isFinite(parsed) ? clampAlpha(parsed) : fallback;
 };
+
+const getNavigationStyle = (node: NodeModel): string => {
+  const value = readNodePropValue(node, "background.navigation_style");
+  const tokens = readStringArray(value);
+  const candidate = tokens[0]?.trim() ?? "";
+  if (!candidate || candidate === "default") return "default";
+  return navigationStyleValues.has(candidate) ? candidate : "default";
+};
+
+const getNavigationSettings = (node: NodeModel): string[] =>
+  readStringArray(readNodePropValue(node, "playerNavigation.settings"));
 
 const getNodeChapterType = (node: NodeModel): string => {
   const primaryProps = (node.props as Record<string, unknown> | null) ?? {};
@@ -569,6 +593,22 @@ export function NodeInspectorPanel({
 }: NodeInspectorPanelProps) {
   const chapterType = getNodeChapterType(node);
   const isRefNode = chapterType.startsWith("ref-node");
+  const navigationStyle = getNavigationStyle(node);
+  const navigationSettings = getNavigationSettings(node);
+  const hasNavigationSetting = (token: string) =>
+    navigationSettings.some(
+      (entry) => entry.toLowerCase() === token.toLowerCase()
+    );
+  const updateNavigationSetting = (token: string, enabled: boolean) => {
+    const normalizedToken = token.toLowerCase();
+    const next = navigationSettings.filter(
+      (entry) => entry.toLowerCase() !== normalizedToken
+    );
+    if (enabled) {
+      next.push(token);
+    }
+    onNodePropChange("playerNavigation.settings", next);
+  };
   const sceneColors = {
     background: getColorProp(
       node,
@@ -714,9 +754,9 @@ export function NodeInspectorPanel({
 
         <TabsContent value="style">
           <div className="space-y-4">
-            <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-              <CollapsibleSection title="Scene colors" defaultOpen>
-                <div className="space-y-4">
+              <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+                <CollapsibleSection title="Scene colors" defaultOpen>
+                  <div className="space-y-4">
                   <ColorOnlyField
                     label="Background"
                     value={sceneColors.background}
@@ -779,11 +819,59 @@ export function NodeInspectorPanel({
                       onNodePropChange("alpha_buttonbackground", String(value))
                     }
                   />
-                </div>
-              </CollapsibleSection>
+                  </div>
+                </CollapsibleSection>
+              </div>
+
+              <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+                <CollapsibleSection title="Navigation" defaultOpen>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-sm font-medium text-[var(--text-secondary)]">
+                        Navigation style
+                      </label>
+                      <div className="relative w-48">
+                        <select
+                          value={navigationStyle}
+                          onChange={(event) =>
+                            onNodePropChange("background.navigation_style", [
+                              event.target.value,
+                            ])
+                          }
+                          className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                        >
+                          {navigationStyleOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown
+                          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                          aria-hidden="true"
+                        />
+                      </div>
+                    </div>
+
+                    <ToggleRow
+                      label="Show current node button"
+                      checked={hasNavigationSetting("show-current-node")}
+                      onToggle={(next) =>
+                        updateNavigationSetting("show-current-node", next)
+                      }
+                    />
+                    <ToggleRow
+                      label="Navigation opaque"
+                      checked={hasNavigationSetting("navigation-opaque")}
+                      onToggle={(next) =>
+                        updateNavigationSetting("navigation-opaque", next)
+                      }
+                    />
+                  </div>
+                </CollapsibleSection>
+              </div>
             </div>
-          </div>
-        </TabsContent>
+          </TabsContent>
         <TabsContent value="buttons">
           <PlaceholderPanel>{placeholderText.buttons}</PlaceholderPanel>
         </TabsContent>
@@ -1032,6 +1120,40 @@ function ColorAlphaField({
         />
       </div>
     </div>
+  );
+}
+
+function ToggleRow({
+  label,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  checked: boolean;
+  onToggle: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onToggle(!checked)}
+      className="flex w-full items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-left hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+    >
+      <span className="text-sm font-medium text-[var(--text-secondary)]">
+        {label}
+      </span>
+      <span
+        className={cn(
+          "inline-flex min-w-[56px] items-center justify-center rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]",
+          checked
+            ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+            : "border-[var(--border)] bg-[var(--bg-tertiary)] text-[var(--muted)]"
+        )}
+      >
+        {checked ? "On" : "Off"}
+      </span>
+    </button>
   );
 }
 
