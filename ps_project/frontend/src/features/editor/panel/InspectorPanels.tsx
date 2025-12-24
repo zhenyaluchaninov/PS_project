@@ -740,11 +740,40 @@ export function NodeInspectorPanel({
                       </div>
                     </>
                   ) : (
-                    <RichTextEditor
-                      value={node.text ?? ""}
-                      onChange={onTextChange}
-                      placeholder="Write the node content..."
-                    />
+                    <>
+                      <RichTextEditor
+                        value={node.text ?? ""}
+                        onChange={onTextChange}
+                        placeholder="Write the node content..."
+                      />
+                      <div className="space-y-4 pt-2">
+                        <ColorAlphaField
+                          label="Text"
+                          colorValue={sceneColors.text}
+                          alphaValue={sceneColors.textAlpha}
+                          onColorChange={(value) =>
+                            onNodePropChange("color_text", value)
+                          }
+                          onAlphaChange={(value) =>
+                            onNodePropChange("alpha_text", String(value))
+                          }
+                        />
+                        <ColorAlphaField
+                          label="Text background"
+                          colorValue={sceneColors.textBackground}
+                          alphaValue={sceneColors.textBackgroundAlpha}
+                          onColorChange={(value) =>
+                            onNodePropChange("color_textbackground", value)
+                          }
+                          onAlphaChange={(value) =>
+                            onNodePropChange(
+                              "alpha_textbackground",
+                              String(value)
+                            )
+                          }
+                        />
+                      </div>
+                    </>
                   )}
                 </div>
               </CollapsibleSection>
@@ -754,9 +783,9 @@ export function NodeInspectorPanel({
 
         <TabsContent value="style">
           <div className="space-y-4">
-              <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-                <CollapsibleSection title="Scene colors" defaultOpen>
-                  <div className="space-y-4">
+            <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+              <CollapsibleSection title="Scene colors" defaultOpen>
+                <div className="space-y-4">
                   <ColorOnlyField
                     label="Background"
                     value={sceneColors.background}
@@ -775,53 +804,9 @@ export function NodeInspectorPanel({
                       onNodePropChange("alpha_foreground", String(value))
                     }
                   />
-                  <ColorAlphaField
-                    label="Text"
-                    colorValue={sceneColors.text}
-                    alphaValue={sceneColors.textAlpha}
-                    onColorChange={(value) =>
-                      onNodePropChange("color_text", value)
-                    }
-                    onAlphaChange={(value) =>
-                      onNodePropChange("alpha_text", String(value))
-                    }
-                  />
-                  <ColorAlphaField
-                    label="Text background"
-                    colorValue={sceneColors.textBackground}
-                    alphaValue={sceneColors.textBackgroundAlpha}
-                    onColorChange={(value) =>
-                      onNodePropChange("color_textbackground", value)
-                    }
-                    onAlphaChange={(value) =>
-                      onNodePropChange("alpha_textbackground", String(value))
-                    }
-                  />
-                  <ColorAlphaField
-                    label="Button text"
-                    colorValue={sceneColors.buttonText}
-                    alphaValue={sceneColors.buttonTextAlpha}
-                    onColorChange={(value) =>
-                      onNodePropChange("color_buttontext", value)
-                    }
-                    onAlphaChange={(value) =>
-                      onNodePropChange("alpha_buttontext", String(value))
-                    }
-                  />
-                  <ColorAlphaField
-                    label="Button background"
-                    colorValue={sceneColors.buttonBackground}
-                    alphaValue={sceneColors.buttonBackgroundAlpha}
-                    onColorChange={(value) =>
-                      onNodePropChange("color_buttonbackground", value)
-                    }
-                    onAlphaChange={(value) =>
-                      onNodePropChange("alpha_buttonbackground", String(value))
-                    }
-                  />
-                  </div>
-                </CollapsibleSection>
-              </div>
+                </div>
+              </CollapsibleSection>
+            </div>
 
               <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
                 <CollapsibleSection title="Navigation" defaultOpen>
@@ -871,9 +856,38 @@ export function NodeInspectorPanel({
                 </CollapsibleSection>
               </div>
             </div>
-          </TabsContent>
+        </TabsContent>
         <TabsContent value="buttons">
-          <PlaceholderPanel>{placeholderText.buttons}</PlaceholderPanel>
+          <div className="space-y-4">
+            <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+              <CollapsibleSection title="Button appearance" defaultOpen>
+                <div className="space-y-4">
+                  <ColorAlphaField
+                    label="Button text"
+                    colorValue={sceneColors.buttonText}
+                    alphaValue={sceneColors.buttonTextAlpha}
+                    onColorChange={(value) =>
+                      onNodePropChange("color_buttontext", value)
+                    }
+                    onAlphaChange={(value) =>
+                      onNodePropChange("alpha_buttontext", String(value))
+                    }
+                  />
+                  <ColorAlphaField
+                    label="Button background"
+                    colorValue={sceneColors.buttonBackground}
+                    alphaValue={sceneColors.buttonBackgroundAlpha}
+                    onColorChange={(value) =>
+                      onNodePropChange("color_buttonbackground", value)
+                    }
+                    onAlphaChange={(value) =>
+                      onNodePropChange("alpha_buttonbackground", String(value))
+                    }
+                  />
+                </div>
+              </CollapsibleSection>
+            </div>
+          </div>
         </TabsContent>
         <TabsContent value="logic">
           <PlaceholderPanel>{placeholderText.logic}</PlaceholderPanel>
