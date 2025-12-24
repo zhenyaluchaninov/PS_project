@@ -11,6 +11,17 @@
   isolation: isolate;
 }
 
+.ps-player--embedded {
+  min-height: 100%;
+  height: 100%;
+  --player-safe-height: 100%;
+}
+
+.ps-player--embedded .ps-player__media,
+.ps-player--embedded .ps-player__floating {
+  position: absolute;
+}
+
 .ps-player__media {
   position: fixed;
   inset: 0;

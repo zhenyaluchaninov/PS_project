@@ -45,6 +45,7 @@ import {
   usePlayerStore,
 } from "../state/playerStore";
 import {
+  getOutgoingLinksForNode,
   resolveReferenceUrl,
   resolveNodeKind,
   resolveVideoSource,
@@ -282,6 +283,7 @@ type NavigationButton = {
   linkId?: number;
   targetNodeId?: number;
   disabled?: boolean;
+  isBroken?: boolean;
   isCurrent?: boolean;
 };
 
@@ -1218,6 +1220,7 @@ export function PlayerRuntime() {
         linkId: link.linkId,
         targetNodeId: link.toNodeId,
         disabled: isBroken,
+        isBroken,
       };
     };
 
@@ -1519,6 +1522,279 @@ export function PlayerRuntime() {
       overlay={overlayContent}
     >
       {playerBody}
+    </PlayerLayout>
+  );
+}
+
+export function StaticPlayerPreview({
+  adventure,
+  node,
+  className,
+}: {
+  adventure: AdventureModel;
+  node: NodeModel;
+  className?: string;
+}) {
+  const rawProps =
+    node.rawProps ?? (node.props as Record<string, unknown> | null) ?? null;
+
+  const propsResult = useMemo(
+    () =>
+      buildPropsStyle({
+        adventureProps: adventure.props ?? undefined,
+        nodeProps: rawProps ?? node.props ?? undefined,
+      }),
+    [adventure.props, node.props, rawProps]
+  );
+
+  const { style: propsStyle, flags, dataProps, layout, media, typography } = propsResult;
+
+  useLoadAdventureFonts(adventure.props?.fontList, typography.fontFamily);
+
+  const navigationConfig = useMemo(() => {
+    const navSettingsTokens = tokenize(
+      readRawProp(rawProps, [
+        "playerNavigation.settings",
+        "playerNavigation_settings",
+        "playerNavigationSettings",
+      ])
+    ).map((token) => token.toLowerCase());
+
+    const styleFromProps = normalizeNavStyle(
+      readRawProp(rawProps, [
+        "background.navigation_style",
+        "navigation_style",
+        "backgroundNavigationStyle",
+      ]) as string | undefined
+    );
+
+    const style: NavStyle = styleFromProps ?? "default";
+    const placement: NavPlacement = navSettingsTokens.includes("bottom-navigation")
+      ? "bottom"
+      : "inline";
+    const showCurrent = navSettingsTokens.includes("show-current-node");
+    const hideVisited = navSettingsTokens.includes("hide-visited");
+    const orderedIds = parseOrderedLinkIds(
+      readRawProp(rawProps, ["ordered_link_ids", "button_order", "button-order"])
+    );
+    const skipCount =
+      style === "default" || style === "swipeWithButton" || style === "scrollytell"
+        ? 0
+        : 1;
+    const swipeMode = style === "swipe" || style === "swipeWithButton";
+
+    return {
+      style,
+      placement,
+      showCurrent,
+      orderedIds,
+      skipCount,
+      hideVisited,
+      swipeMode,
+    };
+  }, [rawProps]);
+
+  const linksBySource = useMemo(() => {
+    const map: Record<number, LinkModel[]> = {};
+    adventure.links.forEach((link) => {
+      const sourceId = link.fromNodeId;
+      if (!map[sourceId]) {
+        map[sourceId] = [];
+      }
+      map[sourceId].push(link);
+    });
+    return map;
+  }, [adventure.links]);
+
+  const nodeById = useMemo(() => {
+    const map = new Map<number, NodeModel>();
+    adventure.nodes.forEach((item) => {
+      map.set(item.nodeId, item);
+    });
+    return map;
+  }, [adventure.nodes]);
+
+  const outgoingLinks = useMemo(
+    () => getOutgoingLinksForNode(node.nodeId, linksBySource),
+    [linksBySource, node.nodeId]
+  );
+
+  const visitedNodes = useMemo(() => new Set<number>(), []);
+
+  const navigationModel = useMemo<NavigationModel>(() => {
+    const baseItems: NavItem[] = outgoingLinks.map((link) => ({ kind: "link", link }));
+    if (navigationConfig.showCurrent) {
+      baseItems.push({ kind: "current" });
+    }
+
+    const orderedItems = applyOrder(
+      baseItems,
+      navigationConfig.orderedIds,
+      (item) => (item.kind === "current" ? -1 : item.link.linkId)
+    );
+
+    const shouldHideLink = (link: LinkModel) => {
+      const targetNode = nodeById.get(link.toNodeId);
+      if (!targetNode) return false;
+      const visited = visitedNodes.has(targetNode.nodeId);
+      if (!visited) return false;
+      const nodeWantsHide = hasHideVisitedCondition(targetNode);
+      return nodeWantsHide || navigationConfig.hideVisited;
+    };
+
+    const firstUsableLink = orderedItems.find((item) => {
+      if (item.kind !== "link") return false;
+      if (shouldHideLink(item.link)) return false;
+      const targetNode = nodeById.get(item.link.toNodeId);
+      return Boolean(item.link.toNodeId && targetNode);
+    });
+
+    if (navigationConfig.style === "noButtons") {
+      return {
+        buttons: [],
+        primaryLinkId:
+          firstUsableLink && firstUsableLink.kind === "link"
+            ? firstUsableLink.link.linkId
+            : undefined,
+      };
+    }
+
+    const buildButton = (link: LinkModel, fallbackIndex: number): NavigationButton => {
+      const targetNode = nodeById.get(link.toNodeId);
+      const isBroken = !link.toNodeId || !targetNode;
+      const label =
+        link.label && link.label.trim().length > 0
+          ? link.label.trim()
+          : targetNode?.title || `Continue ${fallbackIndex}`;
+
+      return {
+        key: String(link.linkId),
+        label,
+        meta: isBroken ? "No target" : `-> Node ${link.toNodeId}`,
+        linkId: link.linkId,
+        targetNodeId: link.toNodeId,
+        disabled: isBroken,
+        isBroken,
+      };
+    };
+
+    let skip = navigationConfig.skipCount;
+    const buttons: NavigationButton[] = [];
+
+    orderedItems.forEach((item) => {
+      if (skip > 0) {
+        skip -= 1;
+        return;
+      }
+
+      if (item.kind === "current") {
+        buttons.push({
+          key: "current",
+          label: node.title || "Current node",
+          meta: "You are here",
+          isCurrent: true,
+        });
+        return;
+      }
+
+      const link = item.link;
+      if (shouldHideLink(link)) return;
+      buttons.push(buildButton(link, buttons.length + 1));
+    });
+
+    return {
+      buttons,
+      primaryLinkId:
+        firstUsableLink && firstUsableLink.kind === "link"
+          ? firstUsableLink.link.linkId
+          : undefined,
+    };
+  }, [
+    navigationConfig.hideVisited,
+    navigationConfig.orderedIds,
+    navigationConfig.showCurrent,
+    navigationConfig.skipCount,
+    navigationConfig.style,
+    node.title,
+    nodeById,
+    outgoingLinks,
+    visitedNodes,
+  ]);
+
+  const nodeKind = useMemo(() => resolveNodeKind(node), [node]);
+  const isVideoNode = nodeKind === "video";
+
+  const playerClassName = cn(
+    "ps-player--embedded",
+    `ps-player--nav-${navigationConfig.style}`,
+    navigationConfig.placement === "bottom" ? "ps-player--nav-bottom" : "",
+    className
+  );
+
+  const videoSource = resolveVideoSource(node);
+  const backgroundImage = isVideoNode
+    ? node.image?.url ?? null
+    : videoSource
+      ? null
+      : node.image?.url ?? null;
+
+  const contentDataProps = [
+    dataProps.player_container,
+    dataProps.inner_container,
+    dataProps.text_block,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return (
+    <PlayerLayout
+      className={playerClassName}
+      style={propsStyle}
+      overlayColor={flags.hideBackground ? null : typography.overlayColor ?? undefined}
+      backgroundImage={backgroundImage}
+      hideBackground={flags.hideBackground}
+      mediaFilter={media.filter}
+      objectFit={media.objectFit}
+      backgroundPosition={media.backgroundPosition}
+      backgroundSize={media.backgroundSize}
+      dataProps={{
+        background: dataProps.background,
+        backgroundImage: dataProps.background_image,
+        player: dataProps.player,
+        content: contentDataProps,
+      }}
+      layout={{
+        verticalAlign: layout.verticalAlign,
+        containerWidthVw: layout.containerWidthVw,
+        containerMarginsVw: layout.containerMarginsVw,
+        textAlign: layout.textAlign,
+      }}
+    >
+      <div className="ps-player__card">
+        <NodeContent
+          nodeKind={nodeKind}
+          nodeTitle={node.title ?? ""}
+          nodeText={node.text ?? ""}
+        />
+
+        <NavigationArea
+          navStyle={navigationConfig.style}
+          navPlacement={navigationConfig.placement}
+          swipeMode={navigationConfig.swipeMode}
+          buttons={navigationModel.buttons}
+          primaryLinkId={navigationModel.primaryLinkId}
+          showLeftArrow={navigationConfig.style === "leftright"}
+          showRightArrow={
+            navigationConfig.style === "leftright" || navigationConfig.style === "right"
+          }
+          showDownArrow={false}
+          interactionDisabled
+          onChooseLink={() => undefined}
+          onBack={() => undefined}
+          disableBack
+        />
+      </div>
     </PlayerLayout>
   );
 }
@@ -1900,6 +2176,7 @@ function NavigationArea({
   showLeftArrow,
   showRightArrow,
   showDownArrow,
+  interactionDisabled,
   onChooseLink,
   onBack,
   disableBack,
@@ -1912,6 +2189,7 @@ function NavigationArea({
   showLeftArrow: boolean;
   showRightArrow: boolean;
   showDownArrow: boolean;
+  interactionDisabled?: boolean;
   onChooseLink: (linkId: number) => void;
   onBack: () => void;
   disableBack: boolean;
@@ -1919,6 +2197,7 @@ function NavigationArea({
   const hasButtons = buttons.length > 0;
   const hasArrows = showLeftArrow || showRightArrow || showDownArrow;
   const shouldShowEmptyState = !hasButtons && navStyle !== "noButtons";
+  const interactionsOff = Boolean(interactionDisabled);
 
   if (navStyle === "swipe") {
     return null;
@@ -1934,6 +2213,8 @@ function NavigationArea({
       return null;
     }
 
+    const isDisabled = interactionsOff || Boolean(primaryButton.disabled);
+
     return (
       <div
         className="ps-nav"
@@ -1946,28 +2227,28 @@ function NavigationArea({
             type="button"
             className={cn(
               "ps-player__choice ps-nav__choice",
-              primaryButton.disabled ? "cursor-not-allowed opacity-60" : ""
+              isDisabled ? "cursor-not-allowed opacity-60" : ""
             )}
             onClick={
-              primaryButton.disabled || !primaryButton.linkId
+              isDisabled || !primaryButton.linkId
                 ? undefined
                 : () => {
                     if (primaryButton.linkId) onChooseLink(primaryButton.linkId);
                   }
             }
             onPointerDown={
-              primaryButton.disabled ? undefined : addPressedClass
+              isDisabled ? undefined : addPressedClass
             }
             onPointerUp={removePressedClass}
             onPointerLeave={removePressedClass}
             onPointerCancel={removePressedClass}
-            disabled={primaryButton.disabled}
-            aria-disabled={primaryButton.disabled}
+            disabled={isDisabled}
+            aria-disabled={isDisabled}
           >
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col">
                 <span className="font-semibold">{primaryButton.label}</span>
-                {primaryButton.disabled ? (
+                {primaryButton.isBroken ? (
                   <span className="text-xs opacity-75 text-red-200">Broken link</span>
                 ) : null}
               </div>
@@ -1999,7 +2280,7 @@ function NavigationArea({
             label="Previous"
             icon={<ChevronLeft aria-hidden />}
             onClick={onBack}
-            disabled={disableBack}
+            disabled={interactionsOff || disableBack}
           />
         ) : null}
 
@@ -2011,44 +2292,48 @@ function NavigationArea({
           )}
         >
           {hasButtons ? (
-            buttons.map((button) => (
-              <button
-                key={button.key}
-                type="button"
-                className={cn(
-                  "ps-player__choice ps-nav__choice",
-                  button.isCurrent ? "ps-nav__choice--current" : "",
-                  button.disabled ? "cursor-not-allowed opacity-60" : ""
-                )}
-                onClick={
-                  button.disabled || !button.linkId || button.isCurrent
-                    ? undefined
-                    : () => {
-                        if (button.linkId) onChooseLink(button.linkId);
-                      }
-                }
-                onPointerDown={button.disabled || button.isCurrent ? undefined : addPressedClass}
-                onPointerUp={removePressedClass}
-                onPointerLeave={removePressedClass}
-                onPointerCancel={removePressedClass}
-                disabled={button.disabled || button.isCurrent}
-                aria-disabled={button.disabled || button.isCurrent}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex flex-col">
-                    <span className="font-semibold">{button.label}</span>
-                    {button.isCurrent ? (
-                      <span className="text-xs opacity-75">Current node</span>
-                    ) : button.disabled ? (
-                      <span className="text-xs opacity-75 text-red-200">Broken link</span>
+            buttons.map((button) => {
+              const isDisabled =
+                interactionsOff || Boolean(button.disabled) || Boolean(button.isCurrent);
+              return (
+                <button
+                  key={button.key}
+                  type="button"
+                  className={cn(
+                    "ps-player__choice ps-nav__choice",
+                    button.isCurrent ? "ps-nav__choice--current" : "",
+                    isDisabled ? "cursor-not-allowed opacity-60" : ""
+                  )}
+                  onClick={
+                    isDisabled || !button.linkId
+                      ? undefined
+                      : () => {
+                          if (button.linkId) onChooseLink(button.linkId);
+                        }
+                  }
+                  onPointerDown={isDisabled ? undefined : addPressedClass}
+                  onPointerUp={removePressedClass}
+                  onPointerLeave={removePressedClass}
+                  onPointerCancel={removePressedClass}
+                  disabled={isDisabled}
+                  aria-disabled={isDisabled}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col">
+                      <span className="font-semibold">{button.label}</span>
+                      {button.isCurrent ? (
+                        <span className="text-xs opacity-75">Current node</span>
+                      ) : button.isBroken ? (
+                        <span className="text-xs opacity-75 text-red-200">Broken link</span>
+                      ) : null}
+                    </div>
+                    {button.meta ? (
+                      <span className="text-xs opacity-75">{button.meta}</span>
                     ) : null}
                   </div>
-                  {button.meta ? (
-                    <span className="text-xs opacity-75">{button.meta}</span>
-                  ) : null}
-                </div>
-              </button>
-            ))
+                </button>
+              );
+            })
           ) : (
             <p className="text-sm opacity-75">No outgoing links.</p>
           )}
@@ -2058,7 +2343,7 @@ function NavigationArea({
           <NavArrowButton
             label="Next"
             icon={<ChevronRight aria-hidden />}
-            disabled={!primaryLinkId}
+            disabled={interactionsOff || !primaryLinkId}
             onClick={() => {
               if (primaryLinkId) onChooseLink(primaryLinkId);
             }}
@@ -2070,7 +2355,7 @@ function NavigationArea({
             label="Continue"
             className="ps-nav__arrow--down"
             icon={<ChevronDown aria-hidden />}
-            disabled={!primaryLinkId}
+            disabled={interactionsOff || !primaryLinkId}
             onClick={() => {
               if (primaryLinkId) onChooseLink(primaryLinkId);
             }}

@@ -53,6 +53,7 @@ import type { EditorSelection } from "../state/editorStore";
 import { cn } from "@/lib/utils";
 import { ShortcutHud } from "./ShortcutHud";
 import { EditorToolStrip } from "./EditorToolStrip";
+import { PreviewOverlay } from "./PreviewOverlay";
 
 type GraphNodeData = {
   label: string;
@@ -1159,6 +1160,11 @@ export function GraphCanvas({
         </div>
         <ShortcutHud />
       </div>
+      <PreviewOverlay
+        adventure={adventure}
+        selectedNode={selectedNode}
+        containerRef={containerRef}
+      />
     </div>
   );
 }
