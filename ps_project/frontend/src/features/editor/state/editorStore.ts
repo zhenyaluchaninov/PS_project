@@ -19,6 +19,8 @@ export type EditorSelection =
 
 export type EditorToolPanel = "search" | null;
 
+export type EditorNodeInspectorTab = "content" | "style" | "buttons" | "logic";
+
 export type EditorNodePositionUpdate = {
   nodeId: number;
   position: { x: number; y: number };
@@ -59,6 +61,7 @@ type EditorState = {
   selection: EditorSelection;
   selectionToolActive: boolean;
   toolPanel: EditorToolPanel;
+  nodeInspectorTab: EditorNodeInspectorTab;
   selectedNodeIds: number[];
   selectedLinkIds: number[];
   clipboard: EditorClipboard | null;
@@ -72,11 +75,14 @@ type EditorState = {
   setSelection: (selection: EditorSelection) => void;
   setSelectionToolActive: (active: boolean) => void;
   setToolPanel: (panel: EditorToolPanel) => void;
+  setNodeInspectorTab: (tab: EditorNodeInspectorTab) => void;
   clearSelection: () => void;
   setSelectionSnapshot: (nodeIds: number[], linkIds: number[]) => void;
   setViewportCenter: (center: { x: number; y: number }) => void;
   setFocusNodeId: (nodeId: number) => void;
   clearFocusNode: () => void;
+  updateNodeTitle: (nodeId: number, title: string) => void;
+  updateNodeProps: (nodeId: number, updates: Record<string, unknown>) => void;
   updateNodePositions: (updates: EditorNodePositionUpdate[]) => void;
   addLink: (sourceId: number, targetId: number) => number | null;
   addNodeWithLink: (
@@ -117,6 +123,23 @@ function arraysEqual(a: number[], b: number[]): boolean {
   return a.every((value, index) => value === b[index]);
 }
 
+function propsValueEqual(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((value, index) => value === b[index]);
+  }
+  return a === b;
+}
+
+function hasPropChanges(
+  current: Record<string, unknown>,
+  updates: Record<string, unknown>
+): boolean {
+  return Object.entries(updates).some(
+    ([key, value]) => !propsValueEqual(current[key], value)
+  );
+}
+
 function selectionsEqual(a: EditorSelection, b: EditorSelection): boolean {
   if (a.type !== b.type) return false;
   if (a.type === "node" && b.type === "node") return a.nodeId === b.nodeId;
@@ -134,6 +157,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selection: { type: "none" },
   selectionToolActive: false,
   toolPanel: null,
+  nodeInspectorTab: "content",
   selectedNodeIds: [],
   selectedLinkIds: [],
   clipboard: null,
@@ -152,6 +176,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selection: { type: "none" },
       selectionToolActive: false,
       toolPanel: null,
+      nodeInspectorTab: "content",
       selectedNodeIds: [],
       selectedLinkIds: [],
       clipboard: null,
@@ -166,6 +191,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => (selectionsEqual(state.selection, selection) ? {} : { selection })),
   setSelectionToolActive: (selectionToolActive) => set({ selectionToolActive }),
   setToolPanel: (toolPanel) => set({ toolPanel }),
+  setNodeInspectorTab: (nodeInspectorTab) => set({ nodeInspectorTab }),
   clearSelection: () =>
     set({
       selection: { type: "none" },
@@ -190,6 +216,69 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setViewportCenter: (center) => set({ viewportCenter: center }),
   setFocusNodeId: (nodeId) => set({ focusNodeId: nodeId }),
   clearFocusNode: () => set({ focusNodeId: null }),
+  updateNodeTitle: (nodeId, title) => {
+    set((state) => {
+      if (!state.adventure) return {};
+      const nodeIndex = state.adventure.nodes.findIndex(
+        (node) => node.nodeId === nodeId
+      );
+      if (nodeIndex === -1) return {};
+      const node = state.adventure.nodes[nodeIndex];
+      if (node.title === title) return {};
+      const historyEntry: EditorHistoryEntry = {
+        nodes: state.adventure.nodes,
+        links: state.adventure.links,
+        selection: state.selection,
+        selectedNodeIds: state.selectedNodeIds,
+        selectedLinkIds: state.selectedLinkIds,
+        dirty: state.dirty,
+      };
+      const nextNodes = [...state.adventure.nodes];
+      nextNodes[nodeIndex] = { ...node, title, changed: true };
+      return {
+        adventure: { ...state.adventure, nodes: nextNodes },
+        dirty: true,
+        undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
+      };
+    });
+  },
+  updateNodeProps: (nodeId, updates) => {
+    const updateKeys = Object.keys(updates);
+    if (!updateKeys.length) return;
+    set((state) => {
+      if (!state.adventure) return {};
+      const nodeIndex = state.adventure.nodes.findIndex(
+        (node) => node.nodeId === nodeId
+      );
+      if (nodeIndex === -1) return {};
+      const node = state.adventure.nodes[nodeIndex];
+      const baseProps =
+        node.rawProps ?? (node.props as Record<string, unknown> | null) ?? {};
+      if (!hasPropChanges(baseProps, updates)) return {};
+      const historyEntry: EditorHistoryEntry = {
+        nodes: state.adventure.nodes,
+        links: state.adventure.links,
+        selection: state.selection,
+        selectedNodeIds: state.selectedNodeIds,
+        selectedLinkIds: state.selectedLinkIds,
+        dirty: state.dirty,
+      };
+      const mergedProps = { ...baseProps, ...updates };
+      const nextProps = node.props ? { ...node.props, ...updates } : { ...updates };
+      const nextNodes = [...state.adventure.nodes];
+      nextNodes[nodeIndex] = {
+        ...node,
+        rawProps: mergedProps,
+        props: nextProps,
+        changed: true,
+      };
+      return {
+        adventure: { ...state.adventure, nodes: nextNodes },
+        dirty: true,
+        undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
+      };
+    });
+  },
   updateNodePositions: (updates) => {
     if (!updates.length) return;
     set((state) => {
@@ -640,6 +729,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selection: { type: "none" },
       selectionToolActive: false,
       toolPanel: null,
+      nodeInspectorTab: "content",
       selectedNodeIds: [],
       selectedLinkIds: [],
       clipboard: null,
@@ -712,6 +802,8 @@ export const selectEditorSelection = (state: EditorState) => state.selection;
 export const selectEditorSelectionToolActive = (state: EditorState) =>
   state.selectionToolActive;
 export const selectEditorToolPanel = (state: EditorState) => state.toolPanel;
+export const selectEditorNodeInspectorTab = (state: EditorState) =>
+  state.nodeInspectorTab;
 export const selectEditorSelectedNodeIds = (state: EditorState) =>
   state.selectedNodeIds;
 export const selectEditorSelectedLinkIds = (state: EditorState) =>

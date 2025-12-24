@@ -2,7 +2,7 @@ export type AdventurePropsModel = {
   fontList: string[];
 };
 
-export type NodePropsModel = {
+export type NodePropsModel = Record<string, unknown> & {
   audioUrl?: string | null;
   audioUrlAlt?: string | null;
   subtitlesUrl?: string | null;
