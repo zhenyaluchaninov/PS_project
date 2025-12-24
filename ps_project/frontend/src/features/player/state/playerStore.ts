@@ -5,7 +5,7 @@ import {
   isApiError,
   resolveApiUrl,
 } from "@/features/state/api/client";
-import { create } from "zustand";
+import { create, type StateCreator } from "zustand";
 import { toastError } from "@/features/ui-core/toast";
 import {
   buildGraphIndexes,
@@ -54,11 +54,12 @@ type PlayerState = {
   getVisitedCount: () => number;
   getProgressPercent: () => number;
   reset: () => void;
+  syncAdventure: (adventure: AdventureModel) => void;
 };
 
 const isDev = process.env.NODE_ENV !== "production";
 
-export const usePlayerStore = create<PlayerState>((set, get) => {
+const createPlayerState: StateCreator<PlayerState> = (set, get) => {
   const navigateToNode = (
     nextNodeId: number,
     options?: {
@@ -421,8 +422,32 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
   getCurrentNodeKind: () => resolveNodeKind(get().getCurrentNode()),
   getNodeKindById: (id?: number | null) => resolveNodeKind(get().getNodeById(id)),
+
+  syncAdventure: (adventure: AdventureModel) => {
+    const { nodeIndex, linksBySource, linksById } = buildGraphIndexes(adventure);
+    set((state) => {
+      const currentNodeId = state.currentNodeId;
+      const hasCurrent = currentNodeId != null && nodeIndex[currentNodeId] != null;
+      return {
+        adventure,
+        nodeIndex,
+        linksBySource,
+        linksById,
+        error: undefined,
+        status: state.status === "idle" ? "ready" : state.status,
+        currentNodeId: hasCurrent ? currentNodeId : undefined,
+        history: hasCurrent ? state.history : [],
+        visited: hasCurrent ? state.visited : new Set<number>(),
+        rootNodeId: hasCurrent ? state.rootNodeId : undefined,
+      };
+    });
+  },
   };
-});
+};
+
+export const createPlayerStore = () => create<PlayerState>(createPlayerState);
+export type PlayerStoreHook = ReturnType<typeof createPlayerStore>;
+export const usePlayerStore = createPlayerStore();
 
 export const selectPlayerStatus = (state: PlayerState) => state.status;
 export const selectPlayerAdventure = (state: PlayerState) => state.adventure;

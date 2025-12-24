@@ -15,6 +15,11 @@ type ViewportDeviceOptions = {
    * Useful so component-level CSS can react without extra React renders.
    */
   targetSelector?: string;
+  /**
+   * Where to apply data attributes and viewport CSS variables.
+   * Defaults to "document" (root/body + target). Use "target" for embedded views.
+   */
+  scope?: "document" | "target";
 };
 
 const DEFAULT_DEBOUNCE_MS = 150;
@@ -73,6 +78,7 @@ const cleanListener = (
 export const useViewportDevice = (options?: ViewportDeviceOptions) => {
   const debounceMs = options?.debounceMs ?? DEFAULT_DEBOUNCE_MS;
   const { targetSelector } = options ?? {};
+  const scope = options?.scope ?? "document";
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof document === "undefined") return;
@@ -85,6 +91,10 @@ export const useViewportDevice = (options?: ViewportDeviceOptions) => {
         targetSelector && typeof document !== "undefined"
           ? (document.querySelector<HTMLElement>(targetSelector) ?? null)
           : null;
+
+      if (scope === "target") {
+        return playerTarget ? [playerTarget] : [];
+      }
 
       return [root, body, playerTarget].filter(Boolean) as HTMLElement[];
     };
@@ -182,5 +192,5 @@ export const useViewportDevice = (options?: ViewportDeviceOptions) => {
       cleanListener(hoverQuery, mediaHandler);
       cleanListener(pointerQuery, mediaHandler);
     };
-  }, [debounceMs, targetSelector]);
+  }, [debounceMs, scope, targetSelector]);
 };

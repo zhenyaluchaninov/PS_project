@@ -53,7 +53,7 @@ import type { EditorSelection } from "../state/editorStore";
 import { cn } from "@/lib/utils";
 import { ShortcutHud } from "./ShortcutHud";
 import { EditorToolStrip } from "./EditorToolStrip";
-import { PreviewOverlay } from "./PreviewOverlay";
+import { PreviewOverlay, type PreviewPlayTrace } from "./PreviewOverlay";
 
 type GraphNodeData = {
   label: string;
@@ -61,12 +61,14 @@ type GraphNodeData = {
   chapterType: string | null;
   variant: NodeVariant;
   badges: Array<{ key: string; label: string; tone: "flag" | "media" }>;
+  playState?: PlayTraceState;
 };
 
 type GraphEdgeData = {
   linkId: number;
   isBidirectional: boolean;
   hasConditions: boolean;
+  playState?: PlayTraceState;
 };
 
 type GraphNode = Node<GraphNodeData>;
@@ -109,6 +111,8 @@ type NodeVariant =
   | "video"
   | "audio"
   | "default";
+
+type PlayTraceState = "visited" | "current" | null;
 
 const nodeTypeIcons: Record<NodeVariant, LucideIcon> = {
   start: PlayCircle,
@@ -476,6 +480,9 @@ function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
   const mediaBadges = data.badges.filter((badge) => badge.tone === "media");
   const isStart = data.variant === "start";
   const NodeTypeIcon = nodeTypeIcons[data.variant] ?? FileText;
+  const playState = data.playState ?? null;
+  const isPlayCurrent = playState === "current";
+  const isPlayVisited = playState === "visited";
 
   return (
     <div
@@ -484,6 +491,11 @@ function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
         isStart
           ? "border-[var(--editor-node-start-border)] shadow-[0_0_20px_-16px_var(--editor-node-start-border)]"
           : "border-[var(--editor-node-border)]",
+        isPlayCurrent
+          ? "ring-2 ring-[var(--editor-play-node-current)]"
+          : isPlayVisited
+            ? "ring-1 ring-[var(--editor-play-node)]"
+            : "",
         selected
           ? "border-[var(--editor-edge-selected)] shadow-[0_0_0_2.2px_var(--editor-edge-selected)]"
           : isStart
@@ -599,20 +611,31 @@ function AdventureEdge({
   });
   const isBidirectional = data?.isBidirectional ?? false;
   const hasConditions = data?.hasConditions ?? false;
+  const playState = data?.playState ?? null;
+  const isPlayCurrent = playState === "current";
+  const isPlayVisited = playState === "visited";
   const stroke = selected
     ? "var(--editor-edge-selected)"
-    : isBidirectional
-      ? "var(--editor-edge-bidirectional)"
-      : "var(--editor-edge)";
+    : isPlayCurrent
+      ? "var(--editor-play-edge-current)"
+      : isPlayVisited
+        ? "var(--editor-play-edge)"
+        : isBidirectional
+          ? "var(--editor-edge-bidirectional)"
+          : "var(--editor-edge)";
   const markerColor = selected
     ? readCssColor("--accent", "#d08770")
-    : readCssColor("--border-light", "#5c6678");
+    : isPlayCurrent
+      ? readCssColor("--editor-play-edge-current", "#ebcb8b")
+      : isPlayVisited
+        ? readCssColor("--editor-play-edge", "#88c0d0")
+        : readCssColor("--border-light", "#5c6678");
   const markerId = `edge-arrow-${id}${isBidirectional ? "-bi" : ""}-${selected ? "on" : "off"}`;
   const markerUrl = `url(#${markerId})`;
   const edgeStyle = {
     ...style,
     stroke,
-    strokeWidth: selected ? 3.2 : 2.4,
+    strokeWidth: selected || isPlayCurrent ? 3.2 : isPlayVisited ? 2.8 : 2.4,
     strokeDasharray: isBidirectional ? "6 5" : undefined,
   } as CSSProperties;
 
@@ -690,6 +713,12 @@ export function GraphCanvas({
   className,
 }: GraphCanvasProps) {
   const [hudOpen, setHudOpen] = useState(true);
+  const [previewTrace, setPreviewTrace] = useState<PreviewPlayTrace>({
+    nodeIds: [],
+    linkIds: [],
+    currentNodeId: null,
+    currentLinkId: null,
+  });
   const containerRef = useRef<HTMLDivElement | null>(null);
   const reactFlowRef = useRef<ReactFlowInstance<GraphNode, GraphEdge> | null>(
     null
@@ -748,6 +777,20 @@ export function GraphCanvas({
       )
     );
   }, [adventure.id, adventure.links, adventure.nodes, selectionToolActive, setEdges]);
+
+  const handlePreviewTraceChange = useCallback((next: PreviewPlayTrace) => {
+    setPreviewTrace((prev) => {
+      if (
+        prev.currentNodeId === next.currentNodeId &&
+        prev.currentLinkId === next.currentLinkId &&
+        arraysEqual(prev.nodeIds, next.nodeIds) &&
+        arraysEqual(prev.linkIds, next.linkIds)
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
 
   const reportViewportCenter = useCallback(() => {
     const instance = reactFlowRef.current;
@@ -967,6 +1010,56 @@ export function GraphCanvas({
   }, [selectedLinkIds, selectedNodeIds, setEdges, setNodes]);
 
   useEffect(() => {
+    const nodeIdSet = new Set(previewTrace.nodeIds);
+    const linkIdSet = new Set(previewTrace.linkIds);
+    const currentNodeId = previewTrace.currentNodeId;
+    const currentLinkId = previewTrace.currentLinkId;
+
+    setNodes((current) => {
+      let changed = false;
+      const next = current.map((node) => {
+        const nodeId = toNumericId(node.data?.nodeId ?? node.id);
+        const nextPlayState: PlayTraceState =
+          nodeId != null && currentNodeId != null && nodeId === currentNodeId
+            ? "current"
+            : nodeId != null && nodeIdSet.has(nodeId)
+              ? "visited"
+              : null;
+        if (node.data?.playState === nextPlayState) return node;
+        changed = true;
+        return { ...node, data: { ...node.data, playState: nextPlayState } };
+      });
+      return changed ? next : current;
+    });
+
+    setEdges((current) => {
+      let changed = false;
+      const next = current.map((edge) => {
+        const linkId = toNumericId(edge.data?.linkId ?? edge.id);
+        const nextPlayState: PlayTraceState =
+          linkId != null && currentLinkId != null && linkId === currentLinkId
+            ? "current"
+            : linkId != null && linkIdSet.has(linkId)
+              ? "visited"
+              : null;
+        if (edge.data?.playState === nextPlayState) return edge;
+        changed = true;
+        return { ...edge, data: { ...edge.data, playState: nextPlayState } };
+      });
+      return changed ? next : current;
+    });
+  }, [
+    adventure.links,
+    adventure.nodes,
+    previewTrace.currentLinkId,
+    previewTrace.currentNodeId,
+    previewTrace.linkIds,
+    previewTrace.nodeIds,
+    setEdges,
+    setNodes,
+  ]);
+
+  useEffect(() => {
     if (focusNodeId == null) return;
     const instance = reactFlowRef.current;
     if (!instance) return;
@@ -1164,6 +1257,7 @@ export function GraphCanvas({
         adventure={adventure}
         selectedNode={selectedNode}
         containerRef={containerRef}
+        onPlayTraceChange={handlePreviewTraceChange}
       />
     </div>
   );

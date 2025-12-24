@@ -54,6 +54,10 @@
   --editor-edge-condition-bg: rgba(191, 97, 106, 0.9);
   --editor-edge-condition-border: rgba(191, 97, 106, 0.5);
   --editor-edge-condition-text: #eceff4;
+  --editor-play-node: #88c0d0;
+  --editor-play-node-current: #ebcb8b;
+  --editor-play-edge: #88c0d0;
+  --editor-play-edge-current: #ebcb8b;
 
   /* Badges */
   --editor-badge-media-bg: rgba(136, 192, 208, 0.15);

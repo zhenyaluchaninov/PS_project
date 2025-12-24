@@ -42,6 +42,7 @@ import {
   selectPlayerProgress,
   selectPlayerRootNodeId,
   selectPlayerVisitedCount,
+  type PlayerStoreHook,
   usePlayerStore,
 } from "../state/playerStore";
 import {
@@ -484,25 +485,38 @@ const removePressedClass = (event: ReactPointerEvent<HTMLElement>) => {
   event.currentTarget.classList.remove("btn-pressed");
 };
 
-export function PlayerRuntime() {
+type PlayerRuntimeProps = {
+  startNodeIdOverride?: number | null;
+  playerStore?: PlayerStoreHook;
+  embedded?: boolean;
+  viewportScope?: "document" | "target";
+};
+
+export function PlayerRuntime({
+  startNodeIdOverride,
+  playerStore,
+  embedded = false,
+  viewportScope,
+}: PlayerRuntimeProps) {
   const searchParams = useSearchParams();
-  const adventure = usePlayerStore(selectPlayerAdventure);
-  const currentNode = usePlayerStore(selectPlayerCurrentNode);
-  const currentNodeKind = usePlayerStore(selectPlayerCurrentNodeKind);
-  const currentNodeId = usePlayerStore(selectPlayerCurrentNodeId);
-  const outgoingLinks = usePlayerStore(selectPlayerOutgoingLinks);
-  const mode = usePlayerStore(selectPlayerMode);
-  const historyLength = usePlayerStore(selectPlayerHistoryLength);
-  const history = usePlayerStore((s) => s.history);
-  const visitedCount = usePlayerStore(selectPlayerVisitedCount);
-  const progress = usePlayerStore(selectPlayerProgress);
-  const rootNodeId = usePlayerStore(selectPlayerRootNodeId);
-  const visitedNodes = usePlayerStore((s) => s.visited);
-  const chooseLink = usePlayerStore((s) => s.chooseLink);
-  const start = usePlayerStore((s) => s.start);
-  const getNodeById = usePlayerStore((s) => s.getNodeById);
-  const goBack = usePlayerStore((s) => s.goBack);
-  const goHome = usePlayerStore((s) => s.goHome);
+  const store = playerStore ?? usePlayerStore;
+  const adventure = store(selectPlayerAdventure);
+  const currentNode = store(selectPlayerCurrentNode);
+  const currentNodeKind = store(selectPlayerCurrentNodeKind);
+  const currentNodeId = store(selectPlayerCurrentNodeId);
+  const outgoingLinks = store(selectPlayerOutgoingLinks);
+  const mode = store(selectPlayerMode);
+  const historyLength = store(selectPlayerHistoryLength);
+  const history = store((s) => s.history);
+  const visitedCount = store(selectPlayerVisitedCount);
+  const progress = store(selectPlayerProgress);
+  const rootNodeId = store(selectPlayerRootNodeId);
+  const visitedNodes = store((s) => s.visited);
+  const chooseLink = store((s) => s.chooseLink);
+  const start = store((s) => s.start);
+  const getNodeById = store((s) => s.getNodeById);
+  const goBack = store((s) => s.goBack);
+  const goHome = store((s) => s.goHome);
 
   const historyNodes = useMemo(
     () =>
@@ -563,11 +577,15 @@ export function PlayerRuntime() {
   );
   const debugUi = paramIsTruthy(searchParams?.get("debug") ?? searchParams?.get("dev"));
   const startOverrideNodeId = useMemo(
-    () => readNumberParam(searchParams, "nodeId") ?? readNumberParam(searchParams, "nodeid"),
-    [searchParams]
+    () =>
+      startNodeIdOverride ??
+      readNumberParam(searchParams, "nodeId") ??
+      readNumberParam(searchParams, "nodeid"),
+    [searchParams, startNodeIdOverride]
   );
 
-  useViewportDevice({ targetSelector: ".ps-player" });
+  const resolvedViewportScope = viewportScope ?? (embedded ? "target" : "document");
+  useViewportDevice({ targetSelector: ".ps-player", scope: resolvedViewportScope });
 
   useEffect(() => {
     if (hasInteracted) return;
@@ -1268,6 +1286,7 @@ export function PlayerRuntime() {
   ]);
 
   const playerClassName = cn(
+    embedded ? "ps-player--embedded" : "",
     `ps-player--nav-${navigationConfig.style}`,
     navigationConfig.placement === "bottom" ? "ps-player--nav-bottom" : "",
     navigationConfig.swipeMode ? "ps-player--swipe" : "",
