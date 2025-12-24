@@ -1263,7 +1263,7 @@ web/
 
 ---
 
-### Step 21.5 – Non-destructive props editing layer (merge-preserving)
+### Step [done] 21.5 – Non-destructive props editing layer (merge-preserving)
 
 **What we do**
 
@@ -1295,7 +1295,7 @@ web/js/aventyr.props.js    # legacy schema patterns (but legacy save is destruct
 
 ---
 
-### Step 22 – RichTextEditor & emoji integration (ref-node aware)
+### [done] Step 22 – RichTextEditor & emoji integration (ref-node aware)
 
 **What we do**
 

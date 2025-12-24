@@ -93,6 +93,7 @@ type EditorState = {
   setFocusNodeId: (nodeId: number) => void;
   clearFocusNode: () => void;
   updateNodeTitle: (nodeId: number, title: string) => void;
+  updateNodeText: (nodeId: number, text: string) => void;
   updateNodeProps: (
     nodeId: number,
     updates: Record<string, unknown>,
@@ -381,6 +382,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
       const nextNodes = [...state.adventure.nodes];
       nextNodes[nodeIndex] = { ...node, title, changed: true };
+      return {
+        adventure: { ...state.adventure, nodes: nextNodes },
+        dirty: true,
+        undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
+      };
+    });
+  },
+  updateNodeText: (nodeId, text) => {
+    set((state) => {
+      if (!state.adventure) return {};
+      const nodeIndex = state.adventure.nodes.findIndex(
+        (node) => node.nodeId === nodeId
+      );
+      if (nodeIndex === -1) return {};
+      const node = state.adventure.nodes[nodeIndex];
+      if (node.text === text) return {};
+      const historyEntry: EditorHistoryEntry = {
+        nodes: state.adventure.nodes,
+        links: state.adventure.links,
+        selection: state.selection,
+        selectedNodeIds: state.selectedNodeIds,
+        selectedLinkIds: state.selectedLinkIds,
+        dirty: state.dirty,
+      };
+      const nextNodes = [...state.adventure.nodes];
+      nextNodes[nodeIndex] = { ...node, text, changed: true };
       return {
         adventure: { ...state.adventure, nodes: nextNodes },
         dirty: true,

@@ -18,6 +18,7 @@ export function EditorInspector() {
   const activeTab = useEditorStore(selectEditorNodeInspectorTab);
   const setActiveTab = useEditorStore((s) => s.setNodeInspectorTab);
   const updateNodeTitle = useEditorStore((s) => s.updateNodeTitle);
+  const updateNodeText = useEditorStore((s) => s.updateNodeText);
   const setNodePropStringArraySelect = useEditorStore(
     (s) => s.setNodePropStringArraySelect
   );
@@ -42,6 +43,7 @@ export function EditorInspector() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onTitleChange={(title) => updateNodeTitle(selectedNode.nodeId, title)}
+        onTextChange={(text) => updateNodeText(selectedNode.nodeId, text)}
         onNodeTypeChange={(chapterType) =>
           setNodePropStringArraySelect(
             selectedNode.nodeId,
