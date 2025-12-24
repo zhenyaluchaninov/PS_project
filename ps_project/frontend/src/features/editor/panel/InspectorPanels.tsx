@@ -74,6 +74,23 @@ const navigationStyleValues = new Set(
   navigationStyleOptions.map((option) => option.value)
 );
 
+const verticalPositionOptions = [
+  { value: "vertical-align-top", label: "Top" },
+  { value: "vertical-align-center", label: "Center" },
+  { value: "vertical-align-bottom", label: "Bottom" },
+];
+
+const verticalPositionValues = new Set(
+  verticalPositionOptions.map((option) => option.value)
+);
+
+const SCROLL_SPEED_MIN = 0;
+const SCROLL_SPEED_MAX = 1.5;
+const SCROLL_SPEED_DEFAULT = 0.5;
+const MARGIN_DEFAULT = 18;
+const MARGIN_MIN = 0;
+const MARGIN_MAX = 100;
+
 const normalizeNewlines = (value: string): string =>
   value.replace(/\r\n/g, "\n");
 
@@ -167,6 +184,9 @@ const isHexColor = (value: string): boolean =>
 const clampAlpha = (value: number): number =>
   Math.min(100, Math.max(0, Math.round(value)));
 
+const clampNumber = (value: number, min: number, max: number): number =>
+  Math.min(max, Math.max(min, value));
+
 const readNodePropValue = (node: NodeModel, key: string): unknown => {
   const rawProps = node.rawProps ?? {};
   const fallbackProps = (node.props as Record<string, unknown> | null) ?? {};
@@ -200,6 +220,21 @@ const getAlphaProp = (
   return Number.isFinite(parsed) ? clampAlpha(parsed) : fallback;
 };
 
+const getNumberProp = (
+  node: NodeModel,
+  key: string,
+  fallback: number
+): number => {
+  const value = readNodePropValue(node, key);
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? parseFloat(value)
+        : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const getNavigationStyle = (node: NodeModel): string => {
   const value = readNodePropValue(node, "background.navigation_style");
   const tokens = readStringArray(value);
@@ -210,6 +245,22 @@ const getNavigationStyle = (node: NodeModel): string => {
 
 const getNavigationSettings = (node: NodeModel): string[] =>
   readStringArray(readNodePropValue(node, "playerNavigation.settings"));
+
+const getVerticalPosition = (node: NodeModel): string => {
+  const value = readNodePropValue(node, "player.verticalPosition");
+  const tokens = readStringArray(value);
+  const candidate = tokens[0]?.trim() ?? "";
+  if (verticalPositionValues.has(candidate)) return candidate;
+  return "vertical-align-center";
+};
+
+const getScrollSpeed = (node: NodeModel): number => {
+  const value = readNodePropValue(node, "settings_scrollSpeed");
+  const tokens = readStringArray(value);
+  const candidate = tokens[0]?.trim() ?? "";
+  const parsed = parseFloat(candidate);
+  return Number.isFinite(parsed) ? parsed : SCROLL_SPEED_DEFAULT;
+};
 
 const getNodeChapterType = (node: NodeModel): string => {
   const primaryProps = (node.props as Record<string, unknown> | null) ?? {};
@@ -595,6 +646,18 @@ export function NodeInspectorPanel({
   const isRefNode = chapterType.startsWith("ref-node");
   const navigationStyle = getNavigationStyle(node);
   const navigationSettings = getNavigationSettings(node);
+  const verticalPosition = getVerticalPosition(node);
+  const scrollSpeed = getScrollSpeed(node);
+  const marginLeft = getNumberProp(
+    node,
+    "player_container_marginleft",
+    MARGIN_DEFAULT
+  );
+  const marginRight = getNumberProp(
+    node,
+    "player_container_marginright",
+    MARGIN_DEFAULT
+  );
   const hasNavigationSetting = (token: string) =>
     navigationSettings.some(
       (entry) => entry.toLowerCase() === token.toLowerCase()
@@ -783,9 +846,9 @@ export function NodeInspectorPanel({
 
         <TabsContent value="style">
           <div className="space-y-4">
-            <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-              <CollapsibleSection title="Scene colors" defaultOpen>
-                <div className="space-y-4">
+              <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+                <CollapsibleSection title="Scene colors" defaultOpen>
+                  <div className="space-y-4">
                   <ColorOnlyField
                     label="Background"
                     value={sceneColors.background}
@@ -804,9 +867,123 @@ export function NodeInspectorPanel({
                       onNodePropChange("alpha_foreground", String(value))
                     }
                   />
-                </div>
-              </CollapsibleSection>
-            </div>
+                  </div>
+                </CollapsibleSection>
+              </div>
+
+              <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+                <CollapsibleSection title="Layout" defaultOpen>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-sm font-medium text-[var(--text-secondary)]">
+                        Scroll speed
+                      </label>
+                      <input
+                        type="number"
+                        min={SCROLL_SPEED_MIN}
+                        max={SCROLL_SPEED_MAX}
+                        step={0.05}
+                        value={scrollSpeed}
+                        onChange={(event) => {
+                          const next = Number(event.target.value);
+                          if (!Number.isFinite(next)) return;
+                          const clamped = clampNumber(
+                            next,
+                            SCROLL_SPEED_MIN,
+                            SCROLL_SPEED_MAX
+                          );
+                          onNodePropChange("settings_scrollSpeed", [
+                            String(clamped),
+                          ]);
+                        }}
+                        className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-sm font-medium text-[var(--text-secondary)]">
+                        Vertical position
+                      </label>
+                      <div className="relative w-48">
+                        <select
+                          value={verticalPosition}
+                          onChange={(event) =>
+                            onNodePropChange("player.verticalPosition", [
+                              event.target.value,
+                            ])
+                          }
+                          className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                        >
+                          {verticalPositionOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown
+                          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                          aria-hidden="true"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <label className="text-sm font-medium text-[var(--text-secondary)]">
+                          Left margin
+                        </label>
+                        <input
+                          type="number"
+                          min={MARGIN_MIN}
+                          max={MARGIN_MAX}
+                          step={1}
+                          value={marginLeft}
+                          onChange={(event) => {
+                            const next = Number(event.target.value);
+                            if (!Number.isFinite(next)) return;
+                            const clamped = clampNumber(
+                              next,
+                              MARGIN_MIN,
+                              MARGIN_MAX
+                            );
+                            onNodePropChange(
+                              "player_container_marginleft",
+                              String(clamped)
+                            );
+                          }}
+                          className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <label className="text-sm font-medium text-[var(--text-secondary)]">
+                          Right margin
+                        </label>
+                        <input
+                          type="number"
+                          min={MARGIN_MIN}
+                          max={MARGIN_MAX}
+                          step={1}
+                          value={marginRight}
+                          onChange={(event) => {
+                            const next = Number(event.target.value);
+                            if (!Number.isFinite(next)) return;
+                            const clamped = clampNumber(
+                              next,
+                              MARGIN_MIN,
+                              MARGIN_MAX
+                            );
+                            onNodePropChange(
+                              "player_container_marginright",
+                              String(clamped)
+                            );
+                          }}
+                          className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </CollapsibleSection>
+              </div>
 
               <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
                 <CollapsibleSection title="Navigation" defaultOpen>
