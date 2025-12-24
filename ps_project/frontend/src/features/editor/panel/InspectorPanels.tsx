@@ -134,6 +134,59 @@ const readStringArray = (value: unknown): string[] => {
   return [];
 };
 
+const SCENE_COLOR_DEFAULTS = {
+  color_background: "#ffffff",
+  color_foreground: "#000000",
+  alpha_foreground: 0,
+  color_text: "#ffffff",
+  alpha_text: 100,
+  color_textbackground: "#000000",
+  alpha_textbackground: 40,
+  color_buttontext: "#ffffff",
+  alpha_buttontext: 100,
+  color_buttonbackground: "#000000",
+  alpha_buttonbackground: 40,
+};
+
+const isHexColor = (value: string): boolean =>
+  /^#[0-9a-fA-F]{6}$/.test(value);
+
+const clampAlpha = (value: number): number =>
+  Math.min(100, Math.max(0, Math.round(value)));
+
+const readNodePropValue = (node: NodeModel, key: string): unknown => {
+  const rawProps = node.rawProps ?? {};
+  const fallbackProps = (node.props as Record<string, unknown> | null) ?? {};
+  return rawProps[key] ?? fallbackProps[key];
+};
+
+const getColorProp = (
+  node: NodeModel,
+  key: keyof typeof SCENE_COLOR_DEFAULTS,
+  fallback: string
+): string => {
+  const value = readNodePropValue(node, key);
+  if (typeof value === "string" && isHexColor(value)) {
+    return value;
+  }
+  return fallback;
+};
+
+const getAlphaProp = (
+  node: NodeModel,
+  key: keyof typeof SCENE_COLOR_DEFAULTS,
+  fallback: number
+): number => {
+  const value = readNodePropValue(node, key);
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? parseFloat(value)
+        : Number.NaN;
+  return Number.isFinite(parsed) ? clampAlpha(parsed) : fallback;
+};
+
 const getNodeChapterType = (node: NodeModel): string => {
   const primaryProps = (node.props as Record<string, unknown> | null) ?? {};
   const fallbackProps = node.rawProps ?? {};
@@ -502,6 +555,7 @@ type NodeInspectorPanelProps = {
   onTitleChange: (title: string) => void;
   onTextChange: (text: string) => void;
   onNodeTypeChange: (chapterType: string) => void;
+  onNodePropChange: (path: string, value: unknown) => void;
 };
 
 export function NodeInspectorPanel({
@@ -511,9 +565,63 @@ export function NodeInspectorPanel({
   onTitleChange,
   onTextChange,
   onNodeTypeChange,
+  onNodePropChange,
 }: NodeInspectorPanelProps) {
   const chapterType = getNodeChapterType(node);
   const isRefNode = chapterType.startsWith("ref-node");
+  const sceneColors = {
+    background: getColorProp(
+      node,
+      "color_background",
+      SCENE_COLOR_DEFAULTS.color_background
+    ),
+    foreground: getColorProp(
+      node,
+      "color_foreground",
+      SCENE_COLOR_DEFAULTS.color_foreground
+    ),
+    foregroundAlpha: getAlphaProp(
+      node,
+      "alpha_foreground",
+      SCENE_COLOR_DEFAULTS.alpha_foreground
+    ),
+    text: getColorProp(node, "color_text", SCENE_COLOR_DEFAULTS.color_text),
+    textAlpha: getAlphaProp(
+      node,
+      "alpha_text",
+      SCENE_COLOR_DEFAULTS.alpha_text
+    ),
+    textBackground: getColorProp(
+      node,
+      "color_textbackground",
+      SCENE_COLOR_DEFAULTS.color_textbackground
+    ),
+    textBackgroundAlpha: getAlphaProp(
+      node,
+      "alpha_textbackground",
+      SCENE_COLOR_DEFAULTS.alpha_textbackground
+    ),
+    buttonText: getColorProp(
+      node,
+      "color_buttontext",
+      SCENE_COLOR_DEFAULTS.color_buttontext
+    ),
+    buttonTextAlpha: getAlphaProp(
+      node,
+      "alpha_buttontext",
+      SCENE_COLOR_DEFAULTS.alpha_buttontext
+    ),
+    buttonBackground: getColorProp(
+      node,
+      "color_buttonbackground",
+      SCENE_COLOR_DEFAULTS.color_buttonbackground
+    ),
+    buttonBackgroundAlpha: getAlphaProp(
+      node,
+      "alpha_buttonbackground",
+      SCENE_COLOR_DEFAULTS.alpha_buttonbackground
+    ),
+  };
 
   return (
     <InspectorShell
@@ -549,7 +657,7 @@ export function NodeInspectorPanel({
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
               <CollapsibleSection title="Node type" defaultOpen>
                 <div className="flex items-center justify-between gap-3">
-                  <label className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                  <label className="text-sm font-medium text-[var(--text-secondary)]">
                     Type
                   </label>
                   <div className="relative w-48">
@@ -605,7 +713,76 @@ export function NodeInspectorPanel({
         </TabsContent>
 
         <TabsContent value="style">
-          <PlaceholderPanel>{placeholderText.style}</PlaceholderPanel>
+          <div className="space-y-4">
+            <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+              <CollapsibleSection title="Scene colors" defaultOpen>
+                <div className="space-y-4">
+                  <ColorOnlyField
+                    label="Background"
+                    value={sceneColors.background}
+                    onChange={(value) =>
+                      onNodePropChange("color_background", value)
+                    }
+                  />
+                  <ColorAlphaField
+                    label="Foreground overlay"
+                    colorValue={sceneColors.foreground}
+                    alphaValue={sceneColors.foregroundAlpha}
+                    onColorChange={(value) =>
+                      onNodePropChange("color_foreground", value)
+                    }
+                    onAlphaChange={(value) =>
+                      onNodePropChange("alpha_foreground", String(value))
+                    }
+                  />
+                  <ColorAlphaField
+                    label="Text"
+                    colorValue={sceneColors.text}
+                    alphaValue={sceneColors.textAlpha}
+                    onColorChange={(value) =>
+                      onNodePropChange("color_text", value)
+                    }
+                    onAlphaChange={(value) =>
+                      onNodePropChange("alpha_text", String(value))
+                    }
+                  />
+                  <ColorAlphaField
+                    label="Text background"
+                    colorValue={sceneColors.textBackground}
+                    alphaValue={sceneColors.textBackgroundAlpha}
+                    onColorChange={(value) =>
+                      onNodePropChange("color_textbackground", value)
+                    }
+                    onAlphaChange={(value) =>
+                      onNodePropChange("alpha_textbackground", String(value))
+                    }
+                  />
+                  <ColorAlphaField
+                    label="Button text"
+                    colorValue={sceneColors.buttonText}
+                    alphaValue={sceneColors.buttonTextAlpha}
+                    onColorChange={(value) =>
+                      onNodePropChange("color_buttontext", value)
+                    }
+                    onAlphaChange={(value) =>
+                      onNodePropChange("alpha_buttontext", String(value))
+                    }
+                  />
+                  <ColorAlphaField
+                    label="Button background"
+                    colorValue={sceneColors.buttonBackground}
+                    alphaValue={sceneColors.buttonBackgroundAlpha}
+                    onColorChange={(value) =>
+                      onNodePropChange("color_buttonbackground", value)
+                    }
+                    onAlphaChange={(value) =>
+                      onNodePropChange("alpha_buttonbackground", String(value))
+                    }
+                  />
+                </div>
+              </CollapsibleSection>
+            </div>
+          </div>
         </TabsContent>
         <TabsContent value="buttons">
           <PlaceholderPanel>{placeholderText.buttons}</PlaceholderPanel>
@@ -704,10 +881,12 @@ function PlaceholderPanel({
 function CollapsibleSection({
   title,
   defaultOpen = false,
+  titleClassName,
   children,
 }: {
   title: string;
   defaultOpen?: boolean;
+  titleClassName?: string;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -730,11 +909,128 @@ function CollapsibleSection({
           )}
           aria-hidden="true"
         />
-        <span className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+        <span
+          className={
+            titleClassName ??
+            "text-sm font-semibold uppercase tracking-[0.18em] text-[var(--muted)]"
+          }
+        >
           {title}
         </span>
       </button>
       {open ? <div className="space-y-3 px-4 pb-3">{children}</div> : null}
+    </div>
+  );
+}
+
+const colorInputClasses =
+  "h-8 w-12 cursor-pointer rounded-md bg-transparent p-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]";
+
+const rangeInputClasses = cn(
+  "h-1 w-full cursor-pointer appearance-none bg-transparent",
+  "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]",
+  "[&::-webkit-slider-thumb]:appearance-none",
+  "[&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3",
+  "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--accent)]",
+  "[&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-[var(--border)]",
+  "[&::-webkit-slider-thumb]:mt-[-0.25rem]",
+  "[&::-webkit-slider-runnable-track]:h-1",
+  "[&::-webkit-slider-runnable-track]:rounded-full",
+  "[&::-webkit-slider-runnable-track]:bg-[var(--border)]",
+  "[&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3",
+  "[&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--accent)]",
+  "[&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-[var(--border)]",
+  "[&::-moz-range-track]:h-1 [&::-moz-range-track]:rounded-full",
+  "[&::-moz-range-track]:bg-[var(--border)]"
+);
+
+function ColorOnlyField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-[var(--text-secondary)]">
+          {label}
+        </span>
+        <input
+          type="color"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          aria-label={`${label} color`}
+          className={colorInputClasses}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ColorAlphaField({
+  label,
+  colorValue,
+  alphaValue,
+  onColorChange,
+  onAlphaChange,
+}: {
+  label: string;
+  colorValue: string;
+  alphaValue: number;
+  onColorChange: (value: string) => void;
+  onAlphaChange: (value: number) => void;
+}) {
+  const clampedAlpha = clampAlpha(alphaValue);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-[var(--text-secondary)]">
+          {label}
+        </span>
+        <input
+          type="color"
+          value={colorValue}
+          onChange={(event) => onColorChange(event.target.value)}
+          aria-label={`${label} color`}
+          className={colorInputClasses}
+        />
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+        <label className="flex items-center gap-3 text-xs text-[var(--muted)]">
+          <span className="whitespace-nowrap">Opacity</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={clampedAlpha}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              if (!Number.isFinite(next)) return;
+              onAlphaChange(clampAlpha(next));
+            }}
+            aria-label={`${label} opacity`}
+            className={rangeInputClasses}
+          />
+        </label>
+        <input
+          type="number"
+          min={0}
+          max={100}
+          value={clampedAlpha}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            if (!Number.isFinite(next)) return;
+            onAlphaChange(clampAlpha(next));
+          }}
+          aria-label={`${label} opacity value`}
+          className="w-16 rounded-md border border-[var(--border)] bg-transparent px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+        />
+      </div>
     </div>
   );
 }

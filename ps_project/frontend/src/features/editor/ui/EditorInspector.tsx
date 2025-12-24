@@ -19,6 +19,7 @@ export function EditorInspector() {
   const setActiveTab = useEditorStore((s) => s.setNodeInspectorTab);
   const updateNodeTitle = useEditorStore((s) => s.updateNodeTitle);
   const updateNodeText = useEditorStore((s) => s.updateNodeText);
+  const setNodePropPath = useEditorStore((s) => s.setNodePropPath);
   const setNodePropStringArraySelect = useEditorStore(
     (s) => s.setNodePropStringArraySelect
   );
@@ -50,6 +51,9 @@ export function EditorInspector() {
             "settings_chapterType",
             chapterType
           )
+        }
+        onNodePropChange={(path, value) =>
+          setNodePropPath(selectedNode.nodeId, path, value)
         }
       />
     );
