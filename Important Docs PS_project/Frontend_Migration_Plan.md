@@ -1342,7 +1342,7 @@ web/
 
 ---
 
-### Step 23 – Node properties panel (visual & behavioral props)
+### [done] Step 23 – Node properties panel (visual & behavioral props)
 
 **What we do**
 

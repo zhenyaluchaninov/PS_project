@@ -1,5 +1,6 @@
 "use client";
 
+import type { NodeModel } from "@/domain/models";
 import {
   selectEditorAdventure,
   selectEditorNodeInspectorTab,
@@ -37,11 +38,30 @@ export function EditorInspector() {
       ? adventure.links.find((link) => link.linkId === selection.linkId)
       : null;
 
+  const nodeById = new Map<number, NodeModel>();
+  if (adventure) {
+    adventure.nodes.forEach((node) => nodeById.set(node.nodeId, node));
+  }
+  const outgoingLinks =
+    selection.type === "node" && selectedNode
+      ? adventure.links
+          .filter((link) => link.source === selectedNode.nodeId)
+          .map((link) => ({
+            linkId: link.linkId,
+            targetId: link.target,
+            label:
+              (link.label && link.label.trim()) ||
+              nodeById.get(link.target)?.title ||
+              `#${link.target}`,
+          }))
+      : [];
+
   if (selection.type === "node" && selectedNode) {
     return (
       <NodeInspectorPanel
         node={selectedNode}
         fontList={adventure.props?.fontList}
+        outgoingLinks={outgoingLinks}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onTitleChange={(title) => updateNodeTitle(selectedNode.nodeId, title)}

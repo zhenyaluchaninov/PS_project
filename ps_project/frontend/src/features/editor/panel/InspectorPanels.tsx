@@ -11,7 +11,7 @@ import {
 import { LabelValue } from "@/ui-core/LabelValue";
 import { cn } from "@/lib/utils";
 import type { EditorNodeInspectorTab } from "../state/editorStore";
-import { ChevronDown, Clock } from "lucide-react";
+import { ChevronDown, Clock, GripVertical } from "lucide-react";
 
 const chapterTypeOptions = [
   { value: "", label: "Default" },
@@ -77,6 +77,41 @@ const textShadowOptions = [
 const textShadowValues = new Set(
   textShadowOptions.map((option) => option.value)
 );
+
+const builtInFontOptions = [
+  { value: "font-roboto", label: "Roboto" },
+  { value: "font-robotoserif", label: "Roboto Serif" },
+  { value: "font-robotocondensed", label: "Roboto Condensed" },
+  { value: "font-conduitmedium", label: "Conduit Medium" },
+  { value: "font-conduitlight", label: "Conduit Light" },
+  { value: "font-cardo", label: "Cardo" },
+  { value: "font-shadowsintolight", label: "Shadows Into Light" },
+  { value: "font-amaticsc", label: "Amatic SC" },
+  { value: "font-armata", label: "Armata" },
+  { value: "font-cabin", label: "Cabin" },
+  { value: "font-cabincondensed", label: "Cabin Condensed" },
+  { value: "font-cormorant", label: "Cormorant" },
+  { value: "font-ebgaramond", label: "EB Garamond" },
+  { value: "font-firasans", label: "Fira Sans" },
+  { value: "font-gabriela", label: "Gabriela" },
+  { value: "font-lato", label: "Lato" },
+  { value: "font-librebaskerville", label: "Libre Baskerville" },
+  { value: "font-librefranklin", label: "Libre Franklin" },
+  { value: "font-merriweather", label: "Merriweather" },
+  { value: "font-nunito", label: "Nunito" },
+  { value: "font-opensans", label: "Open Sans" },
+  { value: "font-opensanscondensed", label: "Open Sans Condensed" },
+  { value: "font-oswald", label: "Oswald" },
+  { value: "font-playfairdisplay", label: "Playfair Display" },
+  { value: "font-poppins", label: "Poppins" },
+  { value: "font-rougescript", label: "Rouge Script" },
+  { value: "font-sairacondensed", label: "Saira Condensed" },
+  { value: "font-sriracha", label: "Sriracha" },
+  { value: "font-ubuntu", label: "Ubuntu" },
+  { value: "font-worksans", label: "Work Sans" },
+  { value: "font-zillaslab", label: "Zilla Slab" },
+  { value: "font-barlow", label: "Barlow" },
+];
 
 const NAV_TEXT_SIZE_MIN = 8;
 const NAV_TEXT_SIZE_MAX = 18;
@@ -352,6 +387,11 @@ const getAudioVolume = (node: NodeModel): number => {
   const volume = getNumberProp(node, "audio_volume", AUDIO_VOLUME_MAX);
   return Number.isFinite(volume) ? volume : AUDIO_VOLUME_MAX;
 };
+
+const getOrderedLinkIds = (node: NodeModel): number[] =>
+  readStringArray(readNodePropValue(node, "ordered_link_ids"))
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
 
 const getVerticalPosition = (node: NodeModel): string => {
   const value = readNodePropValue(node, "player.verticalPosition");
@@ -733,6 +773,7 @@ function RichTextEditor({
 type NodeInspectorPanelProps = {
   node: NodeModel;
   fontList?: string[];
+  outgoingLinks?: Array<{ linkId: number; targetId: number; label: string }>;
   activeTab: EditorNodeInspectorTab;
   onTabChange: (tab: EditorNodeInspectorTab) => void;
   onTitleChange: (title: string) => void;
@@ -744,6 +785,7 @@ type NodeInspectorPanelProps = {
 export function NodeInspectorPanel({
   node,
   fontList,
+  outgoingLinks = [],
   activeTab,
   onTabChange,
   onTitleChange,
@@ -755,11 +797,11 @@ export function NodeInspectorPanel({
     "Node type": false,
     Text: false,
     Background: false,
-    Typography: false,
     Layout: false,
     Navigation: false,
     Audio: false,
     "Button appearance": false,
+    "Button order": false,
     Conditions: false,
     Tracking: false,
   });
@@ -778,6 +820,22 @@ export function NodeInspectorPanel({
   const statisticsEnabled = getStatisticsEnabled(node);
   const navTextSize = getNavTextSize(node);
   const audioVolume = getAudioVolume(node);
+  const orderedLinkIds = getOrderedLinkIds(node);
+  const orderedOutgoingLinks = (() => {
+    const orderIndex = new Map(
+      orderedLinkIds.map((id, index) => [id, index])
+    );
+    return outgoingLinks
+      .map((link, index) => ({
+        ...link,
+        sortIndex: orderIndex.get(link.linkId) ?? Number.POSITIVE_INFINITY,
+        originalIndex: index,
+      }))
+      .sort((a, b) => {
+        if (a.sortIndex !== b.sortIndex) return a.sortIndex - b.sortIndex;
+        return a.originalIndex - b.originalIndex;
+      });
+  })();
   const marginLeft = getNumberProp(
     node,
     "player_container_marginleft",
@@ -806,11 +864,11 @@ export function NodeInspectorPanel({
         .filter((name) => name.length > 0)
     )
   );
-  const fontOptions = uploadedFonts.map((name) => ({
+  const uploadedFontOptions = uploadedFonts.map((name) => ({
     value: `xfont-${name}`,
     label: name,
   }));
-  const hasUploadedFonts = fontOptions.length > 0;
+  const fontOptions = [...builtInFontOptions, ...uploadedFontOptions];
   const fontOptionValues = new Set(fontOptions.map((option) => option.value));
   const fontSelectValue = fontToken ?? "";
   const needsLegacyOption =
@@ -1002,6 +1060,38 @@ export function NodeInspectorPanel({
                             />
                           </div>
                         </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="text-sm font-medium text-[var(--text-secondary)]">
+                            Font (player buttons/menu)
+                          </label>
+                          <div className="relative w-56">
+                            <select
+                              value={fontSelectValue}
+                              onChange={(event) =>
+                                onNodePropChange("background.font", [
+                                  event.target.value,
+                                ])
+                              }
+                              className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                            >
+                              <option value="">Default</option>
+                              {fontOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                              {needsLegacyOption ? (
+                                <option value={fontSelectValue}>
+                                  Current: {legacyFontLabel}
+                                </option>
+                              ) : null}
+                            </select>
+                            <ChevronDown
+                              className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                              aria-hidden="true"
+                            />
+                          </div>
+                        </div>
                         <ColorAlphaField
                           label="Text"
                           colorValue={sceneColors.text}
@@ -1082,66 +1172,6 @@ export function NodeInspectorPanel({
                       allowBeyondMax
                       onChange={(next) =>
                         onNodePropChange("color_blur", String(next))
-                      }
-                    />
-                  </div>
-                </CollapsibleSection>
-
-                <CollapsibleSection
-                  title="Typography"
-                  open={sectionState.Typography}
-                  onToggle={(next) => setSectionOpen("Typography", next)}
-                >
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <label className="text-sm font-medium text-[var(--text-secondary)]">
-                        Font
-                      </label>
-                      <div className="relative w-56">
-                        <select
-                          value={fontSelectValue}
-                          onChange={(event) =>
-                            onNodePropChange("background.font", [
-                              event.target.value,
-                            ])
-                          }
-                          disabled={!hasUploadedFonts}
-                          className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <option value="">Default</option>
-                          {fontOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                          {needsLegacyOption ? (
-                            <option value={fontSelectValue}>
-                              Current: {legacyFontLabel}
-                            </option>
-                          ) : null}
-                        </select>
-                        <ChevronDown
-                          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
-                          aria-hidden="true"
-                        />
-                      </div>
-                    </div>
-                    {!hasUploadedFonts ? (
-                      <p className="text-xs text-[var(--muted)]">
-                        No uploaded fonts.
-                      </p>
-                    ) : null}
-
-                    <RangeField
-                      label="Navigation font size"
-                      value={navTextSize}
-                      min={NAV_TEXT_SIZE_MIN}
-                      max={NAV_TEXT_SIZE_MAX}
-                      step={2}
-                      onChange={(next) =>
-                        onNodePropChange("playerNavigation_textSize", [
-                          String(next),
-                        ])
                       }
                     />
                   </div>
@@ -1365,7 +1395,41 @@ export function NodeInspectorPanel({
                       onNodePropChange("alpha_buttonbackground", String(value))
                     }
                   />
+                  <RangeField
+                    label="Navigation buttons font size"
+                    value={navTextSize}
+                    min={NAV_TEXT_SIZE_MIN}
+                    max={NAV_TEXT_SIZE_MAX}
+                    step={2}
+                    onChange={(next) =>
+                      onNodePropChange("playerNavigation_textSize", [
+                        String(next),
+                      ])
+                    }
+                  />
                 </div>
+              </CollapsibleSection>
+
+              <CollapsibleSection
+                title="Button order"
+                open={sectionState["Button order"]}
+                onToggle={(next) => setSectionOpen("Button order", next)}
+              >
+                {orderedOutgoingLinks.length === 0 ? (
+                  <p className="text-sm text-[var(--muted)]">
+                    No outgoing links.
+                  </p>
+                ) : (
+                  <ReorderList
+                    items={orderedOutgoingLinks}
+                    onReorder={(next) =>
+                      onNodePropChange(
+                        "ordered_link_ids",
+                        next.map((link) => String(link.linkId))
+                      )
+                    }
+                  />
+                )}
               </CollapsibleSection>
             </div>
           </div>
@@ -1747,6 +1811,169 @@ function RangeField({
           className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
         />
       </div>
+    </div>
+  );
+}
+
+function ReorderList({
+  items,
+  onReorder,
+}: {
+  items: Array<{ linkId: number; targetId: number; label: string }>;
+  onReorder: (items: Array<{ linkId: number; targetId: number; label: string }>) => void;
+}) {
+  const rowRefs = useRef(new Map<number, HTMLDivElement>());
+  const ghostRef = useRef<HTMLDivElement | null>(null);
+  const [draftItems, setDraftItems] = useState(items);
+  const draftItemsRef = useRef(draftItems);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const draggingIdRef = useRef<number | null>(null);
+  const didDropRef = useRef(false);
+
+  useEffect(() => {
+    draftItemsRef.current = draftItems;
+  }, [draftItems]);
+
+  useEffect(() => {
+    draggingIdRef.current = draggingId;
+  }, [draggingId]);
+
+  useEffect(() => {
+    if (draggingIdRef.current === null) {
+      setDraftItems(items);
+    }
+  }, [items]);
+
+  const reorderItems = (
+    list: Array<{ linkId: number; targetId: number; label: string }>,
+    sourceId: number,
+    targetId: number
+  ) => {
+    const fromIndex = list.findIndex((item) => item.linkId === sourceId);
+    const toIndex = list.findIndex((item) => item.linkId === targetId);
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+      return list;
+    }
+    const next = [...list];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    return next;
+  };
+
+  const handleDragStart = (itemId: number) => (event: React.DragEvent) => {
+    didDropRef.current = false;
+    setDraggingId(itemId);
+    setDraftItems(items);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(itemId));
+    const row = rowRefs.current.get(itemId);
+    if (row) {
+      const rect = row.getBoundingClientRect();
+      ghostRef.current?.remove();
+      const ghost = document.createElement("div");
+      const computed = window.getComputedStyle(row);
+      ghost.style.width = `${rect.width}px`;
+      ghost.style.height = `${rect.height}px`;
+      ghost.style.border = `${computed.borderTopWidth} solid ${computed.borderTopColor}`;
+      ghost.style.borderRadius = computed.borderRadius;
+      ghost.style.backgroundColor = computed.backgroundColor;
+      ghost.style.boxShadow = "0 10px 20px rgba(0, 0, 0, 0.25)";
+      ghost.style.opacity = "0.95";
+      ghost.style.boxSizing = "border-box";
+      ghost.style.position = "absolute";
+      ghost.style.top = "-9999px";
+      ghost.style.left = "-9999px";
+      ghost.style.pointerEvents = "none";
+      document.body.appendChild(ghost);
+      ghostRef.current = ghost;
+      event.dataTransfer.setDragImage(
+        ghost,
+        rect.width / 2,
+        rect.height / 2
+      );
+    }
+  };
+
+  const handleDragOver = (itemId: number) => (event: React.DragEvent) => {
+    if (draggingId === null || draggingId === itemId) return;
+    event.preventDefault();
+    setDraftItems((prev) => reorderItems(prev, draggingId, itemId));
+  };
+
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault();
+    didDropRef.current = true;
+    const finalItems = draftItemsRef.current;
+    const changed =
+      finalItems.length === items.length &&
+      finalItems.some(
+        (item, index) => item.linkId !== items[index]?.linkId
+      );
+    ghostRef.current?.remove();
+    ghostRef.current = null;
+    if (changed) {
+      onReorder(finalItems);
+    }
+    setDraggingId(null);
+  };
+
+  const handleDragEnd = () => {
+    if (!didDropRef.current) {
+      setDraftItems(items);
+    }
+    setDraggingId(null);
+    ghostRef.current?.remove();
+    ghostRef.current = null;
+  };
+
+  const displayItems = draftItems;
+
+  return (
+    <div
+      className="space-y-2"
+      onDragOver={(event) => {
+        if (draggingId !== null) event.preventDefault();
+      }}
+      onDrop={handleDrop}
+    >
+      {displayItems.map((item) => (
+        <div
+          key={item.linkId}
+          role="listitem"
+          ref={(node) => {
+            if (node) {
+              rowRefs.current.set(item.linkId, node);
+            } else {
+              rowRefs.current.delete(item.linkId);
+            }
+          }}
+          onDragOver={handleDragOver(item.linkId)}
+          onDrop={handleDrop}
+          className={cn(
+            "flex items-center gap-3 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2",
+            draggingId === item.linkId ? "opacity-0" : ""
+          )}
+        >
+          <button
+            type="button"
+            draggable
+            onDragStart={handleDragStart(item.linkId)}
+            onDragEnd={handleDragEnd}
+            aria-label={`Reorder ${item.label}`}
+            className="cursor-grab text-[var(--muted)] active:cursor-grabbing"
+          >
+            <GripVertical className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-[var(--text-secondary)]">
+              {item.label}
+            </p>
+            <p className="text-xs text-[var(--muted)]">
+              Node #{item.targetId}
+            </p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
