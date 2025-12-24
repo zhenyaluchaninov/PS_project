@@ -1,7 +1,18 @@
 import type { AdventureModel } from "@/domain/models";
 import { loadAdventureForEdit } from "@/features/state/api";
 import { isApiError, resolveApiUrl } from "@/features/state/api/client";
+import { toastError } from "@/features/ui-core/toast";
 import { create } from "zustand";
+import {
+  applyPropUpdates,
+  setAny,
+  setMultiSelect,
+  setStringArraySelect,
+  updatePropsInput,
+  type PropPathOptions,
+  type PropsChangeResult,
+  type StringArraySelectOptions,
+} from "./propsEditing";
 
 export type EditorStatus = "idle" | "loading" | "ready" | "error";
 
@@ -82,7 +93,49 @@ type EditorState = {
   setFocusNodeId: (nodeId: number) => void;
   clearFocusNode: () => void;
   updateNodeTitle: (nodeId: number, title: string) => void;
-  updateNodeProps: (nodeId: number, updates: Record<string, unknown>) => void;
+  updateNodeProps: (
+    nodeId: number,
+    updates: Record<string, unknown>,
+    options?: PropPathOptions
+  ) => void;
+  setNodePropPath: (
+    nodeId: number,
+    path: string,
+    value: unknown,
+    options?: PropPathOptions
+  ) => void;
+  setNodePropStringArraySelect: (
+    nodeId: number,
+    path: string,
+    selectedValue: string,
+    options?: StringArraySelectOptions
+  ) => void;
+  setNodePropMultiSelect: (
+    nodeId: number,
+    path: string,
+    values: string[],
+    options?: PropPathOptions
+  ) => void;
+  updateLinkProps: (
+    linkId: number,
+    updates: Record<string, unknown>,
+    options?: PropPathOptions
+  ) => void;
+  setLinkPropPath: (
+    linkId: number,
+    path: string,
+    value: unknown,
+    options?: PropPathOptions
+  ) => void;
+  updateAdventureProps: (
+    updates: Record<string, unknown>,
+    options?: PropPathOptions
+  ) => void;
+  setAdventurePropPath: (
+    path: string,
+    value: unknown,
+    options?: PropPathOptions
+  ) => void;
   updateNodePositions: (updates: EditorNodePositionUpdate[]) => void;
   addLink: (sourceId: number, targetId: number) => number | null;
   addNodeWithLink: (
@@ -123,29 +176,122 @@ function arraysEqual(a: number[], b: number[]): boolean {
   return a.every((value, index) => value === b[index]);
 }
 
-function propsValueEqual(a: unknown, b: unknown): boolean {
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false;
-    return a.every((value, index) => value === b[index]);
-  }
-  return a === b;
-}
-
-function hasPropChanges(
-  current: Record<string, unknown>,
-  updates: Record<string, unknown>
-): boolean {
-  return Object.entries(updates).some(
-    ([key, value]) => !propsValueEqual(current[key], value)
-  );
-}
-
 function selectionsEqual(a: EditorSelection, b: EditorSelection): boolean {
   if (a.type !== b.type) return false;
   if (a.type === "node" && b.type === "node") return a.nodeId === b.nodeId;
   if (a.type === "link" && b.type === "link") return a.linkId === b.linkId;
   return true;
 }
+
+type PropsUpdater = (props: Record<string, unknown>) => PropsChangeResult;
+
+const applyNodePropsUpdate = (
+  state: EditorState,
+  nodeId: number,
+  updater: PropsUpdater,
+  errorTitle: string
+) => {
+  if (!state.adventure) return {};
+  const nodeIndex = state.adventure.nodes.findIndex(
+    (node) => node.nodeId === nodeId
+  );
+  if (nodeIndex === -1) return {};
+  const node = state.adventure.nodes[nodeIndex];
+  const rawInput =
+    node.rawProps ?? (node.props as Record<string, unknown> | null) ?? {};
+  const rawResult = updatePropsInput(rawInput, updater);
+  if (!rawResult.ok) {
+    toastError(errorTitle, rawResult.error);
+    return {};
+  }
+  const propsInput = (node.props as Record<string, unknown> | null) ?? {};
+  const propsResult = updatePropsInput(propsInput, updater);
+  if (!propsResult.ok) {
+    toastError(errorTitle, propsResult.error);
+    return {};
+  }
+  if (!rawResult.changed && !propsResult.changed) return {};
+  const historyEntry: EditorHistoryEntry = {
+    nodes: state.adventure.nodes,
+    links: state.adventure.links,
+    selection: state.selection,
+    selectedNodeIds: state.selectedNodeIds,
+    selectedLinkIds: state.selectedLinkIds,
+    dirty: state.dirty,
+  };
+  const nextNodes = [...state.adventure.nodes];
+  nextNodes[nodeIndex] = {
+    ...node,
+    rawProps: rawResult.props,
+    props: propsResult.props,
+    changed: true,
+  };
+  return {
+    adventure: { ...state.adventure, nodes: nextNodes },
+    dirty: true,
+    undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
+  };
+};
+
+const applyLinkPropsUpdate = (
+  state: EditorState,
+  linkId: number,
+  updater: PropsUpdater,
+  errorTitle: string
+) => {
+  if (!state.adventure) return {};
+  const linkIndex = state.adventure.links.findIndex(
+    (link) => link.linkId === linkId
+  );
+  if (linkIndex === -1) return {};
+  const link = state.adventure.links[linkIndex];
+  const propsInput = (link.props as Record<string, unknown> | null) ?? {};
+  const propsResult = updatePropsInput(propsInput, updater);
+  if (!propsResult.ok) {
+    toastError(errorTitle, propsResult.error);
+    return {};
+  }
+  if (!propsResult.changed) return {};
+  const historyEntry: EditorHistoryEntry = {
+    nodes: state.adventure.nodes,
+    links: state.adventure.links,
+    selection: state.selection,
+    selectedNodeIds: state.selectedNodeIds,
+    selectedLinkIds: state.selectedLinkIds,
+    dirty: state.dirty,
+  };
+  const nextLinks = [...state.adventure.links];
+  nextLinks[linkIndex] = {
+    ...link,
+    props: propsResult.props,
+    changed: true,
+  };
+  return {
+    adventure: { ...state.adventure, links: nextLinks },
+    dirty: true,
+    undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
+  };
+};
+
+const applyAdventurePropsUpdate = (
+  state: EditorState,
+  updater: PropsUpdater,
+  errorTitle: string
+) => {
+  if (!state.adventure) return {};
+  const propsInput =
+    (state.adventure.props as Record<string, unknown> | null) ?? {};
+  const propsResult = updatePropsInput(propsInput, updater);
+  if (!propsResult.ok) {
+    toastError(errorTitle, propsResult.error);
+    return {};
+  }
+  if (!propsResult.changed) return {};
+  return {
+    adventure: { ...state.adventure, props: propsResult.props },
+    dirty: true,
+  };
+};
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   status: "idle",
@@ -242,42 +388,86 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     });
   },
-  updateNodeProps: (nodeId, updates) => {
-    const updateKeys = Object.keys(updates);
-    if (!updateKeys.length) return;
-    set((state) => {
-      if (!state.adventure) return {};
-      const nodeIndex = state.adventure.nodes.findIndex(
-        (node) => node.nodeId === nodeId
-      );
-      if (nodeIndex === -1) return {};
-      const node = state.adventure.nodes[nodeIndex];
-      const baseProps =
-        node.rawProps ?? (node.props as Record<string, unknown> | null) ?? {};
-      if (!hasPropChanges(baseProps, updates)) return {};
-      const historyEntry: EditorHistoryEntry = {
-        nodes: state.adventure.nodes,
-        links: state.adventure.links,
-        selection: state.selection,
-        selectedNodeIds: state.selectedNodeIds,
-        selectedLinkIds: state.selectedLinkIds,
-        dirty: state.dirty,
-      };
-      const mergedProps = { ...baseProps, ...updates };
-      const nextProps = node.props ? { ...node.props, ...updates } : { ...updates };
-      const nextNodes = [...state.adventure.nodes];
-      nextNodes[nodeIndex] = {
-        ...node,
-        rawProps: mergedProps,
-        props: nextProps,
-        changed: true,
-      };
-      return {
-        adventure: { ...state.adventure, nodes: nextNodes },
-        dirty: true,
-        undoStack: [...state.undoStack, historyEntry].slice(-MAX_UNDO_STACK),
-      };
-    });
+  updateNodeProps: (nodeId, updates, options) => {
+    if (!Object.keys(updates).length) return;
+    set((state) =>
+      applyNodePropsUpdate(
+        state,
+        nodeId,
+        (props) => applyPropUpdates(props, updates, options),
+        "Node props invalid"
+      )
+    );
+  },
+  setNodePropPath: (nodeId, path, value, options) => {
+    set((state) =>
+      applyNodePropsUpdate(
+        state,
+        nodeId,
+        (props) => setAny(props, path, value, options),
+        "Node props invalid"
+      )
+    );
+  },
+  setNodePropStringArraySelect: (nodeId, path, selectedValue, options) => {
+    set((state) =>
+      applyNodePropsUpdate(
+        state,
+        nodeId,
+        (props) => setStringArraySelect(props, path, selectedValue, options),
+        "Node props invalid"
+      )
+    );
+  },
+  setNodePropMultiSelect: (nodeId, path, values, options) => {
+    set((state) =>
+      applyNodePropsUpdate(
+        state,
+        nodeId,
+        (props) => setMultiSelect(props, path, values, options),
+        "Node props invalid"
+      )
+    );
+  },
+  updateLinkProps: (linkId, updates, options) => {
+    if (!Object.keys(updates).length) return;
+    set((state) =>
+      applyLinkPropsUpdate(
+        state,
+        linkId,
+        (props) => applyPropUpdates(props, updates, options),
+        "Link props invalid"
+      )
+    );
+  },
+  setLinkPropPath: (linkId, path, value, options) => {
+    set((state) =>
+      applyLinkPropsUpdate(
+        state,
+        linkId,
+        (props) => setAny(props, path, value, options),
+        "Link props invalid"
+      )
+    );
+  },
+  updateAdventureProps: (updates, options) => {
+    if (!Object.keys(updates).length) return;
+    set((state) =>
+      applyAdventurePropsUpdate(
+        state,
+        (props) => applyPropUpdates(props, updates, options),
+        "Adventure props invalid"
+      )
+    );
+  },
+  setAdventurePropPath: (path, value, options) => {
+    set((state) =>
+      applyAdventurePropsUpdate(
+        state,
+        (props) => setAny(props, path, value, options),
+        "Adventure props invalid"
+      )
+    );
   },
   updateNodePositions: (updates) => {
     if (!updates.length) return;

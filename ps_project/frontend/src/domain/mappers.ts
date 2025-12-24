@@ -67,9 +67,9 @@ function normalizeAdventureProps(raw: unknown): AdventurePropsModel | null {
       ? record.fontList.filter((item) => typeof item === "string")
       : [];
 
-  if (!fontList.length) return null;
+  if (!fontList.length) return { ...record };
 
-  return { fontList };
+  return { ...record, fontList };
 }
 
 function normalizeNodeProps(raw: unknown): NodePropsModel | null {

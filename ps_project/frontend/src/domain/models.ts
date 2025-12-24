@@ -1,5 +1,5 @@
-export type AdventurePropsModel = {
-  fontList: string[];
+export type AdventurePropsModel = Record<string, unknown> & {
+  fontList?: string[];
 };
 
 export type NodePropsModel = Record<string, unknown> & {

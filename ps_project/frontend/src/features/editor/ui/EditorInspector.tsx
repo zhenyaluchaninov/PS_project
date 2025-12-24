@@ -18,7 +18,9 @@ export function EditorInspector() {
   const activeTab = useEditorStore(selectEditorNodeInspectorTab);
   const setActiveTab = useEditorStore((s) => s.setNodeInspectorTab);
   const updateNodeTitle = useEditorStore((s) => s.updateNodeTitle);
-  const updateNodeProps = useEditorStore((s) => s.updateNodeProps);
+  const setNodePropStringArraySelect = useEditorStore(
+    (s) => s.setNodePropStringArraySelect
+  );
 
   if (!adventure) {
     return <div className="h-full" />;
@@ -41,9 +43,11 @@ export function EditorInspector() {
         onTabChange={setActiveTab}
         onTitleChange={(title) => updateNodeTitle(selectedNode.nodeId, title)}
         onNodeTypeChange={(chapterType) =>
-          updateNodeProps(selectedNode.nodeId, {
-            settings_chapterType: [chapterType],
-          })
+          setNodePropStringArraySelect(
+            selectedNode.nodeId,
+            "settings_chapterType",
+            chapterType
+          )
         }
       />
     );
