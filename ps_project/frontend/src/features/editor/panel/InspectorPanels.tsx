@@ -32,12 +32,6 @@ const tabOptions: Array<{ value: EditorNodeInspectorTab; label: string }> = [
   { value: "logic", label: "Logic" },
 ];
 
-const placeholderText = {
-  style: "Style controls coming in the next update.",
-  buttons: "Button controls coming in the next update.",
-  logic: "Logic tools coming in the next update.",
-};
-
 const emojiOptions = [
   "\u{1F600}",
   "\u{1F601}",
@@ -74,6 +68,16 @@ const navigationStyleValues = new Set(
   navigationStyleOptions.map((option) => option.value)
 );
 
+const textShadowOptions = [
+  { value: "", label: "None" },
+  { value: "text-shadow-black", label: "Black" },
+  { value: "text-shadow-white", label: "White" },
+];
+
+const textShadowValues = new Set(
+  textShadowOptions.map((option) => option.value)
+);
+
 const verticalPositionOptions = [
   { value: "vertical-align-top", label: "Top" },
   { value: "vertical-align-center", label: "Center" },
@@ -87,9 +91,15 @@ const verticalPositionValues = new Set(
 const SCROLL_SPEED_MIN = 0;
 const SCROLL_SPEED_MAX = 1.5;
 const SCROLL_SPEED_DEFAULT = 0.5;
+const BLUR_MIN = 0;
+const BLUR_MAX = 100;
 const MARGIN_DEFAULT = 18;
 const MARGIN_MIN = 0;
 const MARGIN_MAX = 100;
+const AUDIO_VOLUME_MIN = 0;
+const AUDIO_VOLUME_MAX = 100;
+const CONDITIONS_COLOR_DEFAULT = "#000000";
+const CONDITIONS_ALPHA_DEFAULT = 40;
 
 const normalizeNewlines = (value: string): string =>
   value.replace(/\r\n/g, "\n");
@@ -220,17 +230,48 @@ const getAlphaProp = (
   return Number.isFinite(parsed) ? clampAlpha(parsed) : fallback;
 };
 
+const getColorValue = (
+  node: NodeModel,
+  key: string,
+  fallback: string
+): string => {
+  const value = readNodePropValue(node, key);
+  if (typeof value === "string" && isHexColor(value)) {
+    return value;
+  }
+  return fallback;
+};
+
+const getAlphaValue = (
+  node: NodeModel,
+  key: string,
+  fallback: number
+): number => {
+  const value = readNodePropValue(node, key);
+  const primary =
+    Array.isArray(value) && value.length > 0 ? value[0] : value;
+  const parsed =
+    typeof primary === "number"
+      ? primary
+      : typeof primary === "string"
+        ? parseFloat(primary)
+        : Number.NaN;
+  return Number.isFinite(parsed) ? clampAlpha(parsed) : fallback;
+};
+
 const getNumberProp = (
   node: NodeModel,
   key: string,
   fallback: number
 ): number => {
   const value = readNodePropValue(node, key);
+  const primary =
+    Array.isArray(value) && value.length > 0 ? value[0] : value;
   const parsed =
-    typeof value === "number"
-      ? value
-      : typeof value === "string"
-        ? parseFloat(value)
+    typeof primary === "number"
+      ? primary
+      : typeof primary === "string"
+        ? parseFloat(primary)
         : Number.NaN;
   return Number.isFinite(parsed) ? parsed : fallback;
 };
@@ -245,6 +286,45 @@ const getNavigationStyle = (node: NodeModel): string => {
 
 const getNavigationSettings = (node: NodeModel): string[] =>
   readStringArray(readNodePropValue(node, "playerNavigation.settings"));
+
+const getTextShadow = (node: NodeModel): string => {
+  const tokens = readStringArray(
+    readNodePropValue(node, "outer_container.textShadow")
+  );
+  const candidate = tokens[0]?.trim() ?? "";
+  return textShadowValues.has(candidate) ? candidate : "";
+};
+
+const isToggleOn = (value: unknown): boolean => {
+  const tokens = readStringArray(value).map((token) => token.toLowerCase());
+  return tokens.some(
+    (token) =>
+      token === "on" || token === "true" || token === "1" || token === "yes"
+  );
+};
+
+const getGrayscaleEnabled = (node: NodeModel): boolean =>
+  readStringArray(readNodePropValue(node, "settings_grayscale")).some(
+    (token) => token.toLowerCase() === "on"
+  );
+
+const getBlurAmount = (node: NodeModel): number => {
+  const blur = getNumberProp(node, "color_blur", 0);
+  return Number.isFinite(blur) ? Math.max(0, blur) : 0;
+};
+
+const getHideVisitedEnabled = (node: NodeModel): boolean =>
+  readStringArray(readNodePropValue(node, "node_conditions")).some(
+    (token) => token.toLowerCase() === "hide_visited"
+  );
+
+const getStatisticsEnabled = (node: NodeModel): boolean =>
+  isToggleOn(readNodePropValue(node, "node_statistics"));
+
+const getAudioVolume = (node: NodeModel): number => {
+  const volume = getNumberProp(node, "audio_volume", AUDIO_VOLUME_MAX);
+  return Number.isFinite(volume) ? volume : AUDIO_VOLUME_MAX;
+};
 
 const getVerticalPosition = (node: NodeModel): string => {
   const value = readNodePropValue(node, "player.verticalPosition");
@@ -648,6 +728,12 @@ export function NodeInspectorPanel({
   const navigationSettings = getNavigationSettings(node);
   const verticalPosition = getVerticalPosition(node);
   const scrollSpeed = getScrollSpeed(node);
+  const textShadow = getTextShadow(node);
+  const grayscaleEnabled = getGrayscaleEnabled(node);
+  const blurAmount = getBlurAmount(node);
+  const hideVisitedEnabled = getHideVisitedEnabled(node);
+  const statisticsEnabled = getStatisticsEnabled(node);
+  const audioVolume = getAudioVolume(node);
   const marginLeft = getNumberProp(
     node,
     "player_container_marginleft",
@@ -657,6 +743,16 @@ export function NodeInspectorPanel({
     node,
     "player_container_marginright",
     MARGIN_DEFAULT
+  );
+  const conditionsColor = getColorValue(
+    node,
+    "color_nodeconditions",
+    CONDITIONS_COLOR_DEFAULT
+  );
+  const conditionsAlpha = getAlphaValue(
+    node,
+    "alpha_nodeconditions",
+    CONDITIONS_ALPHA_DEFAULT
   );
   const hasNavigationSetting = (token: string) =>
     navigationSettings.some(
@@ -758,7 +854,7 @@ export function NodeInspectorPanel({
             </div>
 
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-              <CollapsibleSection title="Node type" defaultOpen>
+              <CollapsibleSection title="Node type">
                 <div className="flex items-center justify-between gap-3">
                   <label className="text-sm font-medium text-[var(--text-secondary)]">
                     Type
@@ -783,7 +879,7 @@ export function NodeInspectorPanel({
                 </div>
               </CollapsibleSection>
 
-              <CollapsibleSection title="Text" defaultOpen>
+              <CollapsibleSection title="Text">
                 <div className="space-y-3">
                   {isRefNode ? (
                     <>
@@ -810,6 +906,32 @@ export function NodeInspectorPanel({
                         placeholder="Write the node content..."
                       />
                       <div className="space-y-4 pt-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="text-sm font-medium text-[var(--text-secondary)]">
+                            Text shadow
+                          </label>
+                          <div className="relative w-48">
+                            <select
+                              value={textShadow}
+                              onChange={(event) =>
+                                onNodePropChange("outer_container.textShadow", [
+                                  event.target.value,
+                                ])
+                              }
+                              className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                            >
+                              {textShadowOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown
+                              className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                              aria-hidden="true"
+                            />
+                          </div>
+                        </div>
                         <ColorAlphaField
                           label="Text"
                           colorValue={sceneColors.text}
@@ -846,9 +968,9 @@ export function NodeInspectorPanel({
 
         <TabsContent value="style">
           <div className="space-y-4">
-              <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-                <CollapsibleSection title="Scene colors" defaultOpen>
-                  <div className="space-y-4">
+            <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+              <CollapsibleSection title="Scene colors">
+                <div className="space-y-4">
                   <ColorOnlyField
                     label="Background"
                     value={sceneColors.background}
@@ -869,10 +991,34 @@ export function NodeInspectorPanel({
                   />
                   </div>
                 </CollapsibleSection>
-              </div>
 
-              <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-                <CollapsibleSection title="Layout" defaultOpen>
+                <CollapsibleSection title="Effects">
+                  <div className="space-y-4">
+                    <ToggleRow
+                      label="Grayscale"
+                      checked={grayscaleEnabled}
+                      onToggle={(next) =>
+                        onNodePropChange("settings_grayscale", [
+                          next ? "on" : "",
+                        ])
+                      }
+                    />
+
+                    <RangeField
+                      label="Blur"
+                      value={blurAmount}
+                      min={BLUR_MIN}
+                      max={BLUR_MAX}
+                      step={1}
+                      allowBeyondMax
+                      onChange={(next) =>
+                        onNodePropChange("color_blur", String(next))
+                      }
+                    />
+                  </div>
+                </CollapsibleSection>
+
+                <CollapsibleSection title="Layout">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between gap-3">
                       <label className="text-sm font-medium text-[var(--text-secondary)]">
@@ -983,10 +1129,8 @@ export function NodeInspectorPanel({
                     </div>
                   </div>
                 </CollapsibleSection>
-              </div>
 
-              <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-                <CollapsibleSection title="Navigation" defaultOpen>
+                <CollapsibleSection title="Navigation">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between gap-3">
                       <label className="text-sm font-medium text-[var(--text-secondary)]">
@@ -1031,13 +1175,28 @@ export function NodeInspectorPanel({
                     />
                   </div>
                 </CollapsibleSection>
+
+                <CollapsibleSection title="Audio">
+                  <div className="space-y-4">
+                    <RangeField
+                      label="Audio volume"
+                      value={audioVolume}
+                      min={AUDIO_VOLUME_MIN}
+                      max={AUDIO_VOLUME_MAX}
+                      step={1}
+                      onChange={(next) =>
+                        onNodePropChange("audio_volume", String(next))
+                      }
+                    />
+                  </div>
+                </CollapsibleSection>
               </div>
             </div>
-        </TabsContent>
+          </TabsContent>
         <TabsContent value="buttons">
           <div className="space-y-4">
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-              <CollapsibleSection title="Button appearance" defaultOpen>
+              <CollapsibleSection title="Button appearance">
                 <div className="space-y-4">
                   <ColorAlphaField
                     label="Button text"
@@ -1067,7 +1226,54 @@ export function NodeInspectorPanel({
           </div>
         </TabsContent>
         <TabsContent value="logic">
-          <PlaceholderPanel>{placeholderText.logic}</PlaceholderPanel>
+          <div className="space-y-4">
+            <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+              <CollapsibleSection title="Conditions">
+                <div className="space-y-4">
+                  <ToggleRow
+                    label="Hide visited"
+                    checked={hideVisitedEnabled}
+                    onToggle={(next) =>
+                      onNodePropChange("node_conditions", [
+                        next ? "hide_visited" : "",
+                      ])
+                    }
+                  />
+                  <ColorAlphaField
+                    label="Condition color"
+                    colorValue={conditionsColor}
+                    alphaValue={conditionsAlpha}
+                    onColorChange={(value) =>
+                      onNodePropChange("color_nodeconditions", value)
+                    }
+                    onAlphaChange={(value) =>
+                      onNodePropChange("alpha_nodeconditions", String(value))
+                    }
+                  />
+                </div>
+              </CollapsibleSection>
+              <CollapsibleSection title="Tracking">
+                <div className="space-y-4">
+                  <ToggleRow
+                    label="Statistics tracking"
+                    checked={statisticsEnabled}
+                    onToggle={(next) =>
+                      onNodePropChange("node_statistics", [next ? "on" : ""])
+                    }
+                  />
+                  <ToggleRow
+                    label="Node variable"
+                    checked={hideVisitedEnabled}
+                    onToggle={(next) =>
+                      onNodePropChange("node_conditions", [
+                        next ? "hide_visited" : "",
+                      ])
+                    }
+                  />
+                </div>
+              </CollapsibleSection>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </InspectorShell>
@@ -1197,7 +1403,9 @@ function CollapsibleSection({
           {title}
         </span>
       </button>
-      {open ? <div className="space-y-3 px-4 pb-3">{children}</div> : null}
+      {open ? (
+        <div className="space-y-3 px-4 pb-3 pt-2">{children}</div>
+      ) : null}
     </div>
   );
 }
@@ -1314,6 +1522,69 @@ function ColorAlphaField({
   );
 }
 
+function RangeField({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  allowBeyondMax = false,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+  allowBeyondMax?: boolean;
+}) {
+  const sliderValue = clampNumber(value, min, max);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-[var(--text-secondary)]">
+          {label}
+        </span>
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={sliderValue}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            if (!Number.isFinite(next)) return;
+            onChange(clampNumber(next, min, max));
+          }}
+          aria-label={label}
+          className={rangeInputClasses}
+        />
+        <input
+          type="number"
+          min={min}
+          max={allowBeyondMax ? undefined : max}
+          step={step}
+          value={value}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            if (!Number.isFinite(next)) return;
+            const normalized = allowBeyondMax
+              ? Math.max(min, next)
+              : clampNumber(next, min, max);
+            onChange(normalized);
+          }}
+          aria-label={`${label} value`}
+          className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+        />
+      </div>
+    </div>
+  );
+}
+
 function ToggleRow({
   label,
   checked,
@@ -1324,27 +1595,33 @@ function ToggleRow({
   onToggle: (next: boolean) => void;
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onToggle(!checked)}
-      className="flex w-full items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-left hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
-    >
+    <label className="flex items-center justify-between gap-3">
       <span className="text-sm font-medium text-[var(--text-secondary)]">
         {label}
       </span>
-      <span
-        className={cn(
-          "inline-flex min-w-[56px] items-center justify-center rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]",
-          checked
-            ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-            : "border-[var(--border)] bg-[var(--bg-tertiary)] text-[var(--muted)]"
-        )}
-      >
-        {checked ? "On" : "Off"}
+      <span className="relative inline-flex h-5 w-10 items-center">
+        <input
+          type="checkbox"
+          className="peer sr-only"
+          checked={checked}
+          onChange={(event) => onToggle(event.target.checked)}
+          aria-label={label}
+        />
+        <span
+          className={cn(
+            "absolute inset-0 rounded-full border border-[var(--border)] bg-[var(--bg-tertiary)] transition",
+            "peer-checked:border-[var(--accent)] peer-checked:bg-[var(--accent)]",
+            "peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--accent-muted)]"
+          )}
+        />
+        <span
+          className={cn(
+            "absolute left-0.5 h-4 w-4 rounded-full bg-[var(--bg)] shadow-sm transition",
+            "peer-checked:translate-x-5"
+          )}
+        />
       </span>
-    </button>
+    </label>
   );
 }
 
