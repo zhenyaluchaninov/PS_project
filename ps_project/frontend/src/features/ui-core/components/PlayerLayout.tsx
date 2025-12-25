@@ -13,6 +13,7 @@ type PlayerLayoutProps = {
     onSubtitlesError?: () => void;
     muted?: boolean;
     controls?: boolean;
+    loop?: boolean;
     videoRef?: (node: HTMLVideoElement | null) => void;
   };
   hideBackground?: boolean;
@@ -104,7 +105,7 @@ export function PlayerLayout({
             ref={backgroundVideo.videoRef}
             playsInline
             autoPlay
-            loop
+            loop={backgroundVideo.loop ?? true}
             preload="auto"
             aria-hidden={backgroundVideo.controls ? undefined : true}
             data-interactive={backgroundVideo.controls ? "true" : undefined}

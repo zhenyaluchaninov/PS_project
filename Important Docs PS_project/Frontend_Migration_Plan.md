@@ -1441,7 +1441,7 @@ EDITOR_SETTINGS_CATALOG.md
 
 ---
 
-### Step 24 – Node media: image, audio, audio_alt, subtitles, video
+### [done] Step 24 – Node media: image, audio, audio_alt, subtitles, video
 
 **What we do**
 

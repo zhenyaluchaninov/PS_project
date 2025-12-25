@@ -389,6 +389,20 @@ const buildAudioSourceConfig = (
   };
 };
 
+const getVideoLoopSetting = (node?: NodeModel | null): boolean => {
+  const rawProps = node?.rawProps as Record<string, unknown> | null | undefined;
+  const value = readRawProp(rawProps, ["settings_videoLoop", "videoLoop"]);
+  if (value === undefined) return true;
+  return booleanFromTokens(value);
+};
+
+const getVideoAudioSetting = (node?: NodeModel | null): "off" | "off_mobile" | "" => {
+  const rawProps = node?.rawProps as Record<string, unknown> | null | undefined;
+  const tokens = tokenize(readRawProp(rawProps, ["settings_videoAudio", "videoAudio"]));
+  const value = tokens[0]?.toLowerCase() ?? "";
+  return value === "off" || value === "off_mobile" ? value : "";
+};
+
 const hasHideVisitedCondition = (node?: NodeModel | null): boolean => {
   if (!node?.rawProps) return false;
   const conditions = tokenize(
@@ -508,6 +522,15 @@ export function PlayerRuntime({
   });
   const [hasInteracted, setHasInteracted] = useState(false);
   const [documentVisible, setDocumentVisible] = useState(true);
+  const isTouchDevice = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const coarse = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+    return (
+      coarse ||
+      "ontouchstart" in window ||
+      (navigator?.maxTouchPoints ?? 0) > 0
+    );
+  }, []);
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const [audioDebug, setAudioDebug] = useState<AudioDebugSnapshot | null>(null);
   const backgroundVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -935,7 +958,7 @@ export function PlayerRuntime({
   const syncMediaSound = useCallback(
     (shouldTryPlay: boolean) => {
       const targets = [backgroundVideoRef.current].filter(Boolean) as HTMLVideoElement[];
-      const allowAudio = soundEnabled && hasInteracted && documentVisible;
+      const allowAudio = soundEnabled && hasInteracted && documentVisible && !videoAudioMuted;
       targets.forEach((video) => {
         video.muted = !allowAudio;
         if (!documentVisible) {
@@ -952,7 +975,7 @@ export function PlayerRuntime({
         }
       });
     },
-    [documentVisible, hasInteracted, soundEnabled]
+    [documentVisible, hasInteracted, soundEnabled, videoAudioMuted]
   );
 
   useEffect(() => {
@@ -1052,6 +1075,11 @@ export function PlayerRuntime({
       ? resolveReferenceUrl(currentNode)
       : null;
 
+  const videoLoopEnabled = getVideoLoopSetting(activeNode);
+  const videoAudioSetting = getVideoAudioSetting(activeNode);
+  const videoAudioMuted =
+    videoAudioSetting === "off" ||
+    (videoAudioSetting === "off_mobile" && isTouchDevice);
   const videoSource = resolveVideoSource(activeNode);
   const isVideoNode = activeNodeKind === "video";
   const backgroundImage = isVideoNode
@@ -1067,8 +1095,10 @@ export function PlayerRuntime({
             subtitlesUrl: subtitleUrl,
             onSubtitlesError: handleSubtitleError,
             onSubtitlesLoad: handleSubtitleLoad,
-            muted: !(soundEnabled && hasInteracted && documentVisible),
+            muted:
+              videoAudioMuted || !(soundEnabled && hasInteracted && documentVisible),
             controls: isVideoNode,
+            loop: videoLoopEnabled,
             videoRef: (node: HTMLVideoElement | null) => {
               backgroundVideoRef.current = node;
             },
@@ -1082,6 +1112,8 @@ export function PlayerRuntime({
       documentVisible,
       soundEnabled,
       subtitleUrl,
+      videoAudioMuted,
+      videoLoopEnabled,
       videoSource,
     ]
   );

@@ -141,6 +141,35 @@ const readStringArray = (value: unknown): string[] => {
   return [];
 };
 
+const fadeOptions = [
+  { value: "", label: "Default" },
+  { value: "0.0", label: "0.0s" },
+  { value: "1.0", label: "1.0s" },
+  { value: "2.0", label: "2.0s" },
+  { value: "4.0", label: "4.0s" },
+];
+
+const fadeOptionValues = new Set(fadeOptions.map((option) => option.value));
+
+const extraAudioOptions = [
+  { value: "", label: "Play always" },
+  { value: "play_once", label: "Play once" },
+];
+
+const extraAudioValues = new Set(
+  extraAudioOptions.map((option) => option.value)
+);
+
+const videoAudioOptions = [
+  { value: "", label: "On" },
+  { value: "off", label: "Off" },
+  { value: "off_mobile", label: "Off on mobile" },
+];
+
+const videoAudioValues = new Set(
+  videoAudioOptions.map((option) => option.value)
+);
+
 const SCENE_COLOR_DEFAULTS = {
   color_background: "#ffffff",
   color_foreground: "#000000",
@@ -216,6 +245,18 @@ const readNodePropValue = (
   const rawProps = node.rawProps ?? {};
   const fallbackProps = (node.props as Record<string, unknown> | null) ?? {};
   return rawProps[key] ?? fallbackProps[key];
+};
+
+const getStringArrayValue = (
+  node: NodeModel,
+  key: string,
+  fallback: string,
+  draft?: BulkDraft
+): string => {
+  const tokens = readStringArray(readNodePropValue(node, key, draft));
+  if (!tokens.length) return fallback;
+  const token = tokens[0];
+  return typeof token === "string" ? token : String(token ?? fallback);
 };
 
 const getColorProp = (
@@ -796,6 +837,56 @@ export function NodeInspectorPanel({
   const statisticsEnabled = getStatisticsEnabled(node, bulkDraft);
   const navTextSize = getNavTextSize(node, bulkDraft);
   const audioVolume = getAudioVolume(node, bulkDraft);
+  const audioLoopValue = getStringArrayValue(
+    node,
+    "settings_audioLoop",
+    "false",
+    bulkDraft
+  );
+  const audioLoopEnabled = audioLoopValue.toLowerCase() === "true";
+  const audioFadeInValue = getStringArrayValue(
+    node,
+    "settings_audioFadeIn",
+    "",
+    bulkDraft
+  );
+  const audioFadeOutValue = getStringArrayValue(
+    node,
+    "settings_audioFadeOut",
+    "",
+    bulkDraft
+  );
+  const audioFadeIn = fadeOptionValues.has(audioFadeInValue)
+    ? audioFadeInValue
+    : "";
+  const audioFadeOut = fadeOptionValues.has(audioFadeOutValue)
+    ? audioFadeOutValue
+    : "";
+  const extraAudioValue = getStringArrayValue(
+    node,
+    "settings_extraAudio",
+    "",
+    bulkDraft
+  );
+  const extraAudioBehavior = extraAudioValues.has(extraAudioValue)
+    ? extraAudioValue
+    : "";
+  const videoLoopValue = getStringArrayValue(
+    node,
+    "settings_videoLoop",
+    "true",
+    bulkDraft
+  );
+  const videoLoopEnabled = videoLoopValue.toLowerCase() === "true";
+  const videoAudioValue = getStringArrayValue(
+    node,
+    "settings_videoAudio",
+    "",
+    bulkDraft
+  );
+  const videoAudioBehavior = videoAudioValues.has(videoAudioValue)
+    ? videoAudioValue
+    : "";
   const orderedLinkIds = getOrderedLinkIds(node, bulkDraft);
   const orderedOutgoingLinks = (() => {
     const orderIndex = new Map(
@@ -1342,6 +1433,66 @@ export function NodeInspectorPanel({
                         helperText={subtitlesDisabledReason}
                       />
                     </div>
+                    <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                        Playback options
+                      </p>
+                      <div className="mt-3 space-y-3">
+                        <BulkField
+                          active={isBulkFieldStaged("settings_videoLoop")}
+                          onClear={() =>
+                            clearBulkPaths("settings_videoLoop")
+                          }
+                        >
+                          <ToggleRow
+                            label="Loop video"
+                            checked={videoLoopEnabled}
+                            onToggle={(next) =>
+                              handleNodePropChange("settings_videoLoop", [
+                                next ? "true" : "false",
+                              ])
+                            }
+                          />
+                        </BulkField>
+                        <BulkField
+                          active={isBulkFieldStaged("settings_videoAudio")}
+                          onClear={() =>
+                            clearBulkPaths("settings_videoAudio")
+                          }
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <label className="text-sm font-medium text-[var(--text-secondary)]">
+                              Video audio
+                            </label>
+                            <div className="relative w-48">
+                              <select
+                                value={videoAudioBehavior}
+                                onChange={(event) =>
+                                  handleNodePropChange(
+                                    "settings_videoAudio",
+                                    [event.target.value]
+                                  )
+                                }
+                                className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                              >
+                                {videoAudioOptions.map((option) => (
+                                  <option
+                                    key={option.value || "default"}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown
+                                className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                                aria-hidden="true"
+                              />
+                            </div>
+                          </div>
+                        </BulkField>
+                      </div>
+                    </div>
                   </div>
                 </BulkField>
               </CollapsibleSection>
@@ -1402,6 +1553,140 @@ export function NodeInspectorPanel({
                               : undefined
                         }
                       />
+                    </div>
+                    <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                        Playback options
+                      </p>
+                      <div className="mt-3 space-y-3">
+                        <BulkField
+                          active={isBulkFieldStaged("settings_audioLoop")}
+                          onClear={() =>
+                            clearBulkPaths("settings_audioLoop")
+                          }
+                        >
+                          <ToggleRow
+                            label="Loop audio"
+                            checked={audioLoopEnabled}
+                            onToggle={(next) =>
+                              handleNodePropChange("settings_audioLoop", [
+                                next ? "true" : "false",
+                              ])
+                            }
+                          />
+                        </BulkField>
+                        <BulkField
+                          active={isBulkFieldStaged("settings_audioFadeIn")}
+                          onClear={() =>
+                            clearBulkPaths("settings_audioFadeIn")
+                          }
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <label className="text-sm font-medium text-[var(--text-secondary)]">
+                              Audio fade-in
+                            </label>
+                            <div className="relative w-48">
+                              <select
+                                value={audioFadeIn}
+                                onChange={(event) =>
+                                  handleNodePropChange(
+                                    "settings_audioFadeIn",
+                                    [event.target.value]
+                                  )
+                                }
+                                className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                              >
+                                {fadeOptions.map((option) => (
+                                  <option
+                                    key={option.value || "default"}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown
+                                className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                                aria-hidden="true"
+                              />
+                            </div>
+                          </div>
+                        </BulkField>
+                        <BulkField
+                          active={isBulkFieldStaged("settings_audioFadeOut")}
+                          onClear={() =>
+                            clearBulkPaths("settings_audioFadeOut")
+                          }
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <label className="text-sm font-medium text-[var(--text-secondary)]">
+                              Audio fade-out
+                            </label>
+                            <div className="relative w-48">
+                              <select
+                                value={audioFadeOut}
+                                onChange={(event) =>
+                                  handleNodePropChange(
+                                    "settings_audioFadeOut",
+                                    [event.target.value]
+                                  )
+                                }
+                                className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                              >
+                                {fadeOptions.map((option) => (
+                                  <option
+                                    key={option.value || "default"}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown
+                                className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                                aria-hidden="true"
+                              />
+                            </div>
+                          </div>
+                        </BulkField>
+                        <BulkField
+                          active={isBulkFieldStaged("settings_extraAudio")}
+                          onClear={() =>
+                            clearBulkPaths("settings_extraAudio")
+                          }
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <label className="text-sm font-medium text-[var(--text-secondary)]">
+                              Extra audio behavior
+                            </label>
+                            <div className="relative w-48">
+                              <select
+                                value={extraAudioBehavior}
+                                onChange={(event) =>
+                                  handleNodePropChange(
+                                    "settings_extraAudio",
+                                    [event.target.value]
+                                  )
+                                }
+                                className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                              >
+                                {extraAudioOptions.map((option) => (
+                                  <option
+                                    key={option.value || "default"}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown
+                                className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                                aria-hidden="true"
+                              />
+                            </div>
+                          </div>
+                        </BulkField>
+                      </div>
                     </div>
                   </div>
                 </BulkField>
