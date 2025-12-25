@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { NodeModel } from "@/domain/models";
 import {
   Tabs,
@@ -9,6 +9,8 @@ import {
   TabsTrigger,
 } from "@/features/ui-core/primitives/tabs";
 import { Button } from "@/features/ui-core/primitives/button";
+import { uploadMedia, deleteMedia } from "@/features/state/api/media";
+import { toastError } from "@/features/ui-core/toast";
 import { cn } from "@/lib/utils";
 import type { EditorNodeInspectorTab } from "../../state/types";
 import { ChevronDown, GripVertical } from "lucide-react";
@@ -163,6 +165,20 @@ const parseFontEntry = (entry: string) => {
       ? trimmed.split("/").pop()?.replace(/\.[^/.]+$/, "") ?? trimmed
       : trimmed;
   return { name, url: isUrl ? trimmed : undefined };
+};
+
+const stripMediaUrl = (url: string) => url.split(/[?#]/)[0] ?? "";
+
+const getMediaBasename = (url: string) => {
+  const trimmed = stripMediaUrl(url);
+  const parts = trimmed.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? "";
+};
+
+const isVideoMedia = (url: string | null | undefined): boolean => {
+  if (!url) return false;
+  const trimmed = stripMediaUrl(url).toLowerCase();
+  return trimmed.endsWith(".mp4");
 };
 
 const readNodePropValue = (
@@ -364,12 +380,14 @@ const getNodeChapterType = (node: NodeModel, draft?: BulkDraft): string => {
 
 type NodeInspectorPanelProps = {
   node: NodeModel;
+  editSlug?: string;
   fontList?: string[];
   outgoingLinks?: Array<{ linkId: number; targetId: number; label: string }>;
   activeTab: EditorNodeInspectorTab;
   onTabChange: (tab: EditorNodeInspectorTab) => void;
   onTitleChange: (title: string) => void;
   onTextChange: (text: string) => void;
+  onNodeImageUrlChange: (url: string | null) => void;
   onNodeTypeChange: (chapterType: string) => void;
   onNodePropChange: (path: string, value: unknown) => void;
   bulk?: BulkEditConfig;
@@ -377,12 +395,14 @@ type NodeInspectorPanelProps = {
 
 export function NodeInspectorPanel({
   node,
+  editSlug,
   fontList,
   outgoingLinks = [],
   activeTab,
   onTabChange,
   onTitleChange,
   onTextChange,
+  onNodeImageUrlChange,
   onNodeTypeChange,
   onNodePropChange,
   bulk,
@@ -390,6 +410,7 @@ export function NodeInspectorPanel({
   const [sectionState, setSectionState] = useState<Record<string, boolean>>({
     "Node type": false,
     Text: false,
+    Media: false,
     Background: false,
     Layout: false,
     Navigation: false,
@@ -471,6 +492,66 @@ export function NodeInspectorPanel({
       return;
     }
     onNodePropChange(path, value);
+  };
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const [mediaDeleting, setMediaDeleting] = useState(false);
+  const mediaUrl = node.image.url ?? null;
+  const mediaBasename = mediaUrl ? getMediaBasename(mediaUrl) : "";
+  const mediaIsVideo = isVideoMedia(mediaUrl);
+  const mediaBusy = mediaUploading || mediaDeleting;
+  const handleMediaUploadClick = () => {
+    if (mediaBusy || bulkActive) return;
+    fileInputRef.current?.click();
+  };
+  const handleMediaInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (bulkActive) {
+      event.currentTarget.value = "";
+      return;
+    }
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    if (!editSlug) {
+      toastError("Media upload failed", "Missing adventure slug.");
+      return;
+    }
+    setMediaUploading(true);
+    try {
+      const result = await uploadMedia(editSlug, file);
+      if (!result?.url) {
+        throw new Error("Upload did not return a URL.");
+      }
+      onNodeImageUrlChange(result.url);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toastError("Media upload failed", message);
+    } finally {
+      setMediaUploading(false);
+    }
+  };
+  const handleMediaRemove = async () => {
+    if (mediaBusy || bulkActive) return;
+    if (!mediaUrl) return;
+    if (!editSlug) {
+      toastError("Media delete failed", "Missing adventure slug.");
+      return;
+    }
+    if (!mediaBasename) {
+      toastError("Media delete failed", "Could not resolve media filename.");
+      return;
+    }
+    setMediaDeleting(true);
+    try {
+      await deleteMedia(editSlug, mediaBasename);
+      onNodeImageUrlChange(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toastError("Media delete failed", message);
+    } finally {
+      setMediaDeleting(false);
+    }
   };
   const chapterType = getNodeChapterType(node, bulkDraft);
   const isRefNode = chapterType.startsWith("ref-node");
@@ -924,6 +1005,84 @@ export function NodeInspectorPanel({
                     </>
                   )}
                 </div>
+              </CollapsibleSection>
+              <CollapsibleSection
+                title="Media"
+                open={sectionState.Media}
+                onToggle={(next) => setSectionOpen("Media", next)}
+              >
+                <BulkField
+                  active={false}
+                  disabledReason={
+                    bulkActive
+                      ? "Bulk edit disabled: background media is per-node."
+                      : undefined
+                  }
+                >
+                  <div className="space-y-3">
+                    {mediaUrl ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
+                          <span>Current background</span>
+                          <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                            {mediaIsVideo ? "Video" : "Image"}
+                          </span>
+                        </div>
+                        {mediaIsVideo ? (
+                          <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--text-secondary)]">
+                            <p className="truncate">
+                              {mediaBasename || "Video file"}
+                            </p>
+                            <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+                              MP4 video
+                            </p>
+                          </div>
+                        ) : (
+                          <img
+                            src={mediaUrl}
+                            alt="Background media preview"
+                            className="h-32 w-full rounded-md border border-[var(--border)] object-cover"
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[var(--muted)]">
+                        No background media assigned.
+                      </p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleMediaUploadClick}
+                        disabled={mediaBusy || bulkActive}
+                      >
+                        {mediaUploading
+                          ? "Uploading..."
+                          : "Upload image/video"}
+                      </Button>
+                      {mediaUrl ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleMediaRemove}
+                          disabled={mediaBusy || bulkActive}
+                        >
+                          {mediaDeleting ? "Removing..." : "Remove"}
+                        </Button>
+                      ) : null}
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,video/*"
+                      onChange={handleMediaInputChange}
+                      className="sr-only"
+                    />
+                  </div>
+                </BulkField>
               </CollapsibleSection>
             </div>
           </div>

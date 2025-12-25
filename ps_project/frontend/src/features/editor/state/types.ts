@@ -81,6 +81,7 @@ export type EditorState = {
   clearFocusNode: () => void;
   updateNodeTitle: (nodeId: number, title: string) => void;
   updateNodeText: (nodeId: number, text: string) => void;
+  updateNodeImageUrl: (nodeId: number, url: string | null) => void;
   updateNodeProps: (
     nodeId: number,
     updates: Record<string, unknown>,

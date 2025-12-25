@@ -28,11 +28,13 @@ import { Button } from "@/features/ui-core/primitives/button";
 
 export function InspectorRouter() {
   const adventure = useEditorStore(selectEditorAdventure);
+  const editSlug = useEditorStore((s) => s.editSlug);
   const selection = useEditorStore(selectEditorSelection);
   const activeTab = useEditorStore(selectEditorNodeInspectorTab);
   const setActiveTab = useEditorStore((s) => s.setNodeInspectorTab);
   const updateNodeTitle = useEditorStore((s) => s.updateNodeTitle);
   const updateNodeText = useEditorStore((s) => s.updateNodeText);
+  const updateNodeImageUrl = useEditorStore((s) => s.updateNodeImageUrl);
   const setNodePropPath = useEditorStore((s) => s.setNodePropPath);
   const setNodePropStringArraySelect = useEditorStore(
     (s) => s.setNodePropStringArraySelect
@@ -235,12 +237,16 @@ export function InspectorRouter() {
       <>
         <NodeInspectorPanel
           node={primaryNode}
+          editSlug={editSlug}
           fontList={adventure.props?.fontList}
           outgoingLinks={outgoingLinks}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onTitleChange={(title) => updateNodeTitle(primaryNode.nodeId, title)}
           onTextChange={(text) => updateNodeText(primaryNode.nodeId, text)}
+          onNodeImageUrlChange={(url) =>
+            updateNodeImageUrl(primaryNode.nodeId, url)
+          }
           onNodeTypeChange={(chapterType) =>
             setNodePropStringArraySelect(
               primaryNode.nodeId,
@@ -337,12 +343,16 @@ export function InspectorRouter() {
     return (
       <NodeInspectorPanel
         node={selectedNode}
+        editSlug={editSlug}
         fontList={adventure.props?.fontList}
         outgoingLinks={outgoingLinks}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onTitleChange={(title) => updateNodeTitle(selectedNode.nodeId, title)}
         onTextChange={(text) => updateNodeText(selectedNode.nodeId, text)}
+        onNodeImageUrlChange={(url) =>
+          updateNodeImageUrl(selectedNode.nodeId, url)
+        }
         onNodeTypeChange={(chapterType) =>
           setNodePropStringArraySelect(
             selectedNode.nodeId,

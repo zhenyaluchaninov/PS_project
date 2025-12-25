@@ -42,6 +42,29 @@ export const nodeOpsSlice: EditorSlice = (set, get) => ({
       };
     });
   },
+  updateNodeImageUrl: (nodeId, url) => {
+    set((state) => {
+      if (!state.adventure) return {};
+      const nodeIndex = state.adventure.nodes.findIndex(
+        (node) => node.nodeId === nodeId
+      );
+      if (nodeIndex === -1) return {};
+      const node = state.adventure.nodes[nodeIndex];
+      const nextUrl = url ?? null;
+      if (node.image.url === nextUrl) return {};
+      const nextNodes = [...state.adventure.nodes];
+      nextNodes[nodeIndex] = {
+        ...node,
+        image: { ...node.image, url: nextUrl },
+        changed: true,
+      };
+      return {
+        adventure: { ...state.adventure, nodes: nextNodes },
+        dirty: true,
+        undoStack: pushHistory(state),
+      };
+    });
+  },
   updateNodePositions: (updates) => {
     if (!updates.length) return;
     set((state) => {
