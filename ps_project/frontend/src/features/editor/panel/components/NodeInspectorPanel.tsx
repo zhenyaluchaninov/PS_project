@@ -410,7 +410,9 @@ export function NodeInspectorPanel({
   const [sectionState, setSectionState] = useState<Record<string, boolean>>({
     "Node type": false,
     Text: false,
-    Media: false,
+    Image: false,
+    Video: false,
+    "Audio media": false,
     Background: false,
     Layout: false,
     Navigation: false,
@@ -500,6 +502,12 @@ export function NodeInspectorPanel({
   const mediaBasename = mediaUrl ? getMediaBasename(mediaUrl) : "";
   const mediaIsVideo = isVideoMedia(mediaUrl);
   const mediaBusy = mediaUploading || mediaDeleting;
+  const mediaDisabledReason = bulkActive
+    ? "Bulk edit disabled: background media is per-node."
+    : undefined;
+  const audioDisabledReason = bulkActive
+    ? "Bulk edit disabled: audio media is per-node."
+    : undefined;
   const handleMediaUploadClick = () => {
     if (mediaBusy || bulkActive) return;
     fileInputRef.current?.click();
@@ -1006,63 +1014,110 @@ export function NodeInspectorPanel({
                   )}
                 </div>
               </CollapsibleSection>
-              <CollapsibleSection
-                title="Media"
-                open={sectionState.Media}
-                onToggle={(next) => setSectionOpen("Media", next)}
-              >
-                <BulkField
-                  active={false}
-                  disabledReason={
-                    bulkActive
-                      ? "Bulk edit disabled: background media is per-node."
-                      : undefined
-                  }
+              {!mediaIsVideo ? (
+                <CollapsibleSection
+                  title="Image"
+                  open={sectionState.Image}
+                  onToggle={(next) => setSectionOpen("Image", next)}
                 >
-                  <div className="space-y-3">
-                    {mediaUrl ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
-                          <span>Current background</span>
-                          <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
-                            {mediaIsVideo ? "Video" : "Image"}
-                          </span>
-                        </div>
-                        {mediaIsVideo ? (
-                          <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--text-secondary)]">
-                            <p className="truncate">
-                              {mediaBasename || "Video file"}
-                            </p>
-                            <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
-                              MP4 video
-                            </p>
+                  <BulkField
+                    active={false}
+                    disabledReason={mediaDisabledReason}
+                  >
+                    <div className="space-y-3">
+                      {mediaUrl ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
+                            <span>Current image</span>
+                            <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                              Image
+                            </span>
                           </div>
-                        ) : (
                           <img
                             src={mediaUrl}
-                            alt="Background media preview"
+                            alt="Background image preview"
                             className="h-32 w-full rounded-md border border-[var(--border)] object-cover"
                           />
-                        )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[var(--muted)]">
+                          No background image assigned.
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleMediaUploadClick}
+                          disabled={mediaBusy || bulkActive}
+                        >
+                          {mediaUploading
+                            ? "Uploading..."
+                            : "Upload image/video"}
+                        </Button>
+                        {mediaUrl ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleMediaRemove}
+                            disabled={mediaBusy || bulkActive}
+                          >
+                            {mediaDeleting ? "Removing..." : "Remove"}
+                          </Button>
+                        ) : null}
                       </div>
-                    ) : (
-                      <p className="text-xs text-[var(--muted)]">
-                        No background media assigned.
-                      </p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleMediaUploadClick}
-                        disabled={mediaBusy || bulkActive}
-                      >
-                        {mediaUploading
-                          ? "Uploading..."
-                          : "Upload image/video"}
-                      </Button>
-                      {mediaUrl ? (
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={handleMediaInputChange}
+                        className="sr-only"
+                      />
+                    </div>
+                  </BulkField>
+                </CollapsibleSection>
+              ) : null}
+              {mediaIsVideo ? (
+                <CollapsibleSection
+                  title="Video"
+                  open={sectionState.Video}
+                  onToggle={(next) => setSectionOpen("Video", next)}
+                >
+                  <BulkField
+                    active={false}
+                    disabledReason={mediaDisabledReason}
+                  >
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
+                          <span>Current video</span>
+                          <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                            Video
+                          </span>
+                        </div>
+                        <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--text-secondary)]">
+                          <p className="truncate">
+                            {mediaBasename || "Video file"}
+                          </p>
+                          <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+                            MP4 video
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleMediaUploadClick}
+                          disabled={mediaBusy || bulkActive}
+                        >
+                          {mediaUploading
+                            ? "Uploading..."
+                            : "Upload image/video"}
+                        </Button>
                         <Button
                           type="button"
                           variant="ghost"
@@ -1072,15 +1127,52 @@ export function NodeInspectorPanel({
                         >
                           {mediaDeleting ? "Removing..." : "Remove"}
                         </Button>
-                      ) : null}
+                      </div>
+                      <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                          Subtitles (.vtt)
+                        </p>
+                        <p className="mt-1 text-xs text-[var(--muted)]">
+                          Subtitles upload will be added in a follow-up step.
+                        </p>
+                      </div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={handleMediaInputChange}
+                        className="sr-only"
+                      />
                     </div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*,video/*"
-                      onChange={handleMediaInputChange}
-                      className="sr-only"
-                    />
+                  </BulkField>
+                </CollapsibleSection>
+              ) : null}
+              <CollapsibleSection
+                title="Audio"
+                open={sectionState["Audio media"]}
+                onToggle={(next) => setSectionOpen("Audio media", next)}
+              >
+                <BulkField
+                  active={false}
+                  disabledReason={audioDisabledReason}
+                >
+                  <div className="space-y-3">
+                    <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                        Main audio
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">
+                        Audio upload will be added in a follow-up step.
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                        Alternate audio
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">
+                        Alternate audio upload will be added in a follow-up step.
+                      </p>
+                    </div>
                   </div>
                 </BulkField>
               </CollapsibleSection>
