@@ -7,6 +7,7 @@ import {
   selectEditorDirty,
   selectEditorError,
   selectEditorFocusNodeId,
+  selectEditorMenuShortcutPickIndex,
   selectEditorSelectedLinkIds,
   selectEditorSelectedNodeIds,
   selectEditorSelection,
@@ -34,6 +35,7 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const selectedLinkIds = useEditorStore(selectEditorSelectedLinkIds);
   const selectionToolActive = useEditorStore(selectEditorSelectionToolActive);
   const focusNodeId = useEditorStore(selectEditorFocusNodeId);
+  const menuShortcutPickIndex = useEditorStore(selectEditorMenuShortcutPickIndex);
   const loadByEditSlug = useEditorStore((s) => s.loadByEditSlug);
   const setSelection = useEditorStore((s) => s.setSelection);
   const clearSelection = useEditorStore((s) => s.clearSelection);
@@ -44,6 +46,7 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const updateNodePositions = useEditorStore((s) => s.updateNodePositions);
   const addLink = useEditorStore((s) => s.addLink);
   const addNodeWithLink = useEditorStore((s) => s.addNodeWithLink);
+  const applyMenuShortcutPick = useEditorStore((s) => s.applyMenuShortcutPick);
 
   useEffect(() => {
     void loadByEditSlug(editSlug);
@@ -181,6 +184,8 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
               selectedNodeIds={selectedNodeIds}
               selectedLinkIds={selectedLinkIds}
               selectionToolActive={selectionToolActive}
+              menuShortcutPickIndex={menuShortcutPickIndex}
+              onMenuShortcutPick={applyMenuShortcutPick}
               onSelectionToolActiveChange={setSelectionToolActive}
               onSelectionChange={setSelection}
               onSelectionSnapshotChange={setSelectionSnapshot}

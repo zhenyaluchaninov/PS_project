@@ -27,7 +27,7 @@ import { LegacyContent } from "@/features/ui-core/components/LegacyContent";
 import { PlayerLayout } from "@/features/ui-core/components/PlayerLayout";
 import { buildPropsStyle } from "@/features/ui-core/props";
 import { Button } from "@/features/ui-core/primitives";
-import { toastError } from "@/features/ui-core/toast";
+import { toastError, toastInfo } from "@/features/ui-core/toast";
 import { trackNodeVisit } from "@/features/state/api/adventures";
 import { cn } from "@/lib/utils";
 import "./player-runtime.css";
@@ -40,7 +40,6 @@ import {
   selectPlayerMode,
   selectPlayerOutgoingLinks,
   selectPlayerProgress,
-  selectPlayerRootNodeId,
   selectPlayerVisitedCount,
   type PlayerStoreHook,
   usePlayerStore,
@@ -205,6 +204,77 @@ const resolveSoundParam = (params: SearchParamLike) => {
     return !mute;
   }
   return readBooleanParam(params, ["sound", "audio", "soundEnabled"]);
+};
+
+const MENU_OPTION_VALUES = ["back", "home", "menu", "sound"] as const;
+
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const readMenuOptions = (props?: Record<string, unknown> | null): string[] => {
+  if (!props) return [...MENU_OPTION_VALUES];
+  const raw = props.menu_option ?? props.menuOption ?? props.menu_options;
+  if (raw === undefined || raw === null) return [...MENU_OPTION_VALUES];
+
+  let values: string[] = [];
+  if (Array.isArray(raw)) {
+    values = raw.filter((item): item is string => typeof item === "string");
+  } else if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    if (trimmed === "all") return [...MENU_OPTION_VALUES];
+    values = [trimmed];
+  }
+
+  return MENU_OPTION_VALUES.filter((value) => values.includes(value));
+};
+
+const readMenuSoundOverride = (props?: Record<string, unknown> | null): boolean => {
+  if (!props) return true;
+  const raw = props.menu_sound_override ?? props.menuSoundOverride;
+  if (raw === undefined || raw === null) return true;
+  if (typeof raw === "boolean") return raw;
+  if (typeof raw === "number") return raw !== 0;
+  if (typeof raw === "string") {
+    const normalized = raw.trim().toLowerCase();
+    if (!normalized) return true;
+    return ["1", "true", "yes", "on"].includes(normalized);
+  }
+  return true;
+};
+
+type MenuShortcut = {
+  nodeId: number | null;
+  text: string;
+};
+
+type MenuShortcutItem = {
+  nodeId: number;
+  label: string;
+};
+
+const parseShortcutNodeId = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const cleaned = value.trim().replace(/^#/, "");
+    if (!cleaned) return null;
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const readMenuShortcuts = (props?: Record<string, unknown> | null): MenuShortcut[] => {
+  const raw = props?.menu_shortcuts ?? props?.menuShortcuts;
+  const list = Array.isArray(raw) ? raw : [];
+  return Array.from({ length: 9 }, (_, index) => {
+    const entry = isPlainRecord(list[index]) ? list[index] : {};
+    const nodeValue =
+      entry.nodeId ?? entry.node_id ?? entry.nodeID ?? entry.nodeid;
+    const nodeId = parseShortcutNodeId(nodeValue);
+    const text = typeof entry.text === "string" ? entry.text : "";
+    return { nodeId, text };
+  });
 };
 
 const getRawSubtitlesValue = (node?: NodeModel | null) => {
@@ -479,13 +549,46 @@ export function PlayerRuntime({
   const history = store((s) => s.history);
   const visitedCount = store(selectPlayerVisitedCount);
   const progress = store(selectPlayerProgress);
-  const rootNodeId = store(selectPlayerRootNodeId);
   const visitedNodes = store((s) => s.visited);
   const chooseLink = store((s) => s.chooseLink);
   const start = store((s) => s.start);
   const getNodeById = store((s) => s.getNodeById);
   const goBack = store((s) => s.goBack);
-  const goHome = store((s) => s.goHome);
+  const goToNode = store((s) => s.goToNode);
+
+  const adventureProps = adventure?.props as Record<string, unknown> | null | undefined;
+  const menuOptions = useMemo(() => readMenuOptions(adventureProps ?? null), [adventureProps]);
+  const menuSoundOverride = useMemo(
+    () => readMenuSoundOverride(adventureProps ?? null),
+    [adventureProps]
+  );
+  const menuShortcuts = useMemo(
+    () => readMenuShortcuts(adventureProps ?? null),
+    [adventureProps]
+  );
+  const menuButtons = useMemo(
+    () => ({
+      back: menuOptions.includes("back"),
+      home: menuOptions.includes("home"),
+      menu: menuOptions.includes("menu"),
+      sound: menuOptions.includes("sound"),
+    }),
+    [menuOptions]
+  );
+  const homeShortcut = menuShortcuts[0];
+  const homeTargetId = homeShortcut?.nodeId ?? null;
+  const homeLabel = homeShortcut?.text?.trim() ?? "";
+  const menuShortcutItems = useMemo(() => {
+    const items = menuShortcuts.slice(1).map((shortcut, index) => ({
+      nodeId: shortcut.nodeId,
+      label:
+        shortcut.text?.trim() ||
+        (shortcut.nodeId != null ? `Node #${shortcut.nodeId}` : `Shortcut ${index + 1}`),
+    }));
+    return items.filter(
+      (shortcut): shortcut is MenuShortcutItem => shortcut.nodeId != null
+    );
+  }, [menuShortcuts]);
 
   const historyNodes = useMemo(
     () =>
@@ -512,6 +615,8 @@ export function PlayerRuntime({
     };
   });
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuNavigationMutePending, setMenuNavigationMutePending] = useState(false);
+  const mutedMenuNodeIdRef = useRef<number | null>(null);
   const [viewportActiveNodeId, setViewportActiveNodeId] = useState<number | null>(null);
   const [scrollyReturnNonce, setScrollyReturnNonce] = useState(0);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -662,8 +767,33 @@ export function PlayerRuntime({
   }, [menuOpen]);
 
   useEffect(() => {
+    if (menuButtons.menu) return;
+    setMenuOpen(false);
+  }, [menuButtons.menu]);
+
+  useEffect(() => {
     setMenuOpen(false);
   }, [currentNode?.nodeId]);
+
+  useEffect(() => {
+    if (menuSoundOverride) return;
+    mutedMenuNodeIdRef.current = null;
+    setMenuNavigationMutePending(false);
+  }, [menuSoundOverride]);
+
+  useEffect(() => {
+    if (!menuNavigationMutePending) return;
+    if (currentNodeId == null) return;
+    mutedMenuNodeIdRef.current = currentNodeId;
+    setMenuNavigationMutePending(false);
+  }, [currentNodeId, menuNavigationMutePending]);
+
+  useEffect(() => {
+    const mutedNodeId = mutedMenuNodeIdRef.current;
+    if (mutedNodeId != null && currentNodeId !== mutedNodeId) {
+      mutedMenuNodeIdRef.current = null;
+    }
+  }, [currentNodeId]);
 
   useEffect(() => {
     if (!currentNode) {
@@ -802,6 +932,8 @@ export function PlayerRuntime({
 
   const { style: propsStyle, flags, dataProps, layout, media, typography } = propsResult;
   const soundEnabled = preferences.soundEnabled ?? true;
+  const effectiveSoundEnabled =
+    soundEnabled && mutedMenuNodeIdRef.current !== currentNodeId;
   const statisticsEnabled = preferences.statisticsEnabled ?? true;
   const statisticsAllowed = mode === "play";
   const statisticsDisabledReason = statisticsAllowed
@@ -901,11 +1033,11 @@ export function PlayerRuntime({
     const engine = audioEngineRef.current;
     if (!engine) return;
     engine.setPlaybackState({
-      soundEnabled,
+      soundEnabled: effectiveSoundEnabled,
       canAutoplay: hasInteracted,
       isDocumentVisible: documentVisible,
     });
-  }, [documentVisible, hasInteracted, soundEnabled]);
+  }, [documentVisible, effectiveSoundEnabled, hasInteracted]);
 
   useEffect(() => {
     const engine = audioEngineRef.current;
@@ -919,9 +1051,9 @@ export function PlayerRuntime({
   useEffect(() => {
     const video = backgroundVideoRef.current;
     if (!video) return;
-    const effectiveVolume = soundEnabled ? audioVolume : 0;
+    const effectiveVolume = effectiveSoundEnabled ? audioVolume : 0;
     video.volume = effectiveVolume;
-  }, [audioVolume, soundEnabled]);
+  }, [audioVolume, effectiveSoundEnabled]);
 
   const handleToggleHighContrast = () => {
     setPreferences((prev) => ({
@@ -952,13 +1084,23 @@ export function PlayerRuntime({
     }));
   };
 
-  const handleToggleMenu = () => setMenuOpen((prev) => !prev);
+  const handleToggleMenu = () => {
+    if (!menuButtons.menu) return;
+    setMenuOpen((prev) => !prev);
+  };
   const handleCloseMenu = () => setMenuOpen(false);
+
+  const videoLoopEnabled = getVideoLoopSetting(activeNode);
+  const videoAudioSetting = getVideoAudioSetting(activeNode);
+  const videoAudioMuted =
+    videoAudioSetting === "off" ||
+    (videoAudioSetting === "off_mobile" && isTouchDevice);
 
   const syncMediaSound = useCallback(
     (shouldTryPlay: boolean) => {
       const targets = [backgroundVideoRef.current].filter(Boolean) as HTMLVideoElement[];
-      const allowAudio = soundEnabled && hasInteracted && documentVisible && !videoAudioMuted;
+      const allowAudio =
+        effectiveSoundEnabled && hasInteracted && documentVisible && !videoAudioMuted;
       targets.forEach((video) => {
         video.muted = !allowAudio;
         if (!documentVisible) {
@@ -975,12 +1117,12 @@ export function PlayerRuntime({
         }
       });
     },
-    [documentVisible, hasInteracted, soundEnabled, videoAudioMuted]
+    [documentVisible, effectiveSoundEnabled, hasInteracted, videoAudioMuted]
   );
 
   useEffect(() => {
     syncMediaSound(true);
-  }, [documentVisible, hasInteracted, soundEnabled, syncMediaSound]);
+  }, [documentVisible, effectiveSoundEnabled, hasInteracted, syncMediaSound]);
 
   useLoadAdventureFonts(adventure?.props?.fontList, typography.fontFamily);
 
@@ -1075,11 +1217,6 @@ export function PlayerRuntime({
       ? resolveReferenceUrl(currentNode)
       : null;
 
-  const videoLoopEnabled = getVideoLoopSetting(activeNode);
-  const videoAudioSetting = getVideoAudioSetting(activeNode);
-  const videoAudioMuted =
-    videoAudioSetting === "off" ||
-    (videoAudioSetting === "off_mobile" && isTouchDevice);
   const videoSource = resolveVideoSource(activeNode);
   const isVideoNode = activeNodeKind === "video";
   const backgroundImage = isVideoNode
@@ -1096,7 +1233,7 @@ export function PlayerRuntime({
             onSubtitlesError: handleSubtitleError,
             onSubtitlesLoad: handleSubtitleLoad,
             muted:
-              videoAudioMuted || !(soundEnabled && hasInteracted && documentVisible),
+              videoAudioMuted || !(effectiveSoundEnabled && hasInteracted && documentVisible),
             controls: isVideoNode,
             loop: videoLoopEnabled,
             videoRef: (node: HTMLVideoElement | null) => {
@@ -1110,7 +1247,7 @@ export function PlayerRuntime({
       hasInteracted,
       isVideoNode,
       documentVisible,
-      soundEnabled,
+      effectiveSoundEnabled,
       subtitleUrl,
       videoAudioMuted,
       videoLoopEnabled,
@@ -1248,7 +1385,39 @@ export function PlayerRuntime({
     isVideoNode ? "ps-player--videoplayer" : ""
   );
   const canGoBack = historyLength > 1;
-  const canGoHome = rootNodeId != null && currentNodeId !== rootNodeId;
+  const canGoHome = homeTargetId != null && currentNodeId !== homeTargetId;
+  const handleMenuBack = () => {
+    if (!canGoBack) return;
+    goBack();
+    if (menuSoundOverride) {
+      setMenuNavigationMutePending(true);
+    }
+    setMenuOpen(false);
+  };
+  const handleMenuHome = () => {
+    if (!canGoHome || homeTargetId == null) return;
+    const didNavigate = goToNode(homeTargetId);
+    if (!didNavigate) {
+      toastInfo("Shortcut target not found", `Shortcut target not found: ${homeTargetId}`);
+      return;
+    }
+    if (menuSoundOverride) {
+      setMenuNavigationMutePending(true);
+    }
+    setMenuOpen(false);
+  };
+  const handleMenuShortcut = (nodeId: number) => {
+    if (!Number.isFinite(nodeId)) return;
+    const didNavigate = goToNode(nodeId);
+    if (!didNavigate) {
+      toastInfo("Shortcut target not found", `Shortcut target not found: ${nodeId}`);
+      return;
+    }
+    if (menuSoundOverride) {
+      setMenuNavigationMutePending(true);
+    }
+    setMenuOpen(false);
+  };
 
   const showReturnToCurrent =
     isScrollytell &&
@@ -1261,6 +1430,12 @@ export function PlayerRuntime({
       <PlayerOverlay
         canGoBack={canGoBack}
         canGoHome={canGoHome}
+        showBackButton={menuButtons.back}
+        showHomeButton={menuButtons.home}
+        showMenuButton={menuButtons.menu}
+        showSoundButton={menuButtons.sound}
+        homeLabel={homeLabel}
+        menuShortcuts={menuShortcutItems}
         menuOpen={menuOpen}
         highContrast={flags.highContrast}
         hideBackground={flags.hideBackground}
@@ -1273,14 +1448,15 @@ export function PlayerRuntime({
         gameNodeId={currentNodeId ?? null}
         viewportActiveNodeId={viewportActiveNodeId}
         scrollytellActive={isScrollytell}
-        onBack={goBack}
-        onHome={goHome}
+        onBack={handleMenuBack}
+        onHome={handleMenuHome}
         onToggleMenu={handleToggleMenu}
         onCloseMenu={handleCloseMenu}
         onToggleHighContrast={handleToggleHighContrast}
         onToggleHideBackground={handleToggleHideBackground}
         onToggleSound={handleToggleSound}
         onToggleStatistics={handleToggleStatistics}
+        onShortcut={handleMenuShortcut}
         menuRef={menuRef}
         showDebug={debugUi}
       />
@@ -1724,6 +1900,12 @@ export function StaticPlayerPreview({
 function PlayerOverlay({
   canGoBack,
   canGoHome,
+  showBackButton,
+  showHomeButton,
+  showMenuButton,
+  showSoundButton,
+  homeLabel,
+  menuShortcuts,
   menuOpen,
   highContrast,
   hideBackground,
@@ -1744,11 +1926,18 @@ function PlayerOverlay({
   onToggleHideBackground,
   onToggleSound,
   onToggleStatistics,
+  onShortcut,
   menuRef,
   showDebug,
 }: {
   canGoBack: boolean;
   canGoHome: boolean;
+  showBackButton: boolean;
+  showHomeButton: boolean;
+  showMenuButton: boolean;
+  showSoundButton: boolean;
+  homeLabel?: string;
+  menuShortcuts: MenuShortcutItem[];
   menuOpen: boolean;
   highContrast: boolean;
   hideBackground: boolean;
@@ -1769,47 +1958,66 @@ function PlayerOverlay({
   onToggleHideBackground: () => void;
   onToggleSound: () => void;
   onToggleStatistics: () => void;
+  onShortcut: (nodeId: number) => void;
   menuRef: MutableRefObject<HTMLDivElement | null>;
   showDebug: boolean;
 }) {
+  const showLeftGroup = showBackButton || showHomeButton;
+  const showRightGroup = showSoundButton || showMenuButton;
+
   return (
     <div className="ps-overlay" data-menu-open={menuOpen ? "true" : undefined}>
-      <div className="ps-overlay__bar">
-        <div className="ps-overlay__group">
-          <OverlayButton
-            label="Back"
-            icon={<ArrowLeft aria-hidden />}
-            disabled={!canGoBack}
-            onClick={onBack}
-          />
-          <OverlayButton
-            label="Home"
-            icon={<Home aria-hidden />}
-            disabled={!canGoHome}
-            onClick={onHome}
-          />
+      {showLeftGroup || showRightGroup ? (
+        <div className="ps-overlay__bar">
+          {showLeftGroup ? (
+            <div className="ps-overlay__group">
+              {showBackButton ? (
+                <OverlayButton
+                  label="Back"
+                  icon={<ArrowLeft aria-hidden />}
+                  disabled={!canGoBack}
+                  onClick={onBack}
+                />
+              ) : null}
+              {showHomeButton ? (
+                <OverlayButton
+                  label="Home"
+                  subtleLabel={homeLabel || undefined}
+                  icon={<Home aria-hidden />}
+                  disabled={!canGoHome}
+                  onClick={onHome}
+                />
+              ) : null}
+            </div>
+          ) : null}
+          {showRightGroup ? (
+            <div className="ps-overlay__group">
+              {showSoundButton ? (
+                <OverlayButton
+                  label="Sound"
+                  subtleLabel={soundEnabled ? "On" : "Muted"}
+                  icon={soundEnabled ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
+                  onClick={onToggleSound}
+                  active={soundEnabled}
+                  ariaPressed={soundEnabled}
+                />
+              ) : null}
+              {showMenuButton ? (
+                <OverlayButton
+                  label="Menu"
+                  subtleLabel={menuOpen ? "Close" : "Open"}
+                  icon={menuOpen ? <X aria-hidden /> : <MenuIcon aria-hidden />}
+                  onClick={menuOpen ? onCloseMenu : onToggleMenu}
+                  active={menuOpen}
+                  ariaExpanded={menuOpen}
+                />
+              ) : null}
+            </div>
+          ) : null}
         </div>
-        <div className="ps-overlay__group">
-          <OverlayButton
-            label="Sound"
-            subtleLabel={soundEnabled ? "On" : "Muted"}
-            icon={soundEnabled ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
-            onClick={onToggleSound}
-            active={soundEnabled}
-            ariaPressed={soundEnabled}
-          />
-          <OverlayButton
-            label="Menu"
-            subtleLabel={menuOpen ? "Close" : "Open"}
-            icon={menuOpen ? <X aria-hidden /> : <MenuIcon aria-hidden />}
-            onClick={menuOpen ? onCloseMenu : onToggleMenu}
-            active={menuOpen}
-            ariaExpanded={menuOpen}
-          />
-        </div>
-      </div>
+      ) : null}
 
-      {menuOpen ? (
+      {menuOpen && showMenuButton ? (
         <>
           <div className="ps-overlay__backdrop" onClick={onCloseMenu} />
           <div
@@ -1832,6 +2040,19 @@ function PlayerOverlay({
             </div>
 
             <div className="ps-overlay__panel-body">
+              {menuShortcuts.length ? (
+                <>
+                  <span className="ps-overlay__panel-title">Shortcuts</span>
+                  {menuShortcuts.map((shortcut, index) => (
+                    <OverlayShortcutRow
+                      key={`${shortcut.nodeId}-${index}`}
+                      label={shortcut.label}
+                      nodeId={shortcut.nodeId}
+                      onClick={() => onShortcut(shortcut.nodeId)}
+                    />
+                  ))}
+                </>
+              ) : null}
               <OverlayToggleRow
                 label="High contrast"
                 description="Stronger contrast for text and UI"
@@ -1966,6 +2187,26 @@ function OverlayToggleRow({
       >
         {value ? "On" : "Off"}
       </span>
+    </button>
+  );
+}
+
+function OverlayShortcutRow({
+  label,
+  nodeId,
+  onClick,
+}: {
+  label: string;
+  nodeId: number;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" className="ps-overlay__toggle" onClick={onClick}>
+      <span className="ps-overlay__toggle-text">
+        <span className="ps-overlay__toggle-label">{label}</span>
+        <span className="ps-overlay__toggle-desc">Node #{nodeId}</span>
+      </span>
+      <span className="ps-overlay__pill ps-overlay__pill--on">Go</span>
     </button>
   );
 }

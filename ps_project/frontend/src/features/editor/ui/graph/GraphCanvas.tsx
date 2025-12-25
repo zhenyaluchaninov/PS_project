@@ -45,6 +45,8 @@ type GraphCanvasProps = {
   selectedNodeIds: number[];
   selectedLinkIds: number[];
   selectionToolActive: boolean;
+  menuShortcutPickIndex?: number | null;
+  onMenuShortcutPick?: (nodeId: number) => void;
   onSelectionToolActiveChange: (active: boolean) => void;
   onSelectionChange: (selection: EditorSelection) => void;
   onSelectionSnapshotChange: (nodeIds: number[], linkIds: number[]) => void;
@@ -78,6 +80,8 @@ export function GraphCanvas({
   selectedNodeIds,
   selectedLinkIds,
   selectionToolActive,
+  menuShortcutPickIndex,
+  onMenuShortcutPick,
   onSelectionToolActiveChange,
   onSelectionChange,
   onSelectionSnapshotChange,
@@ -102,6 +106,8 @@ export function GraphCanvas({
   const connectingNodeIdRef = useRef<number | null>(null);
   const nodesAdventureIdRef = useRef<number | null>(null);
   const edgesAdventureIdRef = useRef<number | null>(null);
+  const pickActive = menuShortcutPickIndex != null && Boolean(onMenuShortcutPick);
+  const suppressSelectionUntilRef = useRef(0);
 
   const nodeById = useMemo(() => {
     const map = new Map<number, AdventureModel["nodes"][number]>();
@@ -126,6 +132,9 @@ export function GraphCanvas({
     selectedNodeIds,
     selectedLinkIds,
     selectionToolActive,
+    menuShortcutPickIndex,
+    onMenuShortcutPick,
+    shouldSuppressSelection: () => Date.now() < suppressSelectionUntilRef.current,
     onSelectionChange,
     onSelectionSnapshotChange,
     setNodes,
@@ -279,6 +288,33 @@ export function GraphCanvas({
     [onNodePositionsChange]
   );
 
+  const handleNodeClick = useCallback(
+    (event: MouseEvent, node: GraphNode) => {
+      if (!pickActive || !onMenuShortcutPick) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const nodeId = toNumericId(node.data?.nodeId ?? node.id);
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[Graph] pick node click", {
+          nodeId,
+          menuShortcutPickIndex,
+        });
+      }
+      if (nodeId == null) return;
+      suppressSelectionUntilRef.current = Date.now() + 300;
+      onMenuShortcutPick(nodeId);
+      onSelectionSnapshotChange([], []);
+      onSelectionChange({ type: "none" });
+    },
+    [
+      menuShortcutPickIndex,
+      onMenuShortcutPick,
+      onSelectionChange,
+      onSelectionSnapshotChange,
+      pickActive,
+    ]
+  );
+
   useEffect(() => {
     if (!reactFlowRef.current) return;
     reportViewportCenter();
@@ -396,12 +432,12 @@ export function GraphCanvas({
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
-        nodesDraggable
+        nodesDraggable={!pickActive}
         nodesConnectable
         edgesReconnectable={false}
-        elementsSelectable
-        selectionOnDrag={selectionToolActive}
-        selectNodesOnDrag={selectionToolActive}
+        elementsSelectable={!pickActive}
+        selectionOnDrag={!pickActive && selectionToolActive}
+        selectNodesOnDrag={!pickActive && selectionToolActive}
         selectionKeyCode={null}
         panOnDrag={selectionToolActive ? [1, 2] : true}
         multiSelectionKeyCode={["Control", "Shift"]}
@@ -410,6 +446,7 @@ export function GraphCanvas({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onSelectionChange={handleSelectionChange}
+        onNodeClick={handleNodeClick}
         onSelectionEnd={() => {
           if (selectionToolActive) {
             onSelectionToolActiveChange(false);

@@ -5,6 +5,7 @@ import type { AdventureModel } from "@/domain/models";
 import {
   selectEditorAdventure,
   selectEditorClipboard,
+  selectEditorMenuShortcutPickIndex,
   selectEditorSelectedLinkIds,
   selectEditorSelectedNodeIds,
   selectEditorSelection,
@@ -71,6 +72,7 @@ export function EditorHotkeys() {
   const selection = useEditorStore(selectEditorSelection);
   const selectedNodeIds = useEditorStore(selectEditorSelectedNodeIds);
   const selectedLinkIds = useEditorStore(selectEditorSelectedLinkIds);
+  const menuShortcutPickIndex = useEditorStore(selectEditorMenuShortcutPickIndex);
   const adventure = useEditorStore(selectEditorAdventure);
   const clipboard = useEditorStore(selectEditorClipboard);
   const undoStack = useEditorStore(selectEditorUndoStack);
@@ -85,9 +87,15 @@ export function EditorHotkeys() {
   const pasteClipboard = useEditorStore((s) => s.pasteClipboard);
   const undo = useEditorStore((s) => s.undo);
   const setSelectionToolActive = useEditorStore((s) => s.setSelectionToolActive);
+  const cancelMenuShortcutPick = useEditorStore((s) => s.cancelMenuShortcutPick);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && menuShortcutPickIndex != null) {
+        event.preventDefault();
+        cancelMenuShortcutPick();
+        return;
+      }
       if (isEditableTarget(event.target)) return;
 
       if (event.key === "Delete" || event.key === "Backspace") {
@@ -200,6 +208,8 @@ export function EditorHotkeys() {
     undo,
     undoStack.length,
     viewportCenter,
+    menuShortcutPickIndex,
+    cancelMenuShortcutPick,
   ]);
 
   return null;

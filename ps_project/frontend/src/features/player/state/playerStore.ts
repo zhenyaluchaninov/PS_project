@@ -46,6 +46,10 @@ type PlayerState = {
   chooseLink: (linkId: number) => boolean;
   goBack: () => void;
   goHome: () => void;
+  goToNode: (
+    nodeId: number,
+    options?: { resetHistory?: boolean; resetVisited?: boolean }
+  ) => boolean;
   getCurrentNode: () => NodeModel | undefined;
   getCurrentNodeKind: () => NodeKind;
   getNodeKindById: (id?: number | null) => NodeKind;
@@ -388,6 +392,17 @@ const createPlayerState: StateCreator<PlayerState> = (set, get) => {
     if (isDev && success) {
       console.log("[player] home/reset to start");
     }
+  },
+
+  goToNode: (nodeId, options) => {
+    if (!Number.isFinite(nodeId)) return false;
+    const { nodeIndex } = get();
+    if (!nodeIndex || !nodeIndex[nodeId]) return false;
+    const success = navigateToNode(nodeId, options);
+    if (isDev && success) {
+      console.log(`[player] jump to node ${nodeId}`);
+    }
+    return success;
   },
 
   getCurrentNode: () => {

@@ -25,6 +25,7 @@ type ResetState = Pick<
   | "undoStack"
   | "viewportCenter"
   | "focusNodeId"
+  | "menuShortcutPickIndex"
 >;
 
 const createResetState = (): ResetState => ({
@@ -44,6 +45,7 @@ const createResetState = (): ResetState => ({
   undoStack: [],
   viewportCenter: null,
   focusNodeId: null,
+  menuShortcutPickIndex: null,
 });
 
 export const coreSlice: EditorSlice = (set, get) => ({
@@ -56,6 +58,49 @@ export const coreSlice: EditorSlice = (set, get) => ({
   setViewportCenter: (viewportCenter) => set({ viewportCenter }),
   setFocusNodeId: (focusNodeId) => set({ focusNodeId }),
   clearFocusNode: () => set({ focusNodeId: null }),
+  startMenuShortcutPick: (index) => {
+    if (!Number.isFinite(index)) return;
+    set({ menuShortcutPickIndex: index });
+  },
+  cancelMenuShortcutPick: () => set({ menuShortcutPickIndex: null }),
+  applyMenuShortcutPick: (nodeId) => {
+    const pickIndex = get().menuShortcutPickIndex;
+    const adventure = get().adventure;
+    if (!adventure || pickIndex == null) {
+      set({ menuShortcutPickIndex: null });
+      return;
+    }
+    const pickedNode = adventure.nodes.find((node) => node.nodeId === nodeId);
+    const props = (adventure.props as Record<string, unknown> | null) ?? {};
+    const raw = props.menu_shortcuts ?? props.menuShortcuts;
+    const list = Array.isArray(raw) ? raw : [];
+    const nextShortcuts = Array.from({ length: 9 }, (_, index) => {
+      const entry = list[index];
+      const base =
+        entry && typeof entry === "object" && !Array.isArray(entry)
+          ? (entry as Record<string, unknown>)
+          : {};
+      if (index !== pickIndex) {
+        return base;
+      }
+      const currentText =
+        typeof base.text === "string" ? base.text : "";
+      const nextText =
+        currentText.trim().length === 0 && pickedNode?.title
+          ? pickedNode.title
+          : currentText;
+      return { ...base, nodeId: String(nodeId), text: nextText };
+    });
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("[editor] menu shortcut picked", {
+        pickIndex,
+        nodeId,
+        nodeTitle: pickedNode?.title ?? null,
+      });
+    }
+    get().updateAdventureProps({ menu_shortcuts: nextShortcuts });
+    set({ menuShortcutPickIndex: null });
+  },
 
   loadByEditSlug: async (editSlug: string) => {
     const requestUrl = resolveApiUrl(`/api/adventure/${editSlug}/edit`);

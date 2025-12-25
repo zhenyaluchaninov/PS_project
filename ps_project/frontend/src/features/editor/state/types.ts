@@ -66,6 +66,7 @@ export type EditorState = {
   undoStack: EditorHistoryEntry[];
   viewportCenter: { x: number; y: number } | null;
   focusNodeId: number | null;
+  menuShortcutPickIndex: number | null;
   loadByEditSlug: (editSlug: string) => Promise<void>;
   reset: () => void;
   markDirty: () => void;
@@ -79,6 +80,9 @@ export type EditorState = {
   setViewportCenter: (center: { x: number; y: number }) => void;
   setFocusNodeId: (nodeId: number) => void;
   clearFocusNode: () => void;
+  startMenuShortcutPick: (index: number) => void;
+  cancelMenuShortcutPick: () => void;
+  applyMenuShortcutPick: (nodeId: number) => void;
   updateNodeTitle: (nodeId: number, title: string) => void;
   updateNodeText: (nodeId: number, text: string) => void;
   updateNodeImageUrl: (nodeId: number, url: string | null) => void;

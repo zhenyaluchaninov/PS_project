@@ -16,6 +16,9 @@ type UseGraphSelectionParams = {
   selectedNodeIds: number[];
   selectedLinkIds: number[];
   selectionToolActive: boolean;
+  menuShortcutPickIndex?: number | null;
+  onMenuShortcutPick?: (nodeId: number) => void;
+  shouldSuppressSelection?: () => boolean;
   onSelectionChange: (selection: EditorSelection) => void;
   onSelectionSnapshotChange: (nodeIds: number[], linkIds: number[]) => void;
   setNodes: GraphSetter<GraphNode[]>;
@@ -62,6 +65,9 @@ export function useGraphSelection({
   selectedNodeIds,
   selectedLinkIds,
   selectionToolActive,
+  menuShortcutPickIndex,
+  onMenuShortcutPick,
+  shouldSuppressSelection,
   onSelectionChange,
   onSelectionSnapshotChange,
   setNodes,
@@ -69,6 +75,7 @@ export function useGraphSelection({
 }: UseGraphSelectionParams) {
   const suppressSelectionChangeRef = useRef(false);
   const selectionSourceRef = useRef<"reactflow" | "store" | null>(null);
+  const pickActive = menuShortcutPickIndex != null && Boolean(onMenuShortcutPick);
 
   const handleSelectionChange = useCallback(
     ({ nodes: selectedNodes, edges: selectedEdges }: { nodes: GraphNode[]; edges: GraphEdge[] }) => {
@@ -76,6 +83,21 @@ export function useGraphSelection({
         return;
       }
       if (suppressSelectionChangeRef.current) {
+        return;
+      }
+      if (shouldSuppressSelection?.()) {
+        if (process.env.NODE_ENV !== "production") {
+          console.debug("[Graph] selection suppressed after pick");
+        }
+        return;
+      }
+      if (pickActive) {
+        if (process.env.NODE_ENV !== "production") {
+          console.debug("[Graph] selection change ignored during pick", {
+            selectedNodes: selectedNodes.map((node) => node.id),
+            selectedEdges: selectedEdges.map((edge) => edge.id),
+          });
+        }
         return;
       }
       const nodeIds = normalizeIds(
@@ -124,6 +146,8 @@ export function useGraphSelection({
       selectedLinkIds,
       selectedNodeIds,
       selectionToolActive,
+      pickActive,
+      shouldSuppressSelection,
     ]
   );
 

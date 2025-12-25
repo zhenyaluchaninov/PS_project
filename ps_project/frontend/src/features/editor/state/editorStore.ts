@@ -49,3 +49,5 @@ export const selectEditorUndoStack = (state: EditorState) => state.undoStack;
 export const selectEditorViewportCenter = (state: EditorState) =>
   state.viewportCenter;
 export const selectEditorFocusNodeId = (state: EditorState) => state.focusNodeId;
+export const selectEditorMenuShortcutPickIndex = (state: EditorState) =>
+  state.menuShortcutPickIndex;
