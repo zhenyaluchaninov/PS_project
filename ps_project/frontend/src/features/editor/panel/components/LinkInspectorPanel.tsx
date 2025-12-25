@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { LinkModel, NodeModel } from "@/domain/models";
 import { LabelValue } from "@/features/ui-core/LabelValue";
 import { Button } from "@/features/ui-core/primitives/button";
 import { useEditorStore } from "@/features/editor/state/editorStore";
 import { cn } from "@/lib/utils";
+import { CollapsibleSection } from "./CollapsibleSection";
 import { InspectorShell } from "./InspectorShell";
 
 type LinkInspectorPanelProps = {
@@ -14,6 +15,8 @@ type LinkInspectorPanelProps = {
 
 export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
   const updateLinkFields = useEditorStore((s) => s.updateLinkFields);
+  const updateLinkProps = useEditorStore((s) => s.updateLinkProps);
+  const swapLinkDirection = useEditorStore((s) => s.swapLinkDirection);
   const removeLinks = useEditorStore((s) => s.removeLinks);
   const nodes = useEditorStore((s) => s.adventure?.nodes ?? []);
   const nodeTitleMap = useMemo(() => {
@@ -32,6 +35,48 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
   const targetPlaceholder = resolveNodeTitle(link.target);
   const sourcePlaceholder = resolveNodeTitle(link.source);
   const arrow = isBidirectional ? "<->" : "->";
+  const positiveNodes = readConditionList(link.props, [
+    "positiveNodeList",
+    "positive_node_list",
+    "positiveNodes",
+    "positive_nodes",
+  ]);
+  const negativeNodes = readConditionList(link.props, [
+    "negativeNodeList",
+    "negative_node_list",
+    "negativeNodes",
+    "negative_nodes",
+  ]);
+  const [positiveInput, setPositiveInput] = useState("");
+  const [negativeInput, setNegativeInput] = useState("");
+  const handleAddCondition = (
+    key: "positiveNodeList" | "negativeNodeList",
+    value: string
+  ) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    if (!/^\d+$/.test(trimmed)) return;
+    const current = key === "positiveNodeList" ? positiveNodes : negativeNodes;
+    if (current.includes(trimmed)) return;
+    const next = [...current, trimmed];
+    updateLinkProps(link.linkId, { [key]: next });
+  };
+  const handleRemoveCondition = (
+    key: "positiveNodeList" | "negativeNodeList",
+    nodeId: string
+  ) => {
+    const current = key === "positiveNodeList" ? positiveNodes : negativeNodes;
+    const next = current.filter((entry) => entry !== nodeId);
+    updateLinkProps(link.linkId, { [key]: next });
+  };
+  const resolveNodeLabel = (nodeId: string) => {
+    const numericId = Number(nodeId);
+    const title = Number.isFinite(numericId)
+      ? nodeTitleMap.get(numericId)?.title?.trim() ?? ""
+      : "";
+    if (title) return `#${nodeId} - ${title}`;
+    return `#${nodeId}`;
+  };
 
   return (
     <InspectorShell title="Link settings" meta={`#${link.linkId}`}>
@@ -96,6 +141,50 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
             />
           </div>
         ) : null}
+        {!isBidirectional ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => swapLinkDirection(link.linkId)}
+            className="w-full"
+          >
+            Change direction
+          </Button>
+        ) : null}
+        <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+          <CollapsibleSection title="Conditions" defaultOpen>
+            <ConditionEditor
+              label="Show button when ALL visited"
+              helper="Positive node list"
+              inputValue={positiveInput}
+              onInputChange={setPositiveInput}
+              onAdd={() => {
+                handleAddCondition("positiveNodeList", positiveInput);
+                setPositiveInput("");
+              }}
+              nodes={positiveNodes}
+              onRemove={(nodeId) =>
+                handleRemoveCondition("positiveNodeList", nodeId)
+              }
+              resolveLabel={resolveNodeLabel}
+            />
+            <ConditionEditor
+              label="Hide button when ALL visited"
+              helper="Negative node list"
+              inputValue={negativeInput}
+              onInputChange={setNegativeInput}
+              onAdd={() => {
+                handleAddCondition("negativeNodeList", negativeInput);
+                setNegativeInput("");
+              }}
+              nodes={negativeNodes}
+              onRemove={(nodeId) =>
+                handleRemoveCondition("negativeNodeList", nodeId)
+              }
+              resolveLabel={resolveNodeLabel}
+            />
+          </CollapsibleSection>
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -107,6 +196,41 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
       </div>
     </InspectorShell>
   );
+}
+
+function readConditionList(
+  props: Record<string, unknown> | null,
+  keys: string[]
+): string[] {
+  if (!props) return [];
+  const value = keys.reduce<unknown>(
+    (acc, key) => (acc !== undefined ? acc : props[key]),
+    undefined
+  );
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry)).filter((entry) => entry.length > 0);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map((entry) => String(entry))
+            .filter((entry) => entry.length > 0);
+        }
+      } catch {
+        return [trimmed];
+      }
+    }
+    return [trimmed];
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return [String(value)];
+  }
+  return [];
 }
 
 function InfoCard({
@@ -126,6 +250,73 @@ function InfoCard({
       )}
     >
       <LabelValue label={label} value={value} className="gap-1" />
+    </div>
+  );
+}
+
+function ConditionEditor({
+  label,
+  helper,
+  inputValue,
+  onInputChange,
+  onAdd,
+  nodes,
+  onRemove,
+  resolveLabel,
+}: {
+  label: string;
+  helper: string;
+  inputValue: string;
+  onInputChange: (value: string) => void;
+  onAdd: () => void;
+  nodes: string[];
+  onRemove: (nodeId: string) => void;
+  resolveLabel: (nodeId: string) => string;
+}) {
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className="text-sm font-medium text-[var(--text-secondary)]">{label}</p>
+        <p className="text-xs text-[var(--muted)]">{helper}</p>
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          value={inputValue}
+          onChange={(event) => onInputChange(event.target.value)}
+          placeholder="Node id"
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+        />
+        <Button type="button" variant="outline" size="sm" onClick={onAdd}>
+          Add
+        </Button>
+      </div>
+      {nodes.length === 0 ? (
+        <p className="text-xs text-[var(--muted)]">No nodes added.</p>
+      ) : (
+        <div className="space-y-2">
+          {nodes.map((nodeId) => (
+            <div
+              key={nodeId}
+              className="flex items-center justify-between gap-2 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-2"
+            >
+              <span className="text-xs text-[var(--text-secondary)]">
+                {resolveLabel(nodeId)}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onRemove(nodeId)}
+              >
+                Remove
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -118,6 +118,7 @@ export type EditorState = {
       type?: string | null;
     }
   ) => void;
+  swapLinkDirection: (linkId: number) => void;
   setLinkPropPath: (
     linkId: number,
     path: string,

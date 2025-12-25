@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import type { NodeModel } from "@/domain/models";
 import { getNextLinkId } from "../helpers";
 import type { EditorState } from "../types";
 import { pushHistory } from "./historySlice";
@@ -8,6 +9,57 @@ type EditorSlice = StateCreator<EditorState, [], [], Partial<EditorState>>;
 const normalizeLinkType = (value: string | null | undefined): "default" | "bidirectional" => {
   const normalized = String(value ?? "").toLowerCase();
   return normalized === "bidirectional" ? "bidirectional" : "default";
+};
+
+const arraysEqual = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
+
+const readStringArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry)).filter((entry) => entry.length > 0);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.map((entry) => String(entry)).filter((entry) => entry.length > 0);
+        }
+      } catch {
+        return [trimmed];
+      }
+    }
+    return [trimmed];
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return [String(value)];
+  }
+  return [];
+};
+
+const getOrderedLinkIds = (node: NodeModel) => {
+  const rawProps = node.rawProps ?? {};
+  const fallbackProps = (node.props as Record<string, unknown> | null) ?? {};
+  const hasKey =
+    Object.prototype.hasOwnProperty.call(rawProps, "ordered_link_ids") ||
+    Object.prototype.hasOwnProperty.call(fallbackProps, "ordered_link_ids");
+  const rawValue =
+    (rawProps as Record<string, unknown>).ordered_link_ids ??
+    (fallbackProps as Record<string, unknown>).ordered_link_ids;
+  return { list: readStringArray(rawValue), hasKey };
+};
+
+const withOrderedLinkIds = (node: NodeModel, nextList: string[]) => {
+  const rawProps = node.rawProps ?? {};
+  const props = (node.props as Record<string, unknown> | null) ?? {};
+  return {
+    ...node,
+    rawProps: { ...rawProps, ordered_link_ids: nextList },
+    props: { ...props, ordered_link_ids: nextList },
+    changed: true,
+  };
 };
 
 export const linkOpsSlice: EditorSlice = (set, get) => ({
@@ -100,6 +152,74 @@ export const linkOpsSlice: EditorSlice = (set, get) => ({
       };
       return {
         adventure: { ...state.adventure, links: nextLinks },
+        dirty: true,
+        undoStack: pushHistory(state),
+      };
+    });
+  },
+  swapLinkDirection: (linkId) => {
+    set((state) => {
+      if (!state.adventure) return {};
+      const linkIndex = state.adventure.links.findIndex(
+        (link) => link.linkId === linkId
+      );
+      if (linkIndex === -1) return {};
+      const link = state.adventure.links[linkIndex];
+      const nodeIdSet = new Set(state.adventure.nodes.map((node) => node.nodeId));
+      if (!nodeIdSet.has(link.source) || !nodeIdSet.has(link.target)) {
+        return {};
+      }
+      const nextSource = link.target;
+      const nextTarget = link.source;
+      const nextSourceTitle = link.targetTitle ?? "";
+      const nextTargetTitle = link.sourceTitle ?? "";
+      const nextLabel =
+        nextTargetTitle.trim().length > 0 ? nextTargetTitle : null;
+      const nextLinks = [...state.adventure.links];
+      nextLinks[linkIndex] = {
+        ...link,
+        source: nextSource,
+        target: nextTarget,
+        fromNodeId: nextSource,
+        toNodeId: nextTarget,
+        sourceTitle: nextSourceTitle,
+        targetTitle: nextTargetTitle,
+        label: nextLabel,
+        changed: true,
+      };
+
+      let nodesChanged = false;
+      const nextNodes = [...state.adventure.nodes];
+      const linkIdToken = String(link.linkId);
+      const updateNodeOrder = (
+        nodeId: number,
+        updater: (list: string[]) => string[]
+      ) => {
+        const nodeIndex = nextNodes.findIndex((node) => node.nodeId === nodeId);
+        if (nodeIndex === -1) return;
+        const node = nextNodes[nodeIndex];
+        const { list, hasKey } = getOrderedLinkIds(node);
+        const nextList = updater(list);
+        if (arraysEqual(list, nextList)) return;
+        if (!hasKey && nextList.length === 0) return;
+        nextNodes[nodeIndex] = withOrderedLinkIds(node, nextList);
+        nodesChanged = true;
+      };
+
+      updateNodeOrder(link.source, (list) =>
+        list.filter((entry) => entry !== linkIdToken)
+      );
+      updateNodeOrder(link.target, (list) => {
+        const without = list.filter((entry) => entry !== linkIdToken);
+        return [...without, linkIdToken];
+      });
+
+      return {
+        adventure: {
+          ...state.adventure,
+          links: nextLinks,
+          nodes: nodesChanged ? nextNodes : state.adventure.nodes,
+        },
         dirty: true,
         undoStack: pushHistory(state),
       };
