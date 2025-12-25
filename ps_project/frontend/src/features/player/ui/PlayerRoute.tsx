@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { API_BASE_URL, resolveApiUrl } from "@/features/state/api/client";
-import { PageShell } from "@/ui-core/PageShell";
-import { Panel } from "@/ui-core/Panel";
+import { PageShell } from "@/features/ui-core/PageShell";
+import { Panel } from "@/features/ui-core/Panel";
 import {
   selectPlayerError,
   selectPlayerStatus,

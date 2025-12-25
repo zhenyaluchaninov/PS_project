@@ -37,7 +37,7 @@ import {
   toastInfo,
   toastSuccess,
 } from "@/features/ui-core/toast";
-import { Panel } from "@/ui-core/Panel";
+import { Panel } from "@/features/ui-core/Panel";
 
 const sampleImage =
   "https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1200&q=80";

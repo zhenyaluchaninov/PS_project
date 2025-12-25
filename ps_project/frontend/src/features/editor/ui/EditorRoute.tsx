@@ -15,7 +15,7 @@ import {
   selectEditorStatus,
   useEditorStore,
 } from "../state/editorStore";
-import { Toolbar } from "@/ui-core/Toolbar";
+import { Toolbar } from "@/features/ui-core/Toolbar";
 import EditorLayout from "@/features/ui-core/components/EditorLayout";
 import { EditorHotkeys } from "./EditorHotkeys";
 import { EditorInspector } from "./EditorInspector";

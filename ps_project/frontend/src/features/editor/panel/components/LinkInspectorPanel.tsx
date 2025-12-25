@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { LinkModel } from "@/domain/models";
-import { LabelValue } from "@/ui-core/LabelValue";
+import { LabelValue } from "@/features/ui-core/LabelValue";
 import { cn } from "@/lib/utils";
 import { Clock } from "lucide-react";
 import { InspectorShell } from "./InspectorShell";

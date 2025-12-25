@@ -13,8 +13,8 @@ import {
 } from "@/features/player/state/playerStore";
 import { resolveNodeKind } from "@/features/player/engine/playerEngine";
 import { Button } from "@/features/ui-core/primitives";
-import { PageShell } from "@/ui-core/PageShell";
-import { Panel } from "@/ui-core/Panel";
+import { PageShell } from "@/features/ui-core/PageShell";
+import { Panel } from "@/features/ui-core/Panel";
 
 const readNumberParam = (params: URLSearchParams | null | undefined, key: string) => {
   if (!params) return null;
