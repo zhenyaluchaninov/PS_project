@@ -110,6 +110,14 @@ export type EditorState = {
     updates: Record<string, unknown>,
     options?: PropPathOptions
   ) => void;
+  updateLinkFields: (
+    linkId: number,
+    updates: {
+      targetTitle?: string | null;
+      sourceTitle?: string | null;
+      type?: string | null;
+    }
+  ) => void;
   setLinkPropPath: (
     linkId: number,
     path: string,

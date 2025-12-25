@@ -1490,7 +1490,7 @@ API_CONTRACT_FRONTEND.md
 
 ---
 
-### Step 25 – Node actions & outgoing Link list (clean UI + palette support)
+### [done] Step 25 – Node actions & outgoing Link list (clean UI + palette support)
 
 **What we do**
 

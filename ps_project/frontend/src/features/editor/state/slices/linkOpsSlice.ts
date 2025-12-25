@@ -5,6 +5,11 @@ import { pushHistory } from "./historySlice";
 
 type EditorSlice = StateCreator<EditorState, [], [], Partial<EditorState>>;
 
+const normalizeLinkType = (value: string | null | undefined): "default" | "bidirectional" => {
+  const normalized = String(value ?? "").toLowerCase();
+  return normalized === "bidirectional" ? "bidirectional" : "default";
+};
+
 export const linkOpsSlice: EditorSlice = (set, get) => ({
   addLink: (sourceId, targetId) => {
     const adventure = get().adventure;
@@ -45,6 +50,60 @@ export const linkOpsSlice: EditorSlice = (set, get) => ({
       };
     });
     return nextLinkId;
+  },
+  updateLinkFields: (linkId, updates) => {
+    set((state) => {
+      if (!state.adventure) return {};
+      const linkIndex = state.adventure.links.findIndex(
+        (link) => link.linkId === linkId
+      );
+      if (linkIndex === -1) return {};
+      const link = state.adventure.links[linkIndex];
+      const currentTargetTitle = link.targetTitle ?? "";
+      const currentSourceTitle = link.sourceTitle ?? "";
+      const currentType = normalizeLinkType(link.type);
+
+      const nextTargetTitle =
+        updates.targetTitle !== undefined
+          ? String(updates.targetTitle ?? "")
+          : currentTargetTitle;
+      const nextSourceTitle =
+        updates.sourceTitle !== undefined
+          ? String(updates.sourceTitle ?? "")
+          : currentSourceTitle;
+      const nextType =
+        updates.type !== undefined ? normalizeLinkType(updates.type) : currentType;
+
+      let nextLabel = link.label ?? null;
+      if (updates.targetTitle !== undefined) {
+        const trimmed = nextTargetTitle.trim();
+        nextLabel = trimmed.length > 0 ? nextTargetTitle : null;
+      }
+
+      if (
+        nextTargetTitle === currentTargetTitle &&
+        nextSourceTitle === currentSourceTitle &&
+        nextType === currentType &&
+        nextLabel === (link.label ?? null)
+      ) {
+        return {};
+      }
+
+      const nextLinks = [...state.adventure.links];
+      nextLinks[linkIndex] = {
+        ...link,
+        targetTitle: nextTargetTitle,
+        sourceTitle: nextSourceTitle,
+        type: nextType,
+        label: nextLabel,
+        changed: true,
+      };
+      return {
+        adventure: { ...state.adventure, links: nextLinks },
+        dirty: true,
+        undoStack: pushHistory(state),
+      };
+    });
   },
   removeLinks: (linkIds) => {
     if (!linkIds.length) return;
