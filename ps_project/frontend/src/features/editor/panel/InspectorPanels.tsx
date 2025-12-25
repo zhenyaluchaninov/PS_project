@@ -11,7 +11,7 @@ import {
 import { Button } from "@/features/ui-core/primitives/button";
 import { LabelValue } from "@/ui-core/LabelValue";
 import { cn } from "@/lib/utils";
-import type { EditorNodeInspectorTab } from "../state/editorStore";
+import type { EditorNodeInspectorTab } from "../state/types";
 import { ChevronDown, Clock, GripVertical } from "lucide-react";
 
 const chapterTypeOptions = [

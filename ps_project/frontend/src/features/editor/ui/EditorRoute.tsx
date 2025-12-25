@@ -19,7 +19,7 @@ import { Toolbar } from "@/ui-core/Toolbar";
 import EditorLayout from "@/features/ui-core/components/EditorLayout";
 import { EditorHotkeys } from "./EditorHotkeys";
 import { EditorInspector } from "./EditorInspector";
-import { GraphCanvas } from "./GraphCanvas";
+import { GraphCanvas } from "./graph/GraphCanvas";
 
 type EditorRouteProps = {
   editSlug: string;
