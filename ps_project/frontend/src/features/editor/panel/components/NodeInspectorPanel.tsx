@@ -13,7 +13,13 @@ import { uploadMedia, deleteMedia } from "@/features/state/api/media";
 import { toastError } from "@/features/ui-core/toast";
 import { cn } from "@/lib/utils";
 import type { EditorNodeInspectorTab } from "../../state/types";
-import { ChevronDown, GripVertical } from "lucide-react";
+import {
+  ChevronDown,
+  GripVertical,
+  Trash2,
+  Upload,
+  type LucideIcon,
+} from "lucide-react";
 import {
   BULK_NODE_TEXT_PATH,
   BULK_NODE_TITLE_PATH,
@@ -179,6 +185,25 @@ const isVideoMedia = (url: string | null | undefined): boolean => {
   if (!url) return false;
   const trimmed = stripMediaUrl(url).toLowerCase();
   return trimmed.endsWith(".mp4");
+};
+
+const getMediaLabel = (url: string | null | undefined): string => {
+  if (!url) return "";
+  return getMediaBasename(url) || url;
+};
+
+const getMediaPropString = (
+  node: NodeModel,
+  keys: string[],
+  draft?: BulkDraft
+): string | null => {
+  for (const key of keys) {
+    const value = readNodePropValue(node, key, draft);
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+  }
+  return null;
 };
 
 const readNodePropValue = (
@@ -501,6 +526,27 @@ export function NodeInspectorPanel({
   const mediaUrl = node.image.url ?? null;
   const mediaBasename = mediaUrl ? getMediaBasename(mediaUrl) : "";
   const mediaIsVideo = isVideoMedia(mediaUrl);
+  const mediaLabel = getMediaLabel(mediaUrl);
+  const imageLabel = mediaIsVideo ? "" : mediaLabel;
+  const videoLabel = mediaIsVideo ? mediaLabel : "";
+  const subtitlesUrl = getMediaPropString(
+    node,
+    ["subtitles_url", "subtitlesUrl"],
+    bulkDraft
+  );
+  const subtitlesLabel = getMediaLabel(subtitlesUrl);
+  const audioUrl = getMediaPropString(
+    node,
+    ["audio_url", "audioUrl"],
+    bulkDraft
+  );
+  const audioLabel = getMediaLabel(audioUrl);
+  const audioAltUrl = getMediaPropString(
+    node,
+    ["audio_url_alt", "audioUrlAlt"],
+    bulkDraft
+  );
+  const audioAltLabel = getMediaLabel(audioAltUrl);
   const mediaBusy = mediaUploading || mediaDeleting;
   const mediaDisabledReason = bulkActive
     ? "Bulk edit disabled: background media is per-node."
@@ -508,6 +554,8 @@ export function NodeInspectorPanel({
   const audioDisabledReason = bulkActive
     ? "Bulk edit disabled: audio media is per-node."
     : undefined;
+  const placeholderDisabledReason =
+    "This media control will be added in a follow-up step.";
   const handleMediaUploadClick = () => {
     if (mediaBusy || bulkActive) return;
     fileInputRef.current?.click();
@@ -1014,139 +1062,89 @@ export function NodeInspectorPanel({
                   )}
                 </div>
               </CollapsibleSection>
-              {!mediaIsVideo ? (
-                <CollapsibleSection
-                  title="Image"
-                  open={sectionState.Image}
-                  onToggle={(next) => setSectionOpen("Image", next)}
+              <CollapsibleSection
+                title="Image"
+                open={sectionState.Image}
+                onToggle={(next) => setSectionOpen("Image", next)}
+              >
+                <BulkField
+                  active={false}
+                  disabledReason={mediaDisabledReason}
                 >
-                  <BulkField
-                    active={false}
-                    disabledReason={mediaDisabledReason}
-                  >
-                    <div className="space-y-3">
-                      {mediaUrl ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
-                            <span>Current image</span>
-                            <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
-                              Image
-                            </span>
-                          </div>
-                          <img
-                            src={mediaUrl}
-                            alt="Background image preview"
-                            className="h-32 w-full rounded-md border border-[var(--border)] object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <p className="text-xs text-[var(--muted)]">
-                          No background image assigned.
-                        </p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleMediaUploadClick}
-                          disabled={mediaBusy || bulkActive}
-                        >
-                          {mediaUploading
-                            ? "Uploading..."
-                            : "Upload image/video"}
-                        </Button>
-                        {mediaUrl ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleMediaRemove}
-                            disabled={mediaBusy || bulkActive}
-                          >
-                            {mediaDeleting ? "Removing..." : "Remove"}
-                          </Button>
-                        ) : null}
-                      </div>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*,video/*"
-                        onChange={handleMediaInputChange}
-                        className="sr-only"
+                  <div className="space-y-3">
+                    <MediaFileRow
+                      value={imageLabel}
+                      emptyLabel="No image background set"
+                      onUpload={handleMediaUploadClick}
+                      onDelete={handleMediaRemove}
+                      uploadDisabled={mediaBusy || bulkActive}
+                      deleteDisabled={mediaBusy || bulkActive || !imageLabel}
+                      uploadLabel="Upload image or video"
+                      deleteLabel="Remove background image"
+                    />
+                    {mediaIsVideo && mediaUrl ? (
+                      <p className="text-xs text-[var(--muted)]">
+                        A video background is active. Uploading an image will
+                        replace it.
+                      </p>
+                    ) : null}
+                    {!mediaIsVideo && mediaUrl ? (
+                      <img
+                        src={mediaUrl}
+                        alt="Background image preview"
+                        className="h-32 w-full rounded-md border border-[var(--border)] object-cover"
                       />
-                    </div>
-                  </BulkField>
-                </CollapsibleSection>
-              ) : null}
-              {mediaIsVideo ? (
-                <CollapsibleSection
-                  title="Video"
-                  open={sectionState.Video}
-                  onToggle={(next) => setSectionOpen("Video", next)}
+                    ) : null}
+                  </div>
+                </BulkField>
+              </CollapsibleSection>
+              <CollapsibleSection
+                title="Video"
+                open={sectionState.Video}
+                onToggle={(next) => setSectionOpen("Video", next)}
+              >
+                <BulkField
+                  active={false}
+                  disabledReason={mediaDisabledReason}
                 >
-                  <BulkField
-                    active={false}
-                    disabledReason={mediaDisabledReason}
-                  >
-                    <div className="space-y-3">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
-                          <span>Current video</span>
-                          <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
-                            Video
-                          </span>
-                        </div>
-                        <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--text-secondary)]">
-                          <p className="truncate">
-                            {mediaBasename || "Video file"}
-                          </p>
-                          <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
-                            MP4 video
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleMediaUploadClick}
-                          disabled={mediaBusy || bulkActive}
-                        >
-                          {mediaUploading
-                            ? "Uploading..."
-                            : "Upload image/video"}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleMediaRemove}
-                          disabled={mediaBusy || bulkActive}
-                        >
-                          {mediaDeleting ? "Removing..." : "Remove"}
-                        </Button>
-                      </div>
-                      <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
-                          Subtitles (.vtt)
-                        </p>
-                        <p className="mt-1 text-xs text-[var(--muted)]">
-                          Subtitles upload will be added in a follow-up step.
-                        </p>
-                      </div>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*,video/*"
-                        onChange={handleMediaInputChange}
-                        className="sr-only"
+                  <div className="space-y-3">
+                    <MediaFileRow
+                      value={videoLabel}
+                      emptyLabel="No video background set"
+                      onUpload={handleMediaUploadClick}
+                      onDelete={handleMediaRemove}
+                      uploadDisabled={mediaBusy || bulkActive}
+                      deleteDisabled={mediaBusy || bulkActive || !videoLabel}
+                      uploadLabel="Upload image or video"
+                      deleteLabel="Remove background video"
+                    />
+                    {!mediaIsVideo && mediaUrl ? (
+                      <p className="text-xs text-[var(--muted)]">
+                        An image background is active. Uploading a video will
+                        replace it.
+                      </p>
+                    ) : null}
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                        Subtitles (.vtt)
+                      </p>
+                      <MediaFileRow
+                        value={subtitlesLabel}
+                        emptyLabel="No subtitles set"
+                        onUpload={undefined}
+                        onDelete={undefined}
+                        uploadDisabled
+                        deleteDisabled
+                        uploadLabel="Upload subtitles"
+                        deleteLabel="Remove subtitles"
                       />
+                      <p className="text-xs text-[var(--muted)]">
+                        {placeholderDisabledReason}
+                      </p>
                     </div>
-                  </BulkField>
-                </CollapsibleSection>
-              ) : null}
+                  </div>
+                </BulkField>
+              </CollapsibleSection>
               <CollapsibleSection
                 title="Audio"
                 open={sectionState["Audio media"]}
@@ -1157,25 +1155,49 @@ export function NodeInspectorPanel({
                   disabledReason={audioDisabledReason}
                 >
                   <div className="space-y-3">
-                    <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
+                    <div className="space-y-2">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
                         Main audio
                       </p>
-                      <p className="mt-1 text-xs text-[var(--muted)]">
-                        Audio upload will be added in a follow-up step.
-                      </p>
+                      <MediaFileRow
+                        value={audioLabel}
+                        emptyLabel="No audio set"
+                        onUpload={undefined}
+                        onDelete={undefined}
+                        uploadDisabled
+                        deleteDisabled
+                        uploadLabel="Upload main audio"
+                        deleteLabel="Remove main audio"
+                      />
                     </div>
-                    <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
+                    <div className="space-y-2">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
                         Alternate audio
                       </p>
-                      <p className="mt-1 text-xs text-[var(--muted)]">
-                        Alternate audio upload will be added in a follow-up step.
-                      </p>
+                      <MediaFileRow
+                        value={audioAltLabel}
+                        emptyLabel="No audio set"
+                        onUpload={undefined}
+                        onDelete={undefined}
+                        uploadDisabled
+                        deleteDisabled
+                        uploadLabel="Upload alternate audio"
+                        deleteLabel="Remove alternate audio"
+                      />
                     </div>
+                    <p className="text-xs text-[var(--muted)]">
+                      {placeholderDisabledReason}
+                    </p>
                   </div>
                 </BulkField>
               </CollapsibleSection>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*"
+                onChange={handleMediaInputChange}
+                className="sr-only"
+              />
             </div>
           </div>
         </TabsContent>
@@ -1870,6 +1892,103 @@ function RangeField({
           className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
         />
       </div>
+    </div>
+  );
+}
+
+function MediaActionButton({
+  icon: Icon,
+  label,
+  onClick,
+  disabled,
+  variant = "outline",
+  tone = "default",
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  variant?: "default" | "secondary" | "outline" | "ghost";
+  tone?: "default" | "danger";
+}) {
+  return (
+    <Button
+      type="button"
+      variant={variant}
+      size="sm"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "h-8 w-8 p-0",
+        tone === "danger"
+          ? "text-[var(--danger)] hover:text-[var(--danger)]"
+          : ""
+      )}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+    </Button>
+  );
+}
+
+function MediaFileRow({
+  value,
+  emptyLabel,
+  uploadLabel,
+  deleteLabel,
+  onUpload,
+  onDelete,
+  uploadDisabled = false,
+  deleteDisabled = false,
+  helperText,
+}: {
+  value: string;
+  emptyLabel: string;
+  uploadLabel: string;
+  deleteLabel: string;
+  onUpload?: () => void;
+  onDelete?: () => void;
+  uploadDisabled?: boolean;
+  deleteDisabled?: boolean;
+  helperText?: string;
+}) {
+  const displayValue = value.trim();
+  const resolvedUploadDisabled = uploadDisabled || !onUpload;
+  const resolvedDeleteDisabled = deleteDisabled || !onDelete;
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <input
+          type="text"
+          value={displayValue}
+          placeholder={emptyLabel}
+          readOnly
+          aria-label={displayValue || emptyLabel}
+          title={displayValue || emptyLabel}
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+        />
+        <div className="flex items-center gap-2">
+          <MediaActionButton
+            icon={Upload}
+            label={uploadLabel}
+            onClick={onUpload}
+            disabled={resolvedUploadDisabled}
+          />
+          <MediaActionButton
+            icon={Trash2}
+            label={deleteLabel}
+            onClick={onDelete}
+            disabled={resolvedDeleteDisabled}
+            variant="outline"
+            tone="danger"
+          />
+        </div>
+      </div>
+      {helperText ? (
+        <p className="text-xs text-[var(--muted)]">{helperText}</p>
+      ) : null}
     </div>
   );
 }
