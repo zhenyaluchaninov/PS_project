@@ -35,6 +35,7 @@ export function InspectorRouter() {
   const updateNodeTitle = useEditorStore((s) => s.updateNodeTitle);
   const updateNodeText = useEditorStore((s) => s.updateNodeText);
   const updateNodeImageUrl = useEditorStore((s) => s.updateNodeImageUrl);
+  const updateNodeProps = useEditorStore((s) => s.updateNodeProps);
   const setNodePropPath = useEditorStore((s) => s.setNodePropPath);
   const setNodePropStringArraySelect = useEditorStore(
     (s) => s.setNodePropStringArraySelect
@@ -257,6 +258,9 @@ export function InspectorRouter() {
           onNodePropChange={(path, value) =>
             setNodePropPath(primaryNode.nodeId, path, value)
           }
+          onNodePropsChange={(updates) =>
+            updateNodeProps(primaryNode.nodeId, updates)
+          }
           bulk={{
             active: true,
             selectedNodeCount: selectedNodeIds.length,
@@ -362,6 +366,9 @@ export function InspectorRouter() {
         }
         onNodePropChange={(path, value) =>
           setNodePropPath(selectedNode.nodeId, path, value)
+        }
+        onNodePropsChange={(updates) =>
+          updateNodeProps(selectedNode.nodeId, updates)
         }
       />
     );

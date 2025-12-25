@@ -16,6 +16,7 @@ import type { EditorNodeInspectorTab } from "../../state/types";
 import {
   ChevronDown,
   GripVertical,
+  Loader2,
   Trash2,
   Upload,
   type LucideIcon,
@@ -415,6 +416,7 @@ type NodeInspectorPanelProps = {
   onNodeImageUrlChange: (url: string | null) => void;
   onNodeTypeChange: (chapterType: string) => void;
   onNodePropChange: (path: string, value: unknown) => void;
+  onNodePropsChange: (updates: Record<string, unknown>) => void;
   bulk?: BulkEditConfig;
 };
 
@@ -430,6 +432,7 @@ export function NodeInspectorPanel({
   onNodeImageUrlChange,
   onNodeTypeChange,
   onNodePropChange,
+  onNodePropsChange,
   bulk,
 }: NodeInspectorPanelProps) {
   const [sectionState, setSectionState] = useState<Record<string, boolean>>({
@@ -520,6 +523,20 @@ export function NodeInspectorPanel({
     }
     onNodePropChange(path, value);
   };
+  const handleNodePropsChange = (updates: Record<string, unknown>) => {
+    if (bulkActive) return;
+    onNodePropsChange(updates);
+  };
+  const setMediaPropValue = (
+    snakeKey: string,
+    camelKey: string,
+    value: string | null
+  ) => {
+    handleNodePropsChange({
+      [snakeKey]: value,
+      [camelKey]: value,
+    });
+  };
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [mediaUploading, setMediaUploading] = useState(false);
   const [mediaDeleting, setMediaDeleting] = useState(false);
@@ -554,8 +571,21 @@ export function NodeInspectorPanel({
   const audioDisabledReason = bulkActive
     ? "Bulk edit disabled: audio media is per-node."
     : undefined;
-  const placeholderDisabledReason =
-    "This media control will be added in a follow-up step.";
+  const subtitlesDisabledReason = !mediaIsVideo
+    ? "Subtitles require a video background (.mp4)."
+    : undefined;
+  const [audioMainUploading, setAudioMainUploading] = useState(false);
+  const [audioMainDeleting, setAudioMainDeleting] = useState(false);
+  const [audioAltUploading, setAudioAltUploading] = useState(false);
+  const [audioAltDeleting, setAudioAltDeleting] = useState(false);
+  const [subtitlesUploading, setSubtitlesUploading] = useState(false);
+  const [subtitlesDeleting, setSubtitlesDeleting] = useState(false);
+  const audioMainBusy = audioMainUploading || audioMainDeleting;
+  const audioAltBusy = audioAltUploading || audioAltDeleting;
+  const subtitlesBusy = subtitlesUploading || subtitlesDeleting;
+  const audioMainInputRef = useRef<HTMLInputElement | null>(null);
+  const audioAltInputRef = useRef<HTMLInputElement | null>(null);
+  const subtitlesInputRef = useRef<HTMLInputElement | null>(null);
   const handleMediaUploadClick = () => {
     if (mediaBusy || bulkActive) return;
     fileInputRef.current?.click();
@@ -608,6 +638,150 @@ export function NodeInspectorPanel({
     } finally {
       setMediaDeleting(false);
     }
+  };
+  const handlePropMediaUpload = async (
+    file: File,
+    setBusy: (next: boolean) => void,
+    onSuccess: (url: string) => void,
+    errorTitle: string
+  ) => {
+    if (!editSlug) {
+      toastError(errorTitle, "Missing adventure slug.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await uploadMedia(editSlug, file);
+      if (!result?.url) {
+        throw new Error("Upload did not return a URL.");
+      }
+      onSuccess(result.url);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toastError(errorTitle, message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const handlePropMediaDelete = async (
+    url: string | null,
+    setBusy: (next: boolean) => void,
+    onSuccess: () => void,
+    errorTitle: string
+  ) => {
+    if (!editSlug) {
+      toastError(errorTitle, "Missing adventure slug.");
+      return;
+    }
+    if (!url) return;
+    const basename = getMediaBasename(url);
+    if (!basename) {
+      toastError(errorTitle, "Could not resolve media filename.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await deleteMedia(editSlug, basename);
+      onSuccess();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toastError(errorTitle, message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const handleAudioMainUploadClick = () => {
+    if (audioMainBusy || bulkActive) return;
+    audioMainInputRef.current?.click();
+  };
+  const handleAudioAltUploadClick = () => {
+    if (audioAltBusy || bulkActive) return;
+    audioAltInputRef.current?.click();
+  };
+  const handleSubtitlesUploadClick = () => {
+    if (subtitlesBusy || bulkActive || !mediaIsVideo) return;
+    subtitlesInputRef.current?.click();
+  };
+  const handleAudioMainInputChange = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    if (bulkActive) {
+      event.currentTarget.value = "";
+      return;
+    }
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    await handlePropMediaUpload(
+      file,
+      setAudioMainUploading,
+      (url) => setMediaPropValue("audio_url", "audioUrl", url),
+      "Audio upload failed"
+    );
+  };
+  const handleAudioAltInputChange = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    if (bulkActive) {
+      event.currentTarget.value = "";
+      return;
+    }
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    await handlePropMediaUpload(
+      file,
+      setAudioAltUploading,
+      (url) => setMediaPropValue("audio_url_alt", "audioUrlAlt", url),
+      "Alternate audio upload failed"
+    );
+  };
+  const handleSubtitlesInputChange = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    if (bulkActive || !mediaIsVideo) {
+      event.currentTarget.value = "";
+      return;
+    }
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    await handlePropMediaUpload(
+      file,
+      setSubtitlesUploading,
+      (url) => setMediaPropValue("subtitles_url", "subtitlesUrl", url),
+      "Subtitles upload failed"
+    );
+  };
+  const handleAudioMainRemove = async () => {
+    if (audioMainBusy || bulkActive) return;
+    await handlePropMediaDelete(
+      audioUrl,
+      setAudioMainDeleting,
+      () => setMediaPropValue("audio_url", "audioUrl", null),
+      "Audio delete failed"
+    );
+  };
+  const handleAudioAltRemove = async () => {
+    if (audioAltBusy || bulkActive) return;
+    await handlePropMediaDelete(
+      audioAltUrl,
+      setAudioAltDeleting,
+      () => setMediaPropValue("audio_url_alt", "audioUrlAlt", null),
+      "Alternate audio delete failed"
+    );
+  };
+  const handleSubtitlesRemove = async () => {
+    if (subtitlesBusy || bulkActive || !mediaIsVideo) return;
+    await handlePropMediaDelete(
+      subtitlesUrl,
+      setSubtitlesDeleting,
+      () => setMediaPropValue("subtitles_url", "subtitlesUrl", null),
+      "Subtitles delete failed"
+    );
   };
   const chapterType = getNodeChapterType(node, bulkDraft);
   const isRefNode = chapterType.startsWith("ref-node");
@@ -1081,6 +1255,13 @@ export function NodeInspectorPanel({
                       deleteDisabled={mediaBusy || bulkActive || !imageLabel}
                       uploadLabel="Upload image or video"
                       deleteLabel="Remove background image"
+                      status={
+                        mediaUploading
+                          ? "uploading"
+                          : mediaDeleting
+                            ? "deleting"
+                            : undefined
+                      }
                     />
                     {mediaIsVideo && mediaUrl ? (
                       <p className="text-xs text-[var(--muted)]">
@@ -1117,6 +1298,13 @@ export function NodeInspectorPanel({
                       deleteDisabled={mediaBusy || bulkActive || !videoLabel}
                       uploadLabel="Upload image or video"
                       deleteLabel="Remove background video"
+                      status={
+                        mediaUploading
+                          ? "uploading"
+                          : mediaDeleting
+                            ? "deleting"
+                            : undefined
+                      }
                     />
                     {!mediaIsVideo && mediaUrl ? (
                       <p className="text-xs text-[var(--muted)]">
@@ -1131,16 +1319,28 @@ export function NodeInspectorPanel({
                       <MediaFileRow
                         value={subtitlesLabel}
                         emptyLabel="No subtitles set"
-                        onUpload={undefined}
-                        onDelete={undefined}
-                        uploadDisabled
-                        deleteDisabled
+                        onUpload={handleSubtitlesUploadClick}
+                        onDelete={handleSubtitlesRemove}
+                        uploadDisabled={
+                          subtitlesBusy || bulkActive || !mediaIsVideo
+                        }
+                        deleteDisabled={
+                          subtitlesBusy ||
+                          bulkActive ||
+                          !mediaIsVideo ||
+                          !subtitlesLabel
+                        }
                         uploadLabel="Upload subtitles"
                         deleteLabel="Remove subtitles"
+                        status={
+                          subtitlesUploading
+                            ? "uploading"
+                            : subtitlesDeleting
+                              ? "deleting"
+                              : undefined
+                        }
+                        helperText={subtitlesDisabledReason}
                       />
-                      <p className="text-xs text-[var(--muted)]">
-                        {placeholderDisabledReason}
-                      </p>
                     </div>
                   </div>
                 </BulkField>
@@ -1162,12 +1362,21 @@ export function NodeInspectorPanel({
                       <MediaFileRow
                         value={audioLabel}
                         emptyLabel="No audio set"
-                        onUpload={undefined}
-                        onDelete={undefined}
-                        uploadDisabled
-                        deleteDisabled
+                        onUpload={handleAudioMainUploadClick}
+                        onDelete={handleAudioMainRemove}
+                        uploadDisabled={audioMainBusy || bulkActive}
+                        deleteDisabled={
+                          audioMainBusy || bulkActive || !audioLabel
+                        }
                         uploadLabel="Upload main audio"
                         deleteLabel="Remove main audio"
+                        status={
+                          audioMainUploading
+                            ? "uploading"
+                            : audioMainDeleting
+                              ? "deleting"
+                              : undefined
+                        }
                       />
                     </div>
                     <div className="space-y-2">
@@ -1177,17 +1386,23 @@ export function NodeInspectorPanel({
                       <MediaFileRow
                         value={audioAltLabel}
                         emptyLabel="No audio set"
-                        onUpload={undefined}
-                        onDelete={undefined}
-                        uploadDisabled
-                        deleteDisabled
+                        onUpload={handleAudioAltUploadClick}
+                        onDelete={handleAudioAltRemove}
+                        uploadDisabled={audioAltBusy || bulkActive}
+                        deleteDisabled={
+                          audioAltBusy || bulkActive || !audioAltLabel
+                        }
                         uploadLabel="Upload alternate audio"
                         deleteLabel="Remove alternate audio"
+                        status={
+                          audioAltUploading
+                            ? "uploading"
+                            : audioAltDeleting
+                              ? "deleting"
+                              : undefined
+                        }
                       />
                     </div>
-                    <p className="text-xs text-[var(--muted)]">
-                      {placeholderDisabledReason}
-                    </p>
                   </div>
                 </BulkField>
               </CollapsibleSection>
@@ -1196,6 +1411,27 @@ export function NodeInspectorPanel({
                 type="file"
                 accept="image/*,video/*"
                 onChange={handleMediaInputChange}
+                className="sr-only"
+              />
+              <input
+                ref={audioMainInputRef}
+                type="file"
+                accept="audio/*"
+                onChange={handleAudioMainInputChange}
+                className="sr-only"
+              />
+              <input
+                ref={audioAltInputRef}
+                type="file"
+                accept="audio/*"
+                onChange={handleAudioAltInputChange}
+                className="sr-only"
+              />
+              <input
+                ref={subtitlesInputRef}
+                type="file"
+                accept=".vtt,text/vtt"
+                onChange={handleSubtitlesInputChange}
                 className="sr-only"
               />
             </div>
@@ -1941,6 +2177,7 @@ function MediaFileRow({
   onDelete,
   uploadDisabled = false,
   deleteDisabled = false,
+  status,
   helperText,
 }: {
   value: string;
@@ -1951,11 +2188,18 @@ function MediaFileRow({
   onDelete?: () => void;
   uploadDisabled?: boolean;
   deleteDisabled?: boolean;
+  status?: "uploading" | "deleting";
   helperText?: string;
 }) {
   const displayValue = value.trim();
   const resolvedUploadDisabled = uploadDisabled || !onUpload;
   const resolvedDeleteDisabled = deleteDisabled || !onDelete;
+  const statusLabel =
+    status === "uploading"
+      ? "Uploading..."
+      : status === "deleting"
+        ? "Removing..."
+        : "";
 
   return (
     <div className="space-y-2">
@@ -1986,6 +2230,12 @@ function MediaFileRow({
           />
         </div>
       </div>
+      {statusLabel ? (
+        <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+          <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+          <span>{statusLabel}</span>
+        </div>
+      ) : null}
       {helperText ? (
         <p className="text-xs text-[var(--muted)]">{helperText}</p>
       ) : null}
