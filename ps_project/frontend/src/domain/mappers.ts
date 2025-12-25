@@ -92,7 +92,7 @@ function normalizeLinkProps(raw: unknown): Record<string, unknown> | null {
   return record ?? null;
 }
 
-function mapCategoryDto(dto: CategoryDto): CategoryModel {
+export function mapCategoryDto(dto: CategoryDto): CategoryModel {
   return {
     id: dto.id,
     sortOrder: dto.sort_order ?? null,

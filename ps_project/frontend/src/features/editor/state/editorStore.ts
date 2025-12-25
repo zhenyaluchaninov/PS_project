@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { adventureOpsSlice } from "./slices/adventureOpsSlice";
 import { clipboardSlice } from "./slices/clipboardSlice";
 import { coreSlice } from "./slices/coreSlice";
 import { historySlice } from "./slices/historySlice";
@@ -19,6 +20,7 @@ export type {
 
 export const useEditorStore = create<EditorState>()((...args) => ({
   ...coreSlice(...args),
+  ...adventureOpsSlice(...args),
   ...selectionSlice(...args),
   ...nodeOpsSlice(...args),
   ...linkOpsSlice(...args),

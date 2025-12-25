@@ -1,4 +1,4 @@
-import type { AdventureModel } from "@/domain/models";
+import type { AdventureModel, CategoryModel } from "@/domain/models";
 import type { PropPathOptions, StringArraySelectOptions } from "./propsEditing";
 
 export type EditorStatus = "idle" | "loading" | "ready" | "error";
@@ -125,6 +125,11 @@ export type EditorState = {
     value: unknown,
     options?: PropPathOptions
   ) => void;
+  updateAdventureFields: (updates: {
+    title?: string;
+    description?: string;
+    category?: CategoryModel | null;
+  }) => void;
   updateAdventureProps: (
     updates: Record<string, unknown>,
     options?: PropPathOptions

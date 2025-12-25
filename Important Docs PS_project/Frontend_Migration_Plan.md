@@ -1550,7 +1550,7 @@ web/
 
 ---
 
-### Step 26 – Link panel (labels, direction, conditions)
+### [done] Step 26 – Link panel (labels, direction, conditions)
 
 **What we do**
 
