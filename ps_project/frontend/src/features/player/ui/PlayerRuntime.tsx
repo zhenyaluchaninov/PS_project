@@ -45,19 +45,22 @@ import {
   type PlayerStoreHook,
   usePlayerStore,
 } from "../state/playerStore";
-import {
-  getOutgoingLinksForNode,
-  resolveReferenceUrl,
-  resolveNodeKind,
-  resolveVideoSource,
-  type NodeKind,
-} from "../engine/playerEngine";
+import { resolveReferenceUrl, resolveVideoSource } from "../engine/playerEngine";
 import {
   createAudioEngine,
   type AudioEngine,
   type AudioDebugSnapshot,
   type AudioSourceConfig,
 } from "../media/audioEngine";
+import {
+  buildLinksBySource,
+  buildNavigationConfig,
+  getOutgoingLinksForNode,
+  normalizeNavStyle,
+  type NavPlacement,
+  type NavStyle,
+} from "../utils/navigationUtils";
+import { buildNodeById, resolveNodeKind, type NodeKind } from "../utils/nodeUtils";
 import { useViewportDevice } from "./useViewportDevice";
 import { ScrollyTracker } from "./ScrollyTracker";
 
@@ -266,16 +269,6 @@ const resolveAudioCandidates = (
   rawValue: string | null
 ) => resolveUploadCandidates(adventureSlug, adventureViewSlug, rawValue);
 
-type NavStyle =
-  | "default"
-  | "right"
-  | "leftright"
-  | "noButtons"
-  | "swipe"
-  | "swipeWithButton"
-  | "scrollytell";
-type NavPlacement = "inline" | "bottom";
-
 type NavItem = { kind: "link"; link: LinkModel } | { kind: "current" };
 type NavigationButton = {
   key: string;
@@ -291,36 +284,6 @@ type NavigationButton = {
 type NavigationModel = {
   buttons: NavigationButton[];
   primaryLinkId?: number;
-};
-
-const normalizeNavStyle = (raw?: string | null): NavStyle | null => {
-  if (raw === null || raw === undefined) return null;
-  let asString: string | null = null;
-  if (typeof raw === "string") {
-    asString = raw;
-  } else if (Array.isArray(raw)) {
-    const first = raw.find((item) => typeof item === "string") as string | undefined;
-    asString = first ?? null;
-  } else {
-    asString = String(raw);
-  }
-  const key = asString?.toLowerCase().trim() ?? "";
-  if (!key) return null;
-  if (key === "right") return "right";
-  if (key === "leftright" || key === "left-right" || key === "left_right") return "leftright";
-  if (key === "nobuttons" || key === "no-buttons" || key === "no") return "noButtons";
-  if (key === "swipewithbutton" || key === "swipe-with-button") return "swipeWithButton";
-  if (key === "swipe") return "swipe";
-  if (
-    key === "scrollytell" ||
-    key === "scrolly" ||
-    key === "scroll-tell" ||
-    key === "scrolly-tell" ||
-    key === "scrollytelling"
-  ) {
-    return "scrollytell";
-  }
-  return "default";
 };
 
 const tokenize = (value: unknown): string[] => {
@@ -424,14 +387,6 @@ const buildAudioSourceConfig = (
     loop,
     altBehavior,
   };
-};
-
-const parseOrderedLinkIds = (value: unknown): number[] => {
-  const tokens = tokenize(value);
-  return tokens
-    .map((token) => Number(token))
-    .filter((num) => Number.isFinite(num))
-    .map((num) => Number(num));
 };
 
 const hasHideVisitedCondition = (node?: NodeModel | null): boolean => {
@@ -760,49 +715,16 @@ export function PlayerRuntime({
     [searchParams]
   );
 
-  const navigationConfig = useMemo(() => {
-    const navSettingsTokens = tokenize(
-      readRawProp(currentNode?.rawProps, [
-        "playerNavigation.settings",
-        "playerNavigation_settings",
-        "playerNavigationSettings",
-      ])
-    ).map((token) => token.toLowerCase());
-
-    const styleFromProps = normalizeNavStyle(
-      readRawProp(currentNode?.rawProps, [
-        "background.navigation_style",
-        "navigation_style",
-        "backgroundNavigationStyle",
-      ]) as string | undefined
-    );
-
-    const style: NavStyle = navOverrides.styleOverride ?? styleFromProps ?? "default";
-    const placement: NavPlacement =
-      navOverrides.bottomOverride || navSettingsTokens.includes("bottom-navigation")
-        ? "bottom"
-        : "inline";
-    const showCurrent =
-      navOverrides.showCurrentOverride ?? navSettingsTokens.includes("show-current-node");
-    const hideVisited =
-      (navOverrides.hideVisitedOverride ?? false) || navSettingsTokens.includes("hide-visited");
-    const orderedIds = parseOrderedLinkIds(
-      readRawProp(currentNode?.rawProps, ["ordered_link_ids", "button_order", "button-order"])
-    );
-    const skipCount =
-      style === "default" || style === "swipeWithButton" || style === "scrollytell" ? 0 : 1;
-    const swipeMode = style === "swipe" || style === "swipeWithButton";
-
-    return {
-      style,
-      placement,
-      showCurrent,
-      orderedIds,
-      skipCount,
-      hideVisited,
-      swipeMode,
-    };
-  }, [currentNode?.rawProps, navOverrides]);
+  const navigationConfig = useMemo(
+    () =>
+      buildNavigationConfig(currentNode?.rawProps, {
+        styleOverride: navOverrides.styleOverride ?? undefined,
+        bottomOverride: navOverrides.bottomOverride,
+        showCurrentOverride: navOverrides.showCurrentOverride,
+        hideVisitedOverride: navOverrides.hideVisitedOverride,
+      }),
+    [currentNode?.rawProps, navOverrides]
+  );
 
   const isScrollytell = navigationConfig.style === "scrollytell";
   const isSwipeNav =
@@ -1570,68 +1492,17 @@ export function StaticPlayerPreview({
 
   useLoadAdventureFonts(adventure.props?.fontList, typography.fontFamily);
 
-  const navigationConfig = useMemo(() => {
-    const navSettingsTokens = tokenize(
-      readRawProp(rawProps, [
-        "playerNavigation.settings",
-        "playerNavigation_settings",
-        "playerNavigationSettings",
-      ])
-    ).map((token) => token.toLowerCase());
+  const navigationConfig = useMemo(
+    () => buildNavigationConfig(rawProps),
+    [rawProps]
+  );
 
-    const styleFromProps = normalizeNavStyle(
-      readRawProp(rawProps, [
-        "background.navigation_style",
-        "navigation_style",
-        "backgroundNavigationStyle",
-      ]) as string | undefined
-    );
+  const linksBySource = useMemo(
+    () => buildLinksBySource(adventure.links),
+    [adventure.links]
+  );
 
-    const style: NavStyle = styleFromProps ?? "default";
-    const placement: NavPlacement = navSettingsTokens.includes("bottom-navigation")
-      ? "bottom"
-      : "inline";
-    const showCurrent = navSettingsTokens.includes("show-current-node");
-    const hideVisited = navSettingsTokens.includes("hide-visited");
-    const orderedIds = parseOrderedLinkIds(
-      readRawProp(rawProps, ["ordered_link_ids", "button_order", "button-order"])
-    );
-    const skipCount =
-      style === "default" || style === "swipeWithButton" || style === "scrollytell"
-        ? 0
-        : 1;
-    const swipeMode = style === "swipe" || style === "swipeWithButton";
-
-    return {
-      style,
-      placement,
-      showCurrent,
-      orderedIds,
-      skipCount,
-      hideVisited,
-      swipeMode,
-    };
-  }, [rawProps]);
-
-  const linksBySource = useMemo(() => {
-    const map: Record<number, LinkModel[]> = {};
-    adventure.links.forEach((link) => {
-      const sourceId = link.fromNodeId;
-      if (!map[sourceId]) {
-        map[sourceId] = [];
-      }
-      map[sourceId].push(link);
-    });
-    return map;
-  }, [adventure.links]);
-
-  const nodeById = useMemo(() => {
-    const map = new Map<number, NodeModel>();
-    adventure.nodes.forEach((item) => {
-      map.set(item.nodeId, item);
-    });
-    return map;
-  }, [adventure.nodes]);
+  const nodeById = useMemo(() => buildNodeById(adventure.nodes), [adventure.nodes]);
 
   const outgoingLinks = useMemo(
     () => getOutgoingLinksForNode(node.nodeId, linksBySource),
