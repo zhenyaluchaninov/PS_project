@@ -40,6 +40,8 @@ export function InspectorRouter() {
   const setNodePropStringArraySelect = useEditorStore(
     (s) => s.setNodePropStringArraySelect
   );
+  const setSelection = useEditorStore((s) => s.setSelection);
+  const setSelectionSnapshot = useEditorStore((s) => s.setSelectionSnapshot);
   const selectedNodeIds = useEditorStore(selectEditorSelectedNodeIds);
   const selectedLinkIds = useEditorStore(selectEditorSelectedLinkIds);
 
@@ -188,19 +190,41 @@ export function InspectorRouter() {
     : selection.type === "node"
       ? selection.nodeId
       : null;
-  const primaryNode = primaryNodeId ? nodeById.get(primaryNodeId) ?? null : null;
+  const primaryNode =
+    primaryNodeId != null ? nodeById.get(primaryNodeId) ?? null : null;
   const outgoingLinks = primaryNode
     ? adventure.links
         .filter((link) => link.source === primaryNode.nodeId)
-        .map((link) => ({
-          linkId: link.linkId,
-          targetId: link.target,
-          label:
-            (link.label && link.label.trim()) ||
-            nodeById.get(link.target)?.title ||
-            `#${link.target}`,
-        }))
+        .map((link) => {
+          const targetNode = nodeById.get(link.target);
+          const title = targetNode?.title?.trim() ?? "";
+          return {
+            linkId: link.linkId,
+            targetId: link.target,
+            label: title || `#${link.target}`,
+          };
+        })
     : [];
+
+  const activeLinkId =
+    selection.type === "link"
+      ? selection.linkId
+      : selectedLinkIds.length > 0
+        ? selectedLinkIds[selectedLinkIds.length - 1]
+        : null;
+
+  const handleSelectLink = (linkId: number) => {
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("[Choices] select link", {
+        linkId,
+        selection,
+        selectedNodeIds,
+        selectedLinkIds,
+      });
+    }
+    setSelectionSnapshot([], [linkId]);
+    setSelection({ type: "link", linkId });
+  };
 
   const bulkTargets = selectedNodeIds
     .map((nodeId) => nodeById.get(nodeId))
@@ -241,6 +265,8 @@ export function InspectorRouter() {
           editSlug={editSlug}
           fontList={adventure.props?.fontList}
           outgoingLinks={outgoingLinks}
+          selectedLinkId={activeLinkId}
+          onSelectLink={handleSelectLink}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onTitleChange={(title) => updateNodeTitle(primaryNode.nodeId, title)}
@@ -350,6 +376,8 @@ export function InspectorRouter() {
         editSlug={editSlug}
         fontList={adventure.props?.fontList}
         outgoingLinks={outgoingLinks}
+        selectedLinkId={activeLinkId}
+        onSelectLink={handleSelectLink}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onTitleChange={(title) => updateNodeTitle(selectedNode.nodeId, title)}

@@ -5,7 +5,6 @@ import { API_BASE_URL, resolveApiUrl } from "@/features/state/api/client";
 import {
   selectEditorAdventure,
   selectEditorDirty,
-  selectEditorEditVersion,
   selectEditorError,
   selectEditorFocusNodeId,
   selectEditorSelectedLinkIds,
@@ -30,7 +29,6 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const adventure = useEditorStore(selectEditorAdventure);
   const error = useEditorStore(selectEditorError);
   const dirty = useEditorStore(selectEditorDirty);
-  const editVersion = useEditorStore(selectEditorEditVersion);
   const selection = useEditorStore(selectEditorSelection);
   const selectedNodeIds = useEditorStore(selectEditorSelectedNodeIds);
   const selectedLinkIds = useEditorStore(selectEditorSelectedLinkIds);
@@ -179,8 +177,6 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
           graph={
             <GraphCanvas
               adventure={adventure}
-              editSlug={editSlug}
-              editVersion={editVersion ?? null}
               selection={selection}
               selectedNodeIds={selectedNodeIds}
               selectedLinkIds={selectedLinkIds}

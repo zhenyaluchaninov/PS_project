@@ -450,6 +450,8 @@ type NodeInspectorPanelProps = {
   editSlug?: string;
   fontList?: string[];
   outgoingLinks?: Array<{ linkId: number; targetId: number; label: string }>;
+  selectedLinkId?: number | null;
+  onSelectLink?: (linkId: number) => void;
   activeTab: EditorNodeInspectorTab;
   onTabChange: (tab: EditorNodeInspectorTab) => void;
   onTitleChange: (title: string) => void;
@@ -466,6 +468,8 @@ export function NodeInspectorPanel({
   editSlug,
   fontList,
   outgoingLinks = [],
+  selectedLinkId = null,
+  onSelectLink,
   activeTab,
   onTabChange,
   onTitleChange,
@@ -486,8 +490,8 @@ export function NodeInspectorPanel({
     Layout: false,
     Navigation: false,
     Audio: false,
+    Choices: true,
     "Button appearance": false,
-    "Button order": false,
     Conditions: false,
     Tracking: false,
   });
@@ -567,6 +571,13 @@ export function NodeInspectorPanel({
   const handleNodePropsChange = (updates: Record<string, unknown>) => {
     if (bulkActive) return;
     onNodePropsChange(updates);
+  };
+  const choicesDisabledReason = bulkActive
+    ? "Bulk edit disabled: select a single node to edit choices."
+    : undefined;
+  const handleLinkSelect = (linkId: number) => {
+    if (bulkActive || !onSelectLink) return;
+    onSelectLink(linkId);
   };
   const setMediaPropValue = (
     snakeKey: string,
@@ -2036,6 +2047,35 @@ export function NodeInspectorPanel({
           <div className="space-y-4">
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
               <CollapsibleSection
+                title="Choices"
+                open={sectionState.Choices}
+                onToggle={(next) => setSectionOpen("Choices", next)}
+              >
+                <BulkField
+                  active={isBulkFieldStaged("ordered_link_ids")}
+                  disabledReason={choicesDisabledReason}
+                  onClear={() => clearBulkPaths("ordered_link_ids")}
+                >
+                  {orderedOutgoingLinks.length === 0 ? (
+                    <p className="text-sm text-[var(--muted)]">
+                      No choices yet.
+                    </p>
+                  ) : (
+                    <ReorderList
+                      items={orderedOutgoingLinks}
+                      selectedId={selectedLinkId}
+                      onSelect={handleLinkSelect}
+                      onReorder={(next) =>
+                        handleNodePropChange(
+                          "ordered_link_ids",
+                          next.map((link) => String(link.linkId))
+                        )
+                      }
+                    />
+                  )}
+                </BulkField>
+              </CollapsibleSection>
+              <CollapsibleSection
                 title="Button appearance"
                 open={sectionState["Button appearance"]}
                 onToggle={(next) => setSectionOpen("Button appearance", next)}
@@ -2111,37 +2151,6 @@ export function NodeInspectorPanel({
                 </div>
               </CollapsibleSection>
 
-              <CollapsibleSection
-                title="Button order"
-                open={sectionState["Button order"]}
-                onToggle={(next) => setSectionOpen("Button order", next)}
-              >
-                <BulkField
-                  active={isBulkFieldStaged("ordered_link_ids")}
-                  disabledReason={
-                    bulkActive
-                      ? "Bulk edit disabled: button order is per-node."
-                      : undefined
-                  }
-                  onClear={() => clearBulkPaths("ordered_link_ids")}
-                >
-                  {orderedOutgoingLinks.length === 0 ? (
-                    <p className="text-sm text-[var(--muted)]">
-                      No outgoing links.
-                    </p>
-                  ) : (
-                    <ReorderList
-                      items={orderedOutgoingLinks}
-                      onReorder={(next) =>
-                        handleNodePropChange(
-                          "ordered_link_ids",
-                          next.map((link) => String(link.linkId))
-                        )
-                      }
-                    />
-                  )}
-                </BulkField>
-              </CollapsibleSection>
             </div>
           </div>
         </TabsContent>
@@ -2530,9 +2539,13 @@ function MediaFileRow({
 
 function ReorderList({
   items,
+  selectedId,
+  onSelect,
   onReorder,
 }: {
   items: Array<{ linkId: number; targetId: number; label: string }>;
+  selectedId?: number | null;
+  onSelect?: (linkId: number) => void;
   onReorder: (items: Array<{ linkId: number; targetId: number; label: string }>) => void;
 }) {
   const rowRefs = useRef(new Map<number, HTMLDivElement>());
@@ -2644,6 +2657,7 @@ function ReorderList({
   return (
     <div
       className="space-y-2"
+      role="list"
       onDragOver={(event) => {
         if (draggingId !== null) event.preventDefault();
       }}
@@ -2663,17 +2677,41 @@ function ReorderList({
           onDragOver={handleDragOver(item.linkId)}
           onDrop={handleDrop}
           className={cn(
-            "flex items-center gap-3 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2",
-            draggingId === item.linkId ? "opacity-0" : ""
+            "flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-2",
+            "hover:border-[var(--border-light)] hover:bg-[var(--bg-hover)]",
+            draggingId === item.linkId ? "opacity-0" : "",
+            selectedId === item.linkId
+              ? "border-[var(--accent)] ring-2 ring-[var(--accent-muted)]"
+              : ""
           )}
+          onClick={(event) => {
+            if (process.env.NODE_ENV !== "production") {
+              console.debug("[Choices] row click", {
+                linkId: item.linkId,
+                targetTag:
+                  event.target instanceof HTMLElement ? event.target.tagName : null,
+              });
+            }
+            onSelect?.(item.linkId);
+          }}
         >
           <button
             type="button"
             draggable
-            onDragStart={handleDragStart(item.linkId)}
+            onDragStart={(event) => {
+              if (process.env.NODE_ENV !== "production") {
+                console.debug("[Choices] drag start", { linkId: item.linkId });
+              }
+              handleDragStart(item.linkId)(event);
+            }}
             onDragEnd={handleDragEnd}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
             aria-label={`Reorder ${item.label}`}
-            className="cursor-grab text-[var(--muted)] active:cursor-grabbing"
+            className="cursor-grab px-1 text-[var(--muted)] active:cursor-grabbing"
           >
             <GripVertical className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -2685,6 +2723,9 @@ function ReorderList({
               Node #{item.targetId}
             </p>
           </div>
+          <span className="text-[10px] font-semibold text-[var(--muted)]">
+            #{item.linkId}
+          </span>
         </div>
       ))}
     </div>

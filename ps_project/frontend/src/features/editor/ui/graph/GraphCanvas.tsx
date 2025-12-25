@@ -41,8 +41,6 @@ import type { GraphEdge, GraphNode, PlayTraceState } from "./types";
 
 type GraphCanvasProps = {
   adventure: AdventureModel;
-  editSlug?: string;
-  editVersion?: number | null;
   selection: EditorSelection;
   selectedNodeIds: number[];
   selectedLinkIds: number[];
@@ -76,8 +74,6 @@ const defaultEdgeOptions = {
 
 export function GraphCanvas({
   adventure,
-  editSlug,
-  editVersion,
   selection,
   selectedNodeIds,
   selectedLinkIds,
@@ -93,7 +89,6 @@ export function GraphCanvas({
   onCreateNodeWithLink,
   className,
 }: GraphCanvasProps) {
-  const [hudOpen, setHudOpen] = useState(true);
   const [previewTrace, setPreviewTrace] = useState<PreviewPlayTrace>({
     nodeIds: [],
     linkIds: [],
@@ -116,18 +111,8 @@ export function GraphCanvas({
     return map;
   }, [adventure.nodes]);
 
-  const linkById = useMemo(() => {
-    const map = new Map<number, AdventureModel["links"][number]>();
-    adventure.links.forEach((link) => {
-      map.set(link.linkId, link);
-    });
-    return map;
-  }, [adventure.links]);
-
   const selectedNode =
     selection.type === "node" ? nodeById.get(selection.nodeId) : undefined;
-  const selectedLink =
-    selection.type === "link" ? linkById.get(selection.linkId) : undefined;
 
   const [nodes, setNodes, onNodesChange] = useNodesState<GraphNode>(
     buildGraphNodes(adventure.nodes, [])
@@ -444,113 +429,7 @@ export function GraphCanvas({
       <div className="absolute inset-y-0 left-0 z-20">
         <EditorToolStrip adventure={adventure} />
       </div>
-      <div className="absolute bottom-3 left-[60px] z-10 flex flex-col gap-2">
-        <div className="pointer-events-auto w-[240px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 text-[var(--text)] shadow-[0_12px_40px_-30px_rgba(0,0,0,0.8)] backdrop-blur">
-          <button
-            type="button"
-            onClick={() => setHudOpen((open) => !open)}
-            className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--muted)]"
-          >
-            <span>Debug HUD</span>
-            <span className="text-[var(--text)]/70">
-              {hudOpen ? "Hide" : "Show"}
-            </span>
-          </button>
-          {hudOpen ? (
-            <div className="space-y-3 border-t border-[var(--border)] px-3 py-3 text-xs text-[var(--text)]/90">
-              <div className="space-y-1">
-                <p className="uppercase tracking-[0.18em] text-[var(--muted)]">
-                  Selection
-                </p>
-                <p>
-                  Type:{" "}
-                  <span className="font-semibold">
-                    {selection.type === "none"
-                      ? "Empty"
-                      : selection.type === "node"
-                        ? "Node"
-                        : "Link"}
-                  </span>
-                </p>
-                {selection.type === "none" ? (
-                  <p className="text-[var(--muted)]">Nothing selected.</p>
-                ) : null}
-                {selection.type === "node" ? (
-                  <div className="space-y-1">
-                    <p>
-                      node_id:{" "}
-                      <span className="font-semibold">
-                        {selection.nodeId}
-                      </span>
-                    </p>
-                    <p>
-                      title:{" "}
-                      <span className="font-semibold">
-                        {selectedNode?.title ?? "n/a"}
-                      </span>
-                    </p>
-                    {selectedNode?.type ? (
-                      <p>
-                        node_type:{" "}
-                        <span className="font-semibold">{selectedNode.type}</span>
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {selection.type === "link" ? (
-                  <div className="space-y-1">
-                    <p>
-                      link_id:{" "}
-                      <span className="font-semibold">
-                        {selection.linkId}
-                      </span>
-                    </p>
-                    <p>
-                      source:{" "}
-                      <span className="font-semibold">
-                        {selectedLink?.source ?? "n/a"}
-                      </span>
-                    </p>
-                    <p>
-                      target:{" "}
-                      <span className="font-semibold">
-                        {selectedLink?.target ?? "n/a"}
-                      </span>
-                    </p>
-                    {selectedLink?.label ? (
-                      <p>
-                        label:{" "}
-                        <span className="font-semibold">
-                          {selectedLink.label}
-                        </span>
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-              <div className="space-y-1 border-t border-[var(--border)] pt-3 text-[var(--muted)]">
-                <p className="uppercase tracking-[0.18em]">Adventure</p>
-                <p>
-                  nodes: <span className="font-semibold">{adventure.nodes.length}</span>
-                </p>
-                <p>
-                  links: <span className="font-semibold">{adventure.links.length}</span>
-                </p>
-                {editSlug ? (
-                  <p>
-                    edit slug: <span className="font-semibold">{editSlug}</span>
-                  </p>
-                ) : null}
-                {typeof editVersion === "number" ? (
-                  <p>
-                    edit version:{" "}
-                    <span className="font-semibold">{editVersion}</span>
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-        </div>
+      <div className="absolute bottom-3 left-[60px] z-10">
         <ShortcutHud />
       </div>
       <PreviewOverlay

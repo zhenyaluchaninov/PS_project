@@ -42,6 +42,7 @@ export function ShortcutHud() {
   }
   if (hasSingleNode) {
     hints.push({ keys: "Ctrl/Cmd+D", label: "Duplicate" });
+    hints.push({ keys: "N", label: "New node (linked)" });
   }
   if (hasClipboard) {
     hints.push({ keys: "Ctrl/Cmd+V", label: "Paste" });

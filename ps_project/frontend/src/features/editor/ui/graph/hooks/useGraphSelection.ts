@@ -1,6 +1,6 @@
 import {
   useCallback,
-  useEffect,
+  useLayoutEffect,
   useRef,
   type Dispatch,
   type SetStateAction,
@@ -72,6 +72,9 @@ export function useGraphSelection({
 
   const handleSelectionChange = useCallback(
     ({ nodes: selectedNodes, edges: selectedEdges }: { nodes: GraphNode[]; edges: GraphEdge[] }) => {
+      if (selectionSourceRef.current === "store") {
+        return;
+      }
       if (suppressSelectionChangeRef.current) {
         return;
       }
@@ -98,6 +101,18 @@ export function useGraphSelection({
         return;
       }
 
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[Graph] selection change from ReactFlow", {
+          nodeIds,
+          linkIds: effectiveLinkIds,
+          nextSelection,
+          prevSelection: selection,
+          storeSelectedNodeIds: selectedNodeIds,
+          storeSelectedLinkIds: selectedLinkIds,
+          selectionToolActive,
+        });
+      }
+
       selectionSourceRef.current = "reactflow";
       onSelectionSnapshotChange(nodeIds, effectiveLinkIds);
       onSelectionChange(nextSelection);
@@ -112,16 +127,14 @@ export function useGraphSelection({
     ]
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (selectionSourceRef.current === "reactflow") {
       selectionSourceRef.current = null;
       return;
     }
     const nodeIdSet = new Set(selectedNodeIds);
     const linkIdSet = new Set(selectedLinkIds);
-    let didUpdateNodes = false;
-    let didUpdateEdges = false;
-
+    selectionSourceRef.current = "store";
     suppressSelectionChangeRef.current = true;
 
     setNodes((current) => {
@@ -133,7 +146,6 @@ export function useGraphSelection({
         changed = true;
         return { ...node, selected: shouldSelect };
       });
-      didUpdateNodes = changed;
       return changed ? next : current;
     });
 
@@ -146,17 +158,23 @@ export function useGraphSelection({
         changed = true;
         return { ...edge, selected: shouldSelect };
       });
-      didUpdateEdges = changed;
       return changed ? next : current;
     });
 
-    if (!didUpdateNodes && !didUpdateEdges) {
-      suppressSelectionChangeRef.current = false;
-      return;
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("[Graph] applying store selection to ReactFlow", {
+        selectedNodeIds,
+        selectedLinkIds,
+      });
     }
 
     requestAnimationFrame(() => {
-      suppressSelectionChangeRef.current = false;
+      requestAnimationFrame(() => {
+        suppressSelectionChangeRef.current = false;
+        if (selectionSourceRef.current === "store") {
+          selectionSourceRef.current = null;
+        }
+      });
     });
   }, [selectedLinkIds, selectedNodeIds, setEdges, setNodes]);
 
