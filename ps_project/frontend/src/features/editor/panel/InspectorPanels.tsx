@@ -8,6 +8,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/features/ui-core/primitives/tabs";
+import { Button } from "@/features/ui-core/primitives/button";
 import { LabelValue } from "@/ui-core/LabelValue";
 import { cn } from "@/lib/utils";
 import type { EditorNodeInspectorTab } from "../state/editorStore";
@@ -31,6 +32,39 @@ const tabOptions: Array<{ value: EditorNodeInspectorTab; label: string }> = [
   { value: "buttons", label: "Buttons" },
   { value: "logic", label: "Logic" },
 ];
+
+export type BulkDraftOp = "set" | "unset";
+
+export type BulkDraftKind =
+  | "nodeTitle"
+  | "nodeText"
+  | "propPath"
+  | "propStringArray";
+
+export type BulkDraftEntry = {
+  path: string;
+  op: BulkDraftOp;
+  value: unknown;
+  kind: BulkDraftKind;
+};
+
+export type BulkDraft = Record<string, BulkDraftEntry>;
+
+export type BulkEditConfig = {
+  active: boolean;
+  selectedNodeCount: number;
+  selectedLinkCount: number;
+  draft: BulkDraft;
+  notice?: string | null;
+  onStage: (entry: BulkDraftEntry) => void;
+  onClear: (paths: string | string[]) => void;
+  onDiscardAll: () => void;
+  onRequestApply: () => void;
+};
+
+export const BULK_NODE_TITLE_PATH = "node.title";
+export const BULK_NODE_TEXT_PATH = "node.text";
+export const BULK_NODE_TYPE_PATH = "settings_chapterType";
 
 const emojiOptions = [
   "\u{1F600}",
@@ -246,7 +280,12 @@ const parseFontEntry = (entry: string) => {
   return { name, url: isUrl ? trimmed : undefined };
 };
 
-const readNodePropValue = (node: NodeModel, key: string): unknown => {
+const readNodePropValue = (
+  node: NodeModel,
+  key: string,
+  draft?: BulkDraft
+): unknown => {
+  if (draft && draft[key]) return draft[key].value;
   const rawProps = node.rawProps ?? {};
   const fallbackProps = (node.props as Record<string, unknown> | null) ?? {};
   return rawProps[key] ?? fallbackProps[key];
@@ -255,9 +294,10 @@ const readNodePropValue = (node: NodeModel, key: string): unknown => {
 const getColorProp = (
   node: NodeModel,
   key: keyof typeof SCENE_COLOR_DEFAULTS,
-  fallback: string
+  fallback: string,
+  draft?: BulkDraft
 ): string => {
-  const value = readNodePropValue(node, key);
+  const value = readNodePropValue(node, key, draft);
   if (typeof value === "string" && isHexColor(value)) {
     return value;
   }
@@ -267,9 +307,10 @@ const getColorProp = (
 const getAlphaProp = (
   node: NodeModel,
   key: keyof typeof SCENE_COLOR_DEFAULTS,
-  fallback: number
+  fallback: number,
+  draft?: BulkDraft
 ): number => {
-  const value = readNodePropValue(node, key);
+  const value = readNodePropValue(node, key, draft);
   const parsed =
     typeof value === "number"
       ? value
@@ -282,9 +323,10 @@ const getAlphaProp = (
 const getColorValue = (
   node: NodeModel,
   key: string,
-  fallback: string
+  fallback: string,
+  draft?: BulkDraft
 ): string => {
-  const value = readNodePropValue(node, key);
+  const value = readNodePropValue(node, key, draft);
   if (typeof value === "string" && isHexColor(value)) {
     return value;
   }
@@ -294,9 +336,10 @@ const getColorValue = (
 const getAlphaValue = (
   node: NodeModel,
   key: string,
-  fallback: number
+  fallback: number,
+  draft?: BulkDraft
 ): number => {
-  const value = readNodePropValue(node, key);
+  const value = readNodePropValue(node, key, draft);
   const primary =
     Array.isArray(value) && value.length > 0 ? value[0] : value;
   const parsed =
@@ -311,9 +354,10 @@ const getAlphaValue = (
 const getNumberProp = (
   node: NodeModel,
   key: string,
-  fallback: number
+  fallback: number,
+  draft?: BulkDraft
 ): number => {
-  const value = readNodePropValue(node, key);
+  const value = readNodePropValue(node, key, draft);
   const primary =
     Array.isArray(value) && value.length > 0 ? value[0] : value;
   const parsed =
@@ -325,28 +369,28 @@ const getNumberProp = (
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const getNavigationStyle = (node: NodeModel): string => {
-  const value = readNodePropValue(node, "background.navigation_style");
+const getNavigationStyle = (node: NodeModel, draft?: BulkDraft): string => {
+  const value = readNodePropValue(node, "background.navigation_style", draft);
   const tokens = readStringArray(value);
   const candidate = tokens[0]?.trim() ?? "";
   if (!candidate || candidate === "default") return "default";
   return navigationStyleValues.has(candidate) ? candidate : "default";
 };
 
-const getNavigationSettings = (node: NodeModel): string[] =>
-  readStringArray(readNodePropValue(node, "playerNavigation.settings"));
+const getNavigationSettings = (node: NodeModel, draft?: BulkDraft): string[] =>
+  readStringArray(readNodePropValue(node, "playerNavigation.settings", draft));
 
-const getFontToken = (node: NodeModel): string => {
+const getFontToken = (node: NodeModel, draft?: BulkDraft): string => {
   const value =
-    readNodePropValue(node, "background.font") ??
-    readNodePropValue(node, "background_font");
+    readNodePropValue(node, "background.font", draft) ??
+    readNodePropValue(node, "background_font", draft);
   const tokens = readStringArray(value);
   return tokens[0]?.trim() ?? "";
 };
 
-const getTextShadow = (node: NodeModel): string => {
+const getTextShadow = (node: NodeModel, draft?: BulkDraft): string => {
   const tokens = readStringArray(
-    readNodePropValue(node, "outer_container.textShadow")
+    readNodePropValue(node, "outer_container.textShadow", draft)
   );
   const candidate = tokens[0]?.trim() ?? "";
   return textShadowValues.has(candidate) ? candidate : "";
@@ -360,59 +404,66 @@ const isToggleOn = (value: unknown): boolean => {
   );
 };
 
-const getGrayscaleEnabled = (node: NodeModel): boolean =>
-  readStringArray(readNodePropValue(node, "settings_grayscale")).some(
+const getGrayscaleEnabled = (node: NodeModel, draft?: BulkDraft): boolean =>
+  readStringArray(readNodePropValue(node, "settings_grayscale", draft)).some(
     (token) => token.toLowerCase() === "on"
   );
 
-const getBlurAmount = (node: NodeModel): number => {
-  const blur = getNumberProp(node, "color_blur", 0);
+const getBlurAmount = (node: NodeModel, draft?: BulkDraft): number => {
+  const blur = getNumberProp(node, "color_blur", 0, draft);
   return Number.isFinite(blur) ? Math.max(0, blur) : 0;
 };
 
-const getHideVisitedEnabled = (node: NodeModel): boolean =>
-  readStringArray(readNodePropValue(node, "node_conditions")).some(
+const getHideVisitedEnabled = (node: NodeModel, draft?: BulkDraft): boolean =>
+  readStringArray(readNodePropValue(node, "node_conditions", draft)).some(
     (token) => token.toLowerCase() === "hide_visited"
   );
 
-const getStatisticsEnabled = (node: NodeModel): boolean =>
-  isToggleOn(readNodePropValue(node, "node_statistics"));
+const getStatisticsEnabled = (node: NodeModel, draft?: BulkDraft): boolean =>
+  isToggleOn(readNodePropValue(node, "node_statistics", draft));
 
-const getNavTextSize = (node: NodeModel): number => {
-  const raw = getNumberProp(node, "playerNavigation_textSize", NAV_TEXT_SIZE_DEFAULT);
+const getNavTextSize = (node: NodeModel, draft?: BulkDraft): number => {
+  const raw = getNumberProp(
+    node,
+    "playerNavigation_textSize",
+    NAV_TEXT_SIZE_DEFAULT,
+    draft
+  );
   return clampNumber(raw, NAV_TEXT_SIZE_MIN, NAV_TEXT_SIZE_MAX);
 };
 
-const getAudioVolume = (node: NodeModel): number => {
-  const volume = getNumberProp(node, "audio_volume", AUDIO_VOLUME_MAX);
+const getAudioVolume = (node: NodeModel, draft?: BulkDraft): number => {
+  const volume = getNumberProp(node, "audio_volume", AUDIO_VOLUME_MAX, draft);
   return Number.isFinite(volume) ? volume : AUDIO_VOLUME_MAX;
 };
 
-const getOrderedLinkIds = (node: NodeModel): number[] =>
-  readStringArray(readNodePropValue(node, "ordered_link_ids"))
+const getOrderedLinkIds = (node: NodeModel, draft?: BulkDraft): number[] =>
+  readStringArray(readNodePropValue(node, "ordered_link_ids", draft))
     .map((value) => Number(value))
     .filter((value) => Number.isFinite(value));
 
-const getVerticalPosition = (node: NodeModel): string => {
-  const value = readNodePropValue(node, "player.verticalPosition");
+const getVerticalPosition = (node: NodeModel, draft?: BulkDraft): string => {
+  const value = readNodePropValue(node, "player.verticalPosition", draft);
   const tokens = readStringArray(value);
   const candidate = tokens[0]?.trim() ?? "";
   if (verticalPositionValues.has(candidate)) return candidate;
   return "vertical-align-center";
 };
 
-const getScrollSpeed = (node: NodeModel): number => {
-  const value = readNodePropValue(node, "settings_scrollSpeed");
+const getScrollSpeed = (node: NodeModel, draft?: BulkDraft): number => {
+  const value = readNodePropValue(node, "settings_scrollSpeed", draft);
   const tokens = readStringArray(value);
   const candidate = tokens[0]?.trim() ?? "";
   const parsed = parseFloat(candidate);
   return Number.isFinite(parsed) ? parsed : SCROLL_SPEED_DEFAULT;
 };
 
-const getNodeChapterType = (node: NodeModel): string => {
+const getNodeChapterType = (node: NodeModel, draft?: BulkDraft): string => {
   const primaryProps = (node.props as Record<string, unknown> | null) ?? {};
   const fallbackProps = node.rawProps ?? {};
+  const draftValue = draft?.[BULK_NODE_TYPE_PATH]?.value;
   const rawValue =
+    draftValue ??
     primaryProps.settings_chapterType ??
     primaryProps.settingsChapterType ??
     primaryProps.chapterType ??
@@ -780,6 +831,7 @@ type NodeInspectorPanelProps = {
   onTextChange: (text: string) => void;
   onNodeTypeChange: (chapterType: string) => void;
   onNodePropChange: (path: string, value: unknown) => void;
+  bulk?: BulkEditConfig;
 };
 
 export function NodeInspectorPanel({
@@ -792,6 +844,7 @@ export function NodeInspectorPanel({
   onTextChange,
   onNodeTypeChange,
   onNodePropChange,
+  bulk,
 }: NodeInspectorPanelProps) {
   const [sectionState, setSectionState] = useState<Record<string, boolean>>({
     "Node type": false,
@@ -807,20 +860,91 @@ export function NodeInspectorPanel({
   });
   const setSectionOpen = (key: string, next: boolean) =>
     setSectionState((prev) => ({ ...prev, [key]: next }));
-  const chapterType = getNodeChapterType(node);
+  const bulkDraft = bulk?.draft ?? {};
+  const bulkActive = bulk?.active ?? false;
+  const stagedCount = Object.keys(bulkDraft).length;
+  const hasStagedChanges = stagedCount > 0;
+  const stagedTitle = bulkDraft[BULK_NODE_TITLE_PATH];
+  const stagedText = bulkDraft[BULK_NODE_TEXT_PATH];
+  const titleValue =
+    bulkActive && stagedTitle ? String(stagedTitle.value ?? "") : node.title ?? "";
+  const textValue =
+    bulkActive && stagedText ? String(stagedText.value ?? "") : node.text ?? "";
+  const isBulkFieldStaged = (paths: string | string[]) => {
+    if (!bulkActive) return false;
+    const pathList = Array.isArray(paths) ? paths : [paths];
+    return pathList.some((path) => Boolean(bulkDraft[path]));
+  };
+  const clearBulkPaths = (paths: string | string[]) => {
+    if (!bulkActive || !bulk) return;
+    bulk.onClear(paths);
+  };
+  const stageBulkChange = (entry: BulkDraftEntry) => {
+    if (!bulkActive || !bulk) return;
+    bulk.onStage(entry);
+  };
+  const handleTitleChange = (title: string) => {
+    if (bulkActive) {
+      stageBulkChange({
+        path: BULK_NODE_TITLE_PATH,
+        op: "set",
+        value: title,
+        kind: "nodeTitle",
+      });
+      return;
+    }
+    onTitleChange(title);
+  };
+  const handleTextChange = (text: string) => {
+    if (bulkActive) {
+      stageBulkChange({
+        path: BULK_NODE_TEXT_PATH,
+        op: "set",
+        value: text,
+        kind: "nodeText",
+      });
+      return;
+    }
+    onTextChange(text);
+  };
+  const handleNodeTypeChange = (chapterTypeValue: string) => {
+    if (bulkActive) {
+      stageBulkChange({
+        path: BULK_NODE_TYPE_PATH,
+        op: "set",
+        value: chapterTypeValue,
+        kind: "propStringArray",
+      });
+      return;
+    }
+    onNodeTypeChange(chapterTypeValue);
+  };
+  const handleNodePropChange = (path: string, value: unknown) => {
+    if (bulkActive) {
+      stageBulkChange({
+        path,
+        op: "set",
+        value,
+        kind: "propPath",
+      });
+      return;
+    }
+    onNodePropChange(path, value);
+  };
+  const chapterType = getNodeChapterType(node, bulkDraft);
   const isRefNode = chapterType.startsWith("ref-node");
-  const navigationStyle = getNavigationStyle(node);
-  const navigationSettings = getNavigationSettings(node);
-  const verticalPosition = getVerticalPosition(node);
-  const scrollSpeed = getScrollSpeed(node);
-  const textShadow = getTextShadow(node);
-  const grayscaleEnabled = getGrayscaleEnabled(node);
-  const blurAmount = getBlurAmount(node);
-  const hideVisitedEnabled = getHideVisitedEnabled(node);
-  const statisticsEnabled = getStatisticsEnabled(node);
-  const navTextSize = getNavTextSize(node);
-  const audioVolume = getAudioVolume(node);
-  const orderedLinkIds = getOrderedLinkIds(node);
+  const navigationStyle = getNavigationStyle(node, bulkDraft);
+  const navigationSettings = getNavigationSettings(node, bulkDraft);
+  const verticalPosition = getVerticalPosition(node, bulkDraft);
+  const scrollSpeed = getScrollSpeed(node, bulkDraft);
+  const textShadow = getTextShadow(node, bulkDraft);
+  const grayscaleEnabled = getGrayscaleEnabled(node, bulkDraft);
+  const blurAmount = getBlurAmount(node, bulkDraft);
+  const hideVisitedEnabled = getHideVisitedEnabled(node, bulkDraft);
+  const statisticsEnabled = getStatisticsEnabled(node, bulkDraft);
+  const navTextSize = getNavTextSize(node, bulkDraft);
+  const audioVolume = getAudioVolume(node, bulkDraft);
+  const orderedLinkIds = getOrderedLinkIds(node, bulkDraft);
   const orderedOutgoingLinks = (() => {
     const orderIndex = new Map(
       orderedLinkIds.map((id, index) => [id, index])
@@ -839,24 +963,28 @@ export function NodeInspectorPanel({
   const marginLeft = getNumberProp(
     node,
     "player_container_marginleft",
-    MARGIN_DEFAULT
+    MARGIN_DEFAULT,
+    bulkDraft
   );
   const marginRight = getNumberProp(
     node,
     "player_container_marginright",
-    MARGIN_DEFAULT
+    MARGIN_DEFAULT,
+    bulkDraft
   );
   const conditionsColor = getColorValue(
     node,
     "color_nodeconditions",
-    CONDITIONS_COLOR_DEFAULT
+    CONDITIONS_COLOR_DEFAULT,
+    bulkDraft
   );
   const conditionsAlpha = getAlphaValue(
     node,
     "alpha_nodeconditions",
-    CONDITIONS_ALPHA_DEFAULT
+    CONDITIONS_ALPHA_DEFAULT,
+    bulkDraft
   );
-  const fontToken = getFontToken(node);
+  const fontToken = getFontToken(node, bulkDraft);
   const uploadedFonts = Array.from(
     new Set(
       (fontList ?? [])
@@ -886,67 +1014,135 @@ export function NodeInspectorPanel({
     if (enabled) {
       next.push(token);
     }
-    onNodePropChange("playerNavigation.settings", next);
+    handleNodePropChange("playerNavigation.settings", next);
   };
   const sceneColors = {
     background: getColorProp(
       node,
       "color_background",
-      SCENE_COLOR_DEFAULTS.color_background
+      SCENE_COLOR_DEFAULTS.color_background,
+      bulkDraft
     ),
     foreground: getColorProp(
       node,
       "color_foreground",
-      SCENE_COLOR_DEFAULTS.color_foreground
+      SCENE_COLOR_DEFAULTS.color_foreground,
+      bulkDraft
     ),
     foregroundAlpha: getAlphaProp(
       node,
       "alpha_foreground",
-      SCENE_COLOR_DEFAULTS.alpha_foreground
+      SCENE_COLOR_DEFAULTS.alpha_foreground,
+      bulkDraft
     ),
-    text: getColorProp(node, "color_text", SCENE_COLOR_DEFAULTS.color_text),
+    text: getColorProp(
+      node,
+      "color_text",
+      SCENE_COLOR_DEFAULTS.color_text,
+      bulkDraft
+    ),
     textAlpha: getAlphaProp(
       node,
       "alpha_text",
-      SCENE_COLOR_DEFAULTS.alpha_text
+      SCENE_COLOR_DEFAULTS.alpha_text,
+      bulkDraft
     ),
     textBackground: getColorProp(
       node,
       "color_textbackground",
-      SCENE_COLOR_DEFAULTS.color_textbackground
+      SCENE_COLOR_DEFAULTS.color_textbackground,
+      bulkDraft
     ),
     textBackgroundAlpha: getAlphaProp(
       node,
       "alpha_textbackground",
-      SCENE_COLOR_DEFAULTS.alpha_textbackground
+      SCENE_COLOR_DEFAULTS.alpha_textbackground,
+      bulkDraft
     ),
     buttonText: getColorProp(
       node,
       "color_buttontext",
-      SCENE_COLOR_DEFAULTS.color_buttontext
+      SCENE_COLOR_DEFAULTS.color_buttontext,
+      bulkDraft
     ),
     buttonTextAlpha: getAlphaProp(
       node,
       "alpha_buttontext",
-      SCENE_COLOR_DEFAULTS.alpha_buttontext
+      SCENE_COLOR_DEFAULTS.alpha_buttontext,
+      bulkDraft
     ),
     buttonBackground: getColorProp(
       node,
       "color_buttonbackground",
-      SCENE_COLOR_DEFAULTS.color_buttonbackground
+      SCENE_COLOR_DEFAULTS.color_buttonbackground,
+      bulkDraft
     ),
     buttonBackgroundAlpha: getAlphaProp(
       node,
       "alpha_buttonbackground",
-      SCENE_COLOR_DEFAULTS.alpha_buttonbackground
+      SCENE_COLOR_DEFAULTS.alpha_buttonbackground,
+      bulkDraft
     ),
   };
 
   return (
     <InspectorShell
-      title="Node settings"
-      meta={`#${node.nodeId}`}
+      title={
+        bulkActive
+          ? `Bulk edit (${bulk?.selectedNodeCount ?? 0} nodes selected)`
+          : "Node settings"
+      }
+      meta={bulkActive ? null : `#${node.nodeId}`}
     >
+      {bulkActive && bulk ? (
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--muted)]">
+                Apply to selection
+              </p>
+              <p className="text-xs text-[var(--muted)]">
+                {hasStagedChanges
+                  ? `${stagedCount} staged ${
+                      stagedCount === 1 ? "change" : "changes"
+                    }.`
+                  : "No staged changes yet."}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={bulk.onDiscardAll}
+                disabled={!hasStagedChanges}
+              >
+                Discard staged changes
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={bulk.onRequestApply}
+                disabled={!hasStagedChanges}
+              >
+                Apply changes
+              </Button>
+            </div>
+          </div>
+          <div className="mt-2 space-y-1 text-xs text-[var(--muted)]">
+            {bulk.selectedLinkCount > 0 ? (
+              <p>
+                Bulk editing applies to nodes only.{" "}
+                {bulk.selectedLinkCount} link
+                {bulk.selectedLinkCount === 1 ? "" : "s"} selected.
+              </p>
+            ) : null}
+            {bulk.notice ? (
+              <p className="text-[var(--warning)]">{bulk.notice}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       <Tabs
         value={activeTab}
         onValueChange={(value) => onTabChange(value as EditorNodeInspectorTab)}
@@ -961,17 +1157,22 @@ export function NodeInspectorPanel({
 
         <TabsContent value="content">
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-                Node name
-              </label>
-              <input
-                value={node.title ?? ""}
-                onChange={(event) => onTitleChange(event.target.value)}
-                placeholder="Untitled node"
-                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
-              />
-            </div>
+            <BulkField
+              active={isBulkFieldStaged(BULK_NODE_TITLE_PATH)}
+              onClear={() => clearBulkPaths(BULK_NODE_TITLE_PATH)}
+            >
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                  Node name
+                </label>
+                <input
+                  value={titleValue}
+                  onChange={(event) => handleTitleChange(event.target.value)}
+                  placeholder="Untitled node"
+                  className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                />
+              </div>
+            </BulkField>
 
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
               <CollapsibleSection
@@ -979,28 +1180,35 @@ export function NodeInspectorPanel({
                 open={sectionState["Node type"]}
                 onToggle={(next) => setSectionOpen("Node type", next)}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <label className="text-sm font-medium text-[var(--text-secondary)]">
-                    Type
-                  </label>
-                  <div className="relative w-48">
-                    <select
-                      value={chapterType}
-                      onChange={(event) => onNodeTypeChange(event.target.value)}
-                      className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
-                    >
-                      {chapterTypeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
-                      aria-hidden="true"
-                    />
+                <BulkField
+                  active={isBulkFieldStaged(BULK_NODE_TYPE_PATH)}
+                  onClear={() => clearBulkPaths(BULK_NODE_TYPE_PATH)}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-sm font-medium text-[var(--text-secondary)]">
+                      Type
+                    </label>
+                    <div className="relative w-48">
+                      <select
+                        value={chapterType}
+                        onChange={(event) =>
+                          handleNodeTypeChange(event.target.value)
+                        }
+                        className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                      >
+                        {chapterTypeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                        aria-hidden="true"
+                      />
+                    </div>
                   </div>
-                </div>
+                </BulkField>
               </CollapsibleSection>
 
               <CollapsibleSection
@@ -1010,14 +1218,19 @@ export function NodeInspectorPanel({
               >
                 <div className="space-y-3">
                   {isRefNode ? (
-                    <>
+                    <BulkField
+                      active={isBulkFieldStaged(BULK_NODE_TEXT_PATH)}
+                      onClear={() => clearBulkPaths(BULK_NODE_TEXT_PATH)}
+                    >
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
                           Reference URL
                         </label>
                         <input
-                          value={node.text ?? ""}
-                          onChange={(event) => onTextChange(event.target.value)}
+                          value={textValue}
+                          onChange={(event) =>
+                            handleTextChange(event.target.value)
+                          }
                           placeholder="https://example.com"
                           className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
                         />
@@ -1025,98 +1238,147 @@ export function NodeInspectorPanel({
                           Reference nodes open the first URL found in `node.text`.
                         </p>
                       </div>
-                    </>
+                    </BulkField>
                   ) : (
                     <>
-                      <RichTextEditor
-                        value={node.text ?? ""}
-                        onChange={onTextChange}
-                        placeholder="Write the node content..."
-                      />
+                      <BulkField
+                        active={isBulkFieldStaged(BULK_NODE_TEXT_PATH)}
+                        onClear={() => clearBulkPaths(BULK_NODE_TEXT_PATH)}
+                      >
+                        <RichTextEditor
+                          value={textValue}
+                          onChange={handleTextChange}
+                          placeholder="Write the node content..."
+                        />
+                      </BulkField>
                       <div className="space-y-4 pt-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-[var(--text-secondary)]">
-                            Text shadow
-                          </label>
-                          <div className="relative w-48">
-                            <select
-                              value={textShadow}
-                              onChange={(event) =>
-                                onNodePropChange("outer_container.textShadow", [
-                                  event.target.value,
-                                ])
-                              }
-                              className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
-                            >
-                              {textShadowOptions.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                            <ChevronDown
-                              className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
-                              aria-hidden="true"
-                            />
+                        <BulkField
+                          active={isBulkFieldStaged(
+                            "outer_container.textShadow"
+                          )}
+                          onClear={() =>
+                            clearBulkPaths("outer_container.textShadow")
+                          }
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <label className="text-sm font-medium text-[var(--text-secondary)]">
+                              Text shadow
+                            </label>
+                            <div className="relative w-48">
+                              <select
+                                value={textShadow}
+                                onChange={(event) =>
+                                  handleNodePropChange(
+                                    "outer_container.textShadow",
+                                    [event.target.value]
+                                  )
+                                }
+                                className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                              >
+                                {textShadowOptions.map((option) => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown
+                                className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                                aria-hidden="true"
+                              />
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-[var(--text-secondary)]">
-                            Font (player buttons/menu)
-                          </label>
-                          <div className="relative w-56">
-                            <select
-                              value={fontSelectValue}
-                              onChange={(event) =>
-                                onNodePropChange("background.font", [
-                                  event.target.value,
-                                ])
-                              }
-                              className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
-                            >
-                              <option value="">Default</option>
-                              {fontOptions.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                              {needsLegacyOption ? (
-                                <option value={fontSelectValue}>
-                                  Current: {legacyFontLabel}
-                                </option>
-                              ) : null}
-                            </select>
-                            <ChevronDown
-                              className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
-                              aria-hidden="true"
-                            />
+                        </BulkField>
+                        <BulkField
+                          active={isBulkFieldStaged("background.font")}
+                          onClear={() => clearBulkPaths("background.font")}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <label className="text-sm font-medium text-[var(--text-secondary)]">
+                              Font (player buttons/menu)
+                            </label>
+                            <div className="relative w-56">
+                              <select
+                                value={fontSelectValue}
+                                onChange={(event) =>
+                                  handleNodePropChange("background.font", [
+                                    event.target.value,
+                                  ])
+                                }
+                                className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                              >
+                                <option value="">Default</option>
+                                {fontOptions.map((option) => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                                {needsLegacyOption ? (
+                                  <option value={fontSelectValue}>
+                                    Current: {legacyFontLabel}
+                                  </option>
+                                ) : null}
+                              </select>
+                              <ChevronDown
+                                className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                                aria-hidden="true"
+                              />
+                            </div>
                           </div>
-                        </div>
-                        <ColorAlphaField
-                          label="Text"
-                          colorValue={sceneColors.text}
-                          alphaValue={sceneColors.textAlpha}
-                          onColorChange={(value) =>
-                            onNodePropChange("color_text", value)
+                        </BulkField>
+                        <BulkField
+                          active={isBulkFieldStaged([
+                            "color_text",
+                            "alpha_text",
+                          ])}
+                          onClear={() =>
+                            clearBulkPaths(["color_text", "alpha_text"])
                           }
-                          onAlphaChange={(value) =>
-                            onNodePropChange("alpha_text", String(value))
-                          }
-                        />
-                        <ColorAlphaField
-                          label="Text background"
-                          colorValue={sceneColors.textBackground}
-                          alphaValue={sceneColors.textBackgroundAlpha}
-                          onColorChange={(value) =>
-                            onNodePropChange("color_textbackground", value)
-                          }
-                          onAlphaChange={(value) =>
-                            onNodePropChange(
+                        >
+                          <ColorAlphaField
+                            label="Text"
+                            colorValue={sceneColors.text}
+                            alphaValue={sceneColors.textAlpha}
+                            onColorChange={(value) =>
+                              handleNodePropChange("color_text", value)
+                            }
+                            onAlphaChange={(value) =>
+                              handleNodePropChange("alpha_text", String(value))
+                            }
+                          />
+                        </BulkField>
+                        <BulkField
+                          active={isBulkFieldStaged([
+                            "color_textbackground",
+                            "alpha_textbackground",
+                          ])}
+                          onClear={() =>
+                            clearBulkPaths([
+                              "color_textbackground",
                               "alpha_textbackground",
-                              String(value)
-                            )
+                            ])
                           }
-                        />
+                        >
+                          <ColorAlphaField
+                            label="Text background"
+                            colorValue={sceneColors.textBackground}
+                            alphaValue={sceneColors.textBackgroundAlpha}
+                            onColorChange={(value) =>
+                              handleNodePropChange("color_textbackground", value)
+                            }
+                            onAlphaChange={(value) =>
+                              handleNodePropChange(
+                                "alpha_textbackground",
+                                String(value)
+                              )
+                            }
+                          />
+                        </BulkField>
                       </div>
                     </>
                   )}
@@ -1135,45 +1397,70 @@ export function NodeInspectorPanel({
                   onToggle={(next) => setSectionOpen("Background", next)}
                 >
                   <div className="space-y-4">
-                    <ColorOnlyField
-                      label="Background"
-                      value={sceneColors.background}
-                      onChange={(value) =>
-                        onNodePropChange("color_background", value)
+                    <BulkField
+                      active={isBulkFieldStaged("color_background")}
+                      onClear={() => clearBulkPaths("color_background")}
+                    >
+                      <ColorOnlyField
+                        label="Background"
+                        value={sceneColors.background}
+                        onChange={(value) =>
+                          handleNodePropChange("color_background", value)
+                        }
+                      />
+                    </BulkField>
+                    <BulkField
+                      active={isBulkFieldStaged([
+                        "color_foreground",
+                        "alpha_foreground",
+                      ])}
+                      onClear={() =>
+                        clearBulkPaths(["color_foreground", "alpha_foreground"])
                       }
-                    />
-                    <ColorAlphaField
-                      label="Foreground overlay"
-                      colorValue={sceneColors.foreground}
-                      alphaValue={sceneColors.foregroundAlpha}
-                      onColorChange={(value) =>
-                        onNodePropChange("color_foreground", value)
-                      }
-                      onAlphaChange={(value) =>
-                        onNodePropChange("alpha_foreground", String(value))
-                      }
-                    />
-                    <ToggleRow
-                      label="Grayscale"
-                      checked={grayscaleEnabled}
-                      onToggle={(next) =>
-                        onNodePropChange("settings_grayscale", [
-                          next ? "on" : "",
-                        ])
-                      }
-                    />
+                    >
+                      <ColorAlphaField
+                        label="Foreground overlay"
+                        colorValue={sceneColors.foreground}
+                        alphaValue={sceneColors.foregroundAlpha}
+                        onColorChange={(value) =>
+                          handleNodePropChange("color_foreground", value)
+                        }
+                        onAlphaChange={(value) =>
+                          handleNodePropChange("alpha_foreground", String(value))
+                        }
+                      />
+                    </BulkField>
+                    <BulkField
+                      active={isBulkFieldStaged("settings_grayscale")}
+                      onClear={() => clearBulkPaths("settings_grayscale")}
+                    >
+                      <ToggleRow
+                        label="Grayscale"
+                        checked={grayscaleEnabled}
+                        onToggle={(next) =>
+                          handleNodePropChange("settings_grayscale", [
+                            next ? "on" : "",
+                          ])
+                        }
+                      />
+                    </BulkField>
 
-                    <RangeField
-                      label="Blur"
-                      value={blurAmount}
-                      min={BLUR_MIN}
-                      max={BLUR_MAX}
-                      step={1}
-                      allowBeyondMax
-                      onChange={(next) =>
-                        onNodePropChange("color_blur", String(next))
-                      }
-                    />
+                    <BulkField
+                      active={isBulkFieldStaged("color_blur")}
+                      onClear={() => clearBulkPaths("color_blur")}
+                    >
+                      <RangeField
+                        label="Blur"
+                        value={blurAmount}
+                        min={BLUR_MIN}
+                        max={BLUR_MAX}
+                        step={1}
+                        allowBeyondMax
+                        onChange={(next) =>
+                          handleNodePropChange("color_blur", String(next))
+                        }
+                      />
+                    </BulkField>
                   </div>
                 </CollapsibleSection>
 
@@ -1183,112 +1470,136 @@ export function NodeInspectorPanel({
                   onToggle={(next) => setSectionOpen("Layout", next)}
                 >
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <label className="text-sm font-medium text-[var(--text-secondary)]">
-                        Scroll speed
-                      </label>
-                      <input
-                        type="number"
-                        min={SCROLL_SPEED_MIN}
-                        max={SCROLL_SPEED_MAX}
-                        step={0.05}
-                        value={scrollSpeed}
-                        onChange={(event) => {
-                          const next = Number(event.target.value);
-                          if (!Number.isFinite(next)) return;
-                          const clamped = clampNumber(
-                            next,
-                            SCROLL_SPEED_MIN,
-                            SCROLL_SPEED_MAX
-                          );
-                          onNodePropChange("settings_scrollSpeed", [
-                            String(clamped),
-                          ]);
-                        }}
-                        className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3">
-                      <label className="text-sm font-medium text-[var(--text-secondary)]">
-                        Vertical position
-                      </label>
-                      <div className="relative w-48">
-                        <select
-                          value={verticalPosition}
-                          onChange={(event) =>
-                            onNodePropChange("player.verticalPosition", [
-                              event.target.value,
-                            ])
-                          }
-                          className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
-                        >
-                          {verticalPositionOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown
-                          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
-                          aria-hidden="true"
+                    <BulkField
+                      active={isBulkFieldStaged("settings_scrollSpeed")}
+                      onClear={() => clearBulkPaths("settings_scrollSpeed")}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <label className="text-sm font-medium text-[var(--text-secondary)]">
+                          Scroll speed
+                        </label>
+                        <input
+                          type="number"
+                          min={SCROLL_SPEED_MIN}
+                          max={SCROLL_SPEED_MAX}
+                          step={0.05}
+                          value={scrollSpeed}
+                          onChange={(event) => {
+                            const next = Number(event.target.value);
+                            if (!Number.isFinite(next)) return;
+                            const clamped = clampNumber(
+                              next,
+                              SCROLL_SPEED_MIN,
+                              SCROLL_SPEED_MAX
+                            );
+                            handleNodePropChange("settings_scrollSpeed", [
+                              String(clamped),
+                            ]);
+                          }}
+                          className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
                         />
                       </div>
-                    </div>
+                    </BulkField>
+
+                    <BulkField
+                      active={isBulkFieldStaged("player.verticalPosition")}
+                      onClear={() => clearBulkPaths("player.verticalPosition")}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <label className="text-sm font-medium text-[var(--text-secondary)]">
+                          Vertical position
+                        </label>
+                        <div className="relative w-48">
+                          <select
+                            value={verticalPosition}
+                            onChange={(event) =>
+                              handleNodePropChange("player.verticalPosition", [
+                                event.target.value,
+                              ])
+                            }
+                            className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                          >
+                            {verticalPositionOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown
+                            className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                            aria-hidden="true"
+                          />
+                        </div>
+                      </div>
+                    </BulkField>
 
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <label className="text-sm font-medium text-[var(--text-secondary)]">
-                          Left margin
-                        </label>
-                        <input
-                          type="number"
-                          min={MARGIN_MIN}
-                          max={MARGIN_MAX}
-                          step={1}
-                          value={marginLeft}
-                          onChange={(event) => {
-                            const next = Number(event.target.value);
-                            if (!Number.isFinite(next)) return;
-                            const clamped = clampNumber(
-                              next,
-                              MARGIN_MIN,
-                              MARGIN_MAX
-                            );
-                            onNodePropChange(
-                              "player_container_marginleft",
-                              String(clamped)
-                            );
-                          }}
-                          className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <label className="text-sm font-medium text-[var(--text-secondary)]">
-                          Right margin
-                        </label>
-                        <input
-                          type="number"
-                          min={MARGIN_MIN}
-                          max={MARGIN_MAX}
-                          step={1}
-                          value={marginRight}
-                          onChange={(event) => {
-                            const next = Number(event.target.value);
-                            if (!Number.isFinite(next)) return;
-                            const clamped = clampNumber(
-                              next,
-                              MARGIN_MIN,
-                              MARGIN_MAX
-                            );
-                            onNodePropChange(
-                              "player_container_marginright",
-                              String(clamped)
-                            );
-                          }}
-                          className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
-                        />
-                      </div>
+                      <BulkField
+                        active={isBulkFieldStaged("player_container_marginleft")}
+                        onClear={() =>
+                          clearBulkPaths("player_container_marginleft")
+                        }
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="text-sm font-medium text-[var(--text-secondary)]">
+                            Left margin
+                          </label>
+                          <input
+                            type="number"
+                            min={MARGIN_MIN}
+                            max={MARGIN_MAX}
+                            step={1}
+                            value={marginLeft}
+                            onChange={(event) => {
+                              const next = Number(event.target.value);
+                              if (!Number.isFinite(next)) return;
+                              const clamped = clampNumber(
+                                next,
+                                MARGIN_MIN,
+                                MARGIN_MAX
+                              );
+                              handleNodePropChange(
+                                "player_container_marginleft",
+                                String(clamped)
+                              );
+                            }}
+                            className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                          />
+                        </div>
+                      </BulkField>
+                      <BulkField
+                        active={isBulkFieldStaged("player_container_marginright")}
+                        onClear={() =>
+                          clearBulkPaths("player_container_marginright")
+                        }
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="text-sm font-medium text-[var(--text-secondary)]">
+                            Right margin
+                          </label>
+                          <input
+                            type="number"
+                            min={MARGIN_MIN}
+                            max={MARGIN_MAX}
+                            step={1}
+                            value={marginRight}
+                            onChange={(event) => {
+                              const next = Number(event.target.value);
+                              if (!Number.isFinite(next)) return;
+                              const clamped = clampNumber(
+                                next,
+                                MARGIN_MIN,
+                                MARGIN_MAX
+                              );
+                              handleNodePropChange(
+                                "player_container_marginright",
+                                String(clamped)
+                              );
+                            }}
+                            className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                          />
+                        </div>
+                      </BulkField>
                     </div>
                   </div>
                 </CollapsibleSection>
@@ -1299,47 +1610,64 @@ export function NodeInspectorPanel({
                   onToggle={(next) => setSectionOpen("Navigation", next)}
                 >
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <label className="text-sm font-medium text-[var(--text-secondary)]">
-                        Navigation style
-                      </label>
-                      <div className="relative w-48">
-                        <select
-                          value={navigationStyle}
-                          onChange={(event) =>
-                            onNodePropChange("background.navigation_style", [
-                              event.target.value,
-                            ])
+                    <BulkField
+                      active={isBulkFieldStaged("background.navigation_style")}
+                      onClear={() =>
+                        clearBulkPaths("background.navigation_style")
+                      }
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <label className="text-sm font-medium text-[var(--text-secondary)]">
+                          Navigation style
+                        </label>
+                        <div className="relative w-48">
+                          <select
+                            value={navigationStyle}
+                            onChange={(event) =>
+                              handleNodePropChange(
+                                "background.navigation_style",
+                                [event.target.value]
+                              )
+                            }
+                            className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                          >
+                            {navigationStyleOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown
+                            className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                            aria-hidden="true"
+                          />
+                        </div>
+                      </div>
+                    </BulkField>
+
+                    <BulkField
+                      active={isBulkFieldStaged("playerNavigation.settings")}
+                      onClear={() =>
+                        clearBulkPaths("playerNavigation.settings")
+                      }
+                    >
+                      <div className="space-y-3">
+                        <ToggleRow
+                          label="Show current node button"
+                          checked={hasNavigationSetting("show-current-node")}
+                          onToggle={(next) =>
+                            updateNavigationSetting("show-current-node", next)
                           }
-                          className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
-                        >
-                          {navigationStyleOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown
-                          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
-                          aria-hidden="true"
+                        />
+                        <ToggleRow
+                          label="Navigation opaque"
+                          checked={hasNavigationSetting("navigation-opaque")}
+                          onToggle={(next) =>
+                            updateNavigationSetting("navigation-opaque", next)
+                          }
                         />
                       </div>
-                    </div>
-
-                    <ToggleRow
-                      label="Show current node button"
-                      checked={hasNavigationSetting("show-current-node")}
-                      onToggle={(next) =>
-                        updateNavigationSetting("show-current-node", next)
-                      }
-                    />
-                    <ToggleRow
-                      label="Navigation opaque"
-                      checked={hasNavigationSetting("navigation-opaque")}
-                      onToggle={(next) =>
-                        updateNavigationSetting("navigation-opaque", next)
-                      }
-                    />
+                    </BulkField>
                   </div>
                 </CollapsibleSection>
 
@@ -1349,16 +1677,21 @@ export function NodeInspectorPanel({
                   onToggle={(next) => setSectionOpen("Audio", next)}
                 >
                   <div className="space-y-4">
-                    <RangeField
-                      label="Audio volume"
-                      value={audioVolume}
-                      min={AUDIO_VOLUME_MIN}
-                      max={AUDIO_VOLUME_MAX}
-                      step={1}
-                      onChange={(next) =>
-                        onNodePropChange("audio_volume", String(next))
-                      }
-                    />
+                    <BulkField
+                      active={isBulkFieldStaged("audio_volume")}
+                      onClear={() => clearBulkPaths("audio_volume")}
+                    >
+                      <RangeField
+                        label="Audio volume"
+                        value={audioVolume}
+                        min={AUDIO_VOLUME_MIN}
+                        max={AUDIO_VOLUME_MAX}
+                        step={1}
+                        onChange={(next) =>
+                          handleNodePropChange("audio_volume", String(next))
+                        }
+                      />
+                    </BulkField>
                   </div>
                 </CollapsibleSection>
               </div>
@@ -1373,40 +1706,73 @@ export function NodeInspectorPanel({
                 onToggle={(next) => setSectionOpen("Button appearance", next)}
               >
                 <div className="space-y-4">
-                  <ColorAlphaField
-                    label="Button text"
-                    colorValue={sceneColors.buttonText}
-                    alphaValue={sceneColors.buttonTextAlpha}
-                    onColorChange={(value) =>
-                      onNodePropChange("color_buttontext", value)
+                  <BulkField
+                    active={isBulkFieldStaged([
+                      "color_buttontext",
+                      "alpha_buttontext",
+                    ])}
+                    onClear={() =>
+                      clearBulkPaths(["color_buttontext", "alpha_buttontext"])
                     }
-                    onAlphaChange={(value) =>
-                      onNodePropChange("alpha_buttontext", String(value))
-                    }
-                  />
-                  <ColorAlphaField
-                    label="Button background"
-                    colorValue={sceneColors.buttonBackground}
-                    alphaValue={sceneColors.buttonBackgroundAlpha}
-                    onColorChange={(value) =>
-                      onNodePropChange("color_buttonbackground", value)
-                    }
-                    onAlphaChange={(value) =>
-                      onNodePropChange("alpha_buttonbackground", String(value))
-                    }
-                  />
-                  <RangeField
-                    label="Navigation buttons font size"
-                    value={navTextSize}
-                    min={NAV_TEXT_SIZE_MIN}
-                    max={NAV_TEXT_SIZE_MAX}
-                    step={2}
-                    onChange={(next) =>
-                      onNodePropChange("playerNavigation_textSize", [
-                        String(next),
+                  >
+                    <ColorAlphaField
+                      label="Button text"
+                      colorValue={sceneColors.buttonText}
+                      alphaValue={sceneColors.buttonTextAlpha}
+                      onColorChange={(value) =>
+                        handleNodePropChange("color_buttontext", value)
+                      }
+                      onAlphaChange={(value) =>
+                        handleNodePropChange("alpha_buttontext", String(value))
+                      }
+                    />
+                  </BulkField>
+                  <BulkField
+                    active={isBulkFieldStaged([
+                      "color_buttonbackground",
+                      "alpha_buttonbackground",
+                    ])}
+                    onClear={() =>
+                      clearBulkPaths([
+                        "color_buttonbackground",
+                        "alpha_buttonbackground",
                       ])
                     }
-                  />
+                  >
+                    <ColorAlphaField
+                      label="Button background"
+                      colorValue={sceneColors.buttonBackground}
+                      alphaValue={sceneColors.buttonBackgroundAlpha}
+                      onColorChange={(value) =>
+                        handleNodePropChange("color_buttonbackground", value)
+                      }
+                      onAlphaChange={(value) =>
+                        handleNodePropChange(
+                          "alpha_buttonbackground",
+                          String(value)
+                        )
+                      }
+                    />
+                  </BulkField>
+                  <BulkField
+                    active={isBulkFieldStaged("playerNavigation_textSize")}
+                    onClear={() =>
+                      clearBulkPaths("playerNavigation_textSize")
+                    }
+                  >
+                    <RangeField
+                      label="Navigation buttons font size"
+                      value={navTextSize}
+                      min={NAV_TEXT_SIZE_MIN}
+                      max={NAV_TEXT_SIZE_MAX}
+                      step={2}
+                      onChange={(next) =>
+                        handleNodePropChange("playerNavigation_textSize", [
+                          String(next),
+                        ])
+                      }
+                    />
+                  </BulkField>
                 </div>
               </CollapsibleSection>
 
@@ -1415,21 +1781,31 @@ export function NodeInspectorPanel({
                 open={sectionState["Button order"]}
                 onToggle={(next) => setSectionOpen("Button order", next)}
               >
-                {orderedOutgoingLinks.length === 0 ? (
-                  <p className="text-sm text-[var(--muted)]">
-                    No outgoing links.
-                  </p>
-                ) : (
-                  <ReorderList
-                    items={orderedOutgoingLinks}
-                    onReorder={(next) =>
-                      onNodePropChange(
-                        "ordered_link_ids",
-                        next.map((link) => String(link.linkId))
-                      )
-                    }
-                  />
-                )}
+                <BulkField
+                  active={isBulkFieldStaged("ordered_link_ids")}
+                  disabledReason={
+                    bulkActive
+                      ? "Bulk edit disabled: button order is per-node."
+                      : undefined
+                  }
+                  onClear={() => clearBulkPaths("ordered_link_ids")}
+                >
+                  {orderedOutgoingLinks.length === 0 ? (
+                    <p className="text-sm text-[var(--muted)]">
+                      No outgoing links.
+                    </p>
+                  ) : (
+                    <ReorderList
+                      items={orderedOutgoingLinks}
+                      onReorder={(next) =>
+                        handleNodePropChange(
+                          "ordered_link_ids",
+                          next.map((link) => String(link.linkId))
+                        )
+                      }
+                    />
+                  )}
+                </BulkField>
               </CollapsibleSection>
             </div>
           </div>
@@ -1443,26 +1819,47 @@ export function NodeInspectorPanel({
                 onToggle={(next) => setSectionOpen("Conditions", next)}
               >
                 <div className="space-y-4">
-                  <ToggleRow
-                    label="Hide visited"
-                    checked={hideVisitedEnabled}
-                    onToggle={(next) =>
-                      onNodePropChange("node_conditions", [
-                        next ? "hide_visited" : "",
+                  <BulkField
+                    active={isBulkFieldStaged("node_conditions")}
+                    onClear={() => clearBulkPaths("node_conditions")}
+                  >
+                    <ToggleRow
+                      label="Hide visited"
+                      checked={hideVisitedEnabled}
+                      onToggle={(next) =>
+                        handleNodePropChange("node_conditions", [
+                          next ? "hide_visited" : "",
+                        ])
+                      }
+                    />
+                  </BulkField>
+                  <BulkField
+                    active={isBulkFieldStaged([
+                      "color_nodeconditions",
+                      "alpha_nodeconditions",
+                    ])}
+                    onClear={() =>
+                      clearBulkPaths([
+                        "color_nodeconditions",
+                        "alpha_nodeconditions",
                       ])
                     }
-                  />
-                  <ColorAlphaField
-                    label="Condition color"
-                    colorValue={conditionsColor}
-                    alphaValue={conditionsAlpha}
-                    onColorChange={(value) =>
-                      onNodePropChange("color_nodeconditions", value)
-                    }
-                    onAlphaChange={(value) =>
-                      onNodePropChange("alpha_nodeconditions", String(value))
-                    }
-                  />
+                  >
+                    <ColorAlphaField
+                      label="Condition color"
+                      colorValue={conditionsColor}
+                      alphaValue={conditionsAlpha}
+                      onColorChange={(value) =>
+                        handleNodePropChange("color_nodeconditions", value)
+                      }
+                      onAlphaChange={(value) =>
+                        handleNodePropChange(
+                          "alpha_nodeconditions",
+                          String(value)
+                        )
+                      }
+                    />
+                  </BulkField>
                 </div>
               </CollapsibleSection>
               <CollapsibleSection
@@ -1471,22 +1868,34 @@ export function NodeInspectorPanel({
                 onToggle={(next) => setSectionOpen("Tracking", next)}
               >
                 <div className="space-y-4">
-                  <ToggleRow
-                    label="Statistics tracking"
-                    checked={statisticsEnabled}
-                    onToggle={(next) =>
-                      onNodePropChange("node_statistics", [next ? "on" : ""])
-                    }
-                  />
-                  <ToggleRow
-                    label="Node variable"
-                    checked={hideVisitedEnabled}
-                    onToggle={(next) =>
-                      onNodePropChange("node_conditions", [
-                        next ? "hide_visited" : "",
-                      ])
-                    }
-                  />
+                  <BulkField
+                    active={isBulkFieldStaged("node_statistics")}
+                    onClear={() => clearBulkPaths("node_statistics")}
+                  >
+                    <ToggleRow
+                      label="Statistics tracking"
+                      checked={statisticsEnabled}
+                      onToggle={(next) =>
+                        handleNodePropChange("node_statistics", [
+                          next ? "on" : "",
+                        ])
+                      }
+                    />
+                  </BulkField>
+                  <BulkField
+                    active={isBulkFieldStaged("node_conditions")}
+                    onClear={() => clearBulkPaths("node_conditions")}
+                  >
+                    <ToggleRow
+                      label="Node variable"
+                      checked={hideVisitedEnabled}
+                      onToggle={(next) =>
+                        handleNodePropChange("node_conditions", [
+                          next ? "hide_visited" : "",
+                        ])
+                      }
+                    />
+                  </BulkField>
                 </div>
               </CollapsibleSection>
             </div>
@@ -1635,6 +2044,62 @@ function CollapsibleSection({
       </button>
       {isOpen ? (
         <div className="space-y-3 px-4 pb-3 pt-2">{children}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function BulkField({
+  active,
+  disabledReason,
+  onClear,
+  children,
+  className,
+}: {
+  active: boolean;
+  disabledReason?: string;
+  onClear?: () => void;
+  children: ReactNode;
+  className?: string;
+}) {
+  const isDisabled = Boolean(disabledReason);
+  const showFrame = active || isDisabled;
+
+  return (
+    <div
+      className={cn(
+        "relative rounded-md",
+        showFrame ? "border px-2 py-2" : "",
+        active ? "border-[var(--accent)] bg-[var(--accent-muted)]" : "",
+        !active && isDisabled
+          ? "border-[var(--border)] bg-[var(--bg-secondary)]"
+          : "",
+        className
+      )}
+    >
+      {active && onClear ? (
+        <button
+          type="button"
+          onClick={onClear}
+          className={cn(
+            "absolute right-2 top-2 rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em]",
+            "text-[var(--accent)] hover:text-[var(--accent-hover)]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+          )}
+        >
+          Remove
+        </button>
+      ) : null}
+      <div
+        className={cn(
+          active && onClear ? "pr-16" : "",
+          isDisabled ? "pointer-events-none opacity-60" : ""
+        )}
+      >
+        {children}
+      </div>
+      {isDisabled ? (
+        <p className="mt-2 text-[10px] text-[var(--muted)]">{disabledReason}</p>
       ) : null}
     </div>
   );

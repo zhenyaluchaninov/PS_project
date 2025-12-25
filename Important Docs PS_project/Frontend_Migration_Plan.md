@@ -1408,7 +1408,7 @@ web/
 
 ---
 
-### Step 23b – Multi-Node Bulk Editing (explicit UX)
+### [done] Step 23b – Multi-Node Bulk Editing (explicit UX)
 
 **What we do**
 
@@ -1450,10 +1450,15 @@ Implement media management in the Node “Content” tab:
 - Subtitles upload (.vtt) (store via `subtitles_url` in props)
 - Audio main + alt (store via `audio_url` / `audio_url_alt` in props)
 - Media options: loop, fades, video audio behavior, extra-audio semantics
+- Embedded node preview overlay (Static + Play)
+   - Static mode renders the selected node as a “silent witness” for scene/style/media settings.
+   - Play mode runs the player sandboxed from the selected node (no stats writes, uses in-memory editor adventure).
+   - Preview is synced with editor selection and can highlight visited/current nodes while playing.
 
 **What we get**
 
 - Nodes become fully authorable for real adventures (media-heavy workflows).
+- Immediate visual verification of node settings (Static) + runtime behavior (Play) directly inside the editor.
 
 **Feature Map coverage**
 
