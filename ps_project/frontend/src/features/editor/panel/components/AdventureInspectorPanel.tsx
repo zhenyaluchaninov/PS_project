@@ -1,16 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Crosshair } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from "react";
+import { Crosshair, Loader2, Trash2, Upload } from "lucide-react";
 import type { AdventureModel, CategoryModel } from "@/domain/models";
 import { loadCategories } from "@/features/state/api";
+import { deleteMedia, uploadMedia } from "@/features/state/api/media";
 import { LabelValue } from "@/features/ui-core/LabelValue";
+import { toastError } from "@/features/ui-core/toast";
 import {
   selectEditorMenuShortcutPickIndex,
   useEditorStore,
 } from "@/features/editor/state/editorStore";
 import { Button } from "@/features/ui-core/primitives/button";
 import { cn } from "@/lib/utils";
+import { getFontMeta, stripMediaUrl } from "@/lib/fonts";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { InspectorShell } from "./InspectorShell";
 
@@ -86,6 +96,13 @@ const readMenuShortcuts = (props?: Record<string, unknown> | null): MenuShortcut
   });
 };
 
+const readFontList = (props?: Record<string, unknown> | null): string[] => {
+  if (!props) return [];
+  const raw = props.font_list ?? props.fontList;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((item): item is string => typeof item === "string");
+};
+
 type AdventureInspectorPanelProps = {
   adventure: AdventureModel;
 };
@@ -104,6 +121,9 @@ export function AdventureInspectorPanel({
   >("idle");
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [extraShortcutSlots, setExtraShortcutSlots] = useState<number[]>([]);
+  const fontInputRef = useRef<HTMLInputElement | null>(null);
+  const [fontUploading, setFontUploading] = useState(false);
+  const [fontRemoving, setFontRemoving] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -172,6 +192,10 @@ export function AdventureInspectorPanel({
   );
   const menuShortcuts = useMemo(
     () => readMenuShortcuts(adventureProps ?? null),
+    [adventureProps]
+  );
+  const fontList = useMemo(
+    () => readFontList(adventureProps ?? null),
     [adventureProps]
   );
   const nodeById = useMemo(() => {
@@ -265,6 +289,68 @@ export function AdventureInspectorPanel({
         ? prev
         : [...prev, nextHiddenShortcutIndex]
     );
+  };
+
+  const handleFontUploadClick = () => {
+    if (fontUploading) return;
+    fontInputRef.current?.click();
+  };
+
+  const handleFontFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!adventure.slug) {
+      toastError("Font upload failed", "Missing adventure slug.");
+      return;
+    }
+    setFontUploading(true);
+    try {
+      const result = await uploadMedia(adventure.slug, file);
+      const url = result?.url;
+      if (!url) {
+        throw new Error("Upload response missing URL.");
+      }
+      const normalized = stripMediaUrl(url);
+      const existing = new Set(fontList.map(stripMediaUrl));
+      if (!existing.has(normalized)) {
+        const nextList = [...fontList, url];
+        updateAdventureProps({ font_list: nextList, fontList: nextList });
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unable to upload font.";
+      toastError("Font upload failed", message);
+    } finally {
+      setFontUploading(false);
+    }
+  };
+
+  const handleFontRemove = async (entry: string) => {
+    if (!adventure.slug) {
+      toastError("Font removal failed", "Missing adventure slug.");
+      return;
+    }
+    const meta = getFontMeta(entry);
+    if (!meta?.fileName) {
+      toastError("Font removal failed", "Missing font filename.");
+      return;
+    }
+    const removeKey = stripMediaUrl(entry);
+    setFontRemoving(removeKey);
+    try {
+      await deleteMedia(adventure.slug, meta.fileName);
+      const nextList = fontList.filter(
+        (item) => stripMediaUrl(item) !== removeKey
+      );
+      updateAdventureProps({ font_list: nextList, fontList: nextList });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unable to remove font.";
+      toastError("Font removal failed", message);
+    } finally {
+      setFontRemoving(null);
+    }
   };
 
   const activePickLabel =
@@ -499,6 +585,91 @@ export function AdventureInspectorPanel({
                   </div>
                 ) : null}
               </div>
+            </div>
+          </div>
+        </CollapsibleSection>
+      </div>
+      <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+        <CollapsibleSection title="Fonts" defaultOpen>
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                  Upload fonts
+                </p>
+                <p className="text-xs text-[var(--muted)]">
+                  Uploaded fonts appear as xfont-* options for player buttons
+                  and menu text.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fontInputRef}
+                  type="file"
+                  accept=".woff,.woff2,.ttf,.otf"
+                  onChange={handleFontFileChange}
+                  className="hidden"
+                  aria-label="Upload font file"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFontUploadClick}
+                  disabled={fontUploading}
+                >
+                  <Upload className="h-4 w-4" aria-hidden="true" />
+                  {fontUploading ? "Uploading..." : "Upload font"}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {fontList.length === 0 ? (
+                <p className="text-xs text-[var(--muted)]">
+                  No fonts uploaded yet.
+                </p>
+              ) : null}
+              {fontList.map((entry, index) => {
+                const meta = getFontMeta(entry);
+                if (!meta) return null;
+                const removeKey = stripMediaUrl(entry);
+                const isRemoving = fontRemoving === removeKey;
+                const fileLabel = meta.fileName || entry;
+                return (
+                  <div
+                    key={`${removeKey}-${index}`}
+                    className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[var(--text-secondary)]">
+                        {fileLabel}
+                      </p>
+                      <p className="text-xs font-mono text-[var(--muted)]">
+                        {meta.family}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleFontRemove(entry)}
+                      disabled={isRemoving}
+                      aria-label="Remove font"
+                      title="Remove font"
+                      className="h-8 w-8 text-[var(--danger)] hover:text-[var(--danger)]"
+                    >
+                      {isRemoving ? (
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      )}
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </CollapsibleSection>

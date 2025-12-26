@@ -30,6 +30,7 @@ import { Button } from "@/features/ui-core/primitives";
 import { toastError, toastInfo } from "@/features/ui-core/toast";
 import { trackNodeVisit } from "@/features/state/api/adventures";
 import { cn } from "@/lib/utils";
+import { buildFontFaceRules } from "@/lib/fonts";
 import "./player-runtime.css";
 import {
   selectPlayerAdventure,
@@ -88,8 +89,6 @@ type PlayerPreferences = {
 
 type SearchParamLike = ReadonlyURLSearchParams | URLSearchParams | null | undefined;
 
-const injectedFonts = new Set<string>();
-
 const preferenceStorageKey = (slug?: string | null, viewSlug?: string | null) => {
   const key = slug || viewSlug;
   return key ? `ps-player:prefs:${key}` : null;
@@ -139,44 +138,26 @@ const persistPreferences = (key: string, prefs: PlayerPreferences) => {
   }
 };
 
-const parseFontEntry = (entry: string) => {
-  const trimmed = entry.trim();
-  const isUrl = /^https?:\/\//.test(trimmed) || trimmed.startsWith("/");
-  const name =
-    isUrl && trimmed.includes("/")
-      ? trimmed.split("/").pop()?.replace(/\.[^/.]+$/, "") ?? trimmed
-      : trimmed;
-  return { name, url: isUrl ? trimmed : undefined };
-};
+const FONT_STYLE_SELECTOR = "style[data-player-fonts]";
 
-const useLoadAdventureFonts = (
-  fontList?: AdventurePropsModel["fontList"],
-  requestedFont?: string
-) => {
+const useLoadAdventureFonts = (fontList?: AdventurePropsModel["fontList"]) => {
   useEffect(() => {
-    if (!fontList?.length) return;
     if (typeof document === "undefined") return;
-
-    fontList.forEach((entry) => {
-      const { name, url } = parseFontEntry(entry);
-      if (!url) {
-        injectedFonts.add(name);
-        return;
-      }
-      const key = `${name}:${url}`;
-      if (injectedFonts.has(key)) return;
-      injectedFonts.add(key);
-      const style = document.createElement("style");
-      style.setAttribute("data-player-font", name);
-      style.textContent = `@font-face { font-family: "${name}"; src: url("${url}"); font-display: swap; }`;
+    const rules = buildFontFaceRules(fontList ?? []);
+    const existing = document.head.querySelector<HTMLStyleElement>(
+      FONT_STYLE_SELECTOR
+    );
+    if (!rules) {
+      existing?.remove();
+      return;
+    }
+    const style = existing ?? document.createElement("style");
+    style.setAttribute("data-player-fonts", "true");
+    style.textContent = rules;
+    if (!existing) {
       document.head.appendChild(style);
-    });
+    }
   }, [fontList]);
-
-  useEffect(() => {
-    if (!requestedFont) return;
-    injectedFonts.add(requestedFont);
-  }, [requestedFont]);
 };
 
 const readBooleanParam = (params: SearchParamLike, keys: string[]) => {
@@ -1124,7 +1105,7 @@ export function PlayerRuntime({
     syncMediaSound(true);
   }, [documentVisible, effectiveSoundEnabled, hasInteracted, syncMediaSound]);
 
-  useLoadAdventureFonts(adventure?.props?.fontList, typography.fontFamily);
+  useLoadAdventureFonts(adventure?.props?.fontList);
 
   const subtitleCandidates = useMemo(
     () =>
@@ -1698,7 +1679,7 @@ export function StaticPlayerPreview({
 
   const { style: propsStyle, flags, dataProps, layout, media, typography } = propsResult;
 
-  useLoadAdventureFonts(adventure.props?.fontList, typography.fontFamily);
+  useLoadAdventureFonts(adventure.props?.fontList);
 
   const navigationConfig = useMemo(
     () => buildNavigationConfig(rawProps),

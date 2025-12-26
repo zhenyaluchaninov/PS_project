@@ -1,6 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Bold,
+  Eraser,
+  Italic,
+  List,
+  ListOrdered,
+  Smile,
+  Underline,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { emojiOptions } from "../constants";
 
@@ -228,6 +237,8 @@ export function RichTextEditor({
   );
 
   const isEmpty = isRichTextEmpty(value ?? "");
+  const toolbarButtonClass =
+    "flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-tertiary)] p-0 text-[var(--text)] hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]";
 
   return (
     <div className="space-y-2">
@@ -238,10 +249,10 @@ export function RichTextEditor({
             event.preventDefault();
             runCommand("bold");
           }}
-          className="rounded-md border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1 text-xs font-semibold text-[var(--text)] hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+          className={toolbarButtonClass}
           aria-label="Bold"
         >
-          B
+          <Bold className="h-4 w-4" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -249,10 +260,10 @@ export function RichTextEditor({
             event.preventDefault();
             runCommand("italic");
           }}
-          className="rounded-md border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1 text-xs italic text-[var(--text)] hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+          className={toolbarButtonClass}
           aria-label="Italic"
         >
-          I
+          <Italic className="h-4 w-4" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -260,10 +271,10 @@ export function RichTextEditor({
             event.preventDefault();
             runCommand("underline");
           }}
-          className="rounded-md border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1 text-xs underline text-[var(--text)] hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+          className={toolbarButtonClass}
           aria-label="Underline"
         >
-          U
+          <Underline className="h-4 w-4" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -271,10 +282,10 @@ export function RichTextEditor({
             event.preventDefault();
             runCommand("insertUnorderedList");
           }}
-          className="rounded-md border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1 text-xs text-[var(--text)] hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+          className={toolbarButtonClass}
           aria-label="Bullet list"
         >
-          Bullets
+          <List className="h-4 w-4" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -282,10 +293,10 @@ export function RichTextEditor({
             event.preventDefault();
             runCommand("insertOrderedList");
           }}
-          className="rounded-md border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1 text-xs text-[var(--text)] hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+          className={toolbarButtonClass}
           aria-label="Numbered list"
         >
-          Numbers
+          <ListOrdered className="h-4 w-4" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -293,10 +304,10 @@ export function RichTextEditor({
             event.preventDefault();
             clearFormatting();
           }}
-          className="rounded-md border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1 text-xs text-[var(--text)] hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+          className={toolbarButtonClass}
           aria-label="Clear formatting"
         >
-          Clear
+          <Eraser className="h-4 w-4" aria-hidden="true" />
         </button>
         <div ref={emojiRef} className="relative">
           <button
@@ -306,10 +317,10 @@ export function RichTextEditor({
               updateSelection();
               setEmojiOpen((open) => !open);
             }}
-            className="rounded-md border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1 text-xs text-[var(--text)] hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+            className={toolbarButtonClass}
             aria-label="Insert emoji"
           >
-            Emoji
+            <Smile className="h-4 w-4" aria-hidden="true" />
           </button>
           {emojiOpen ? (
             <div className="absolute right-0 top-full z-20 mt-2 w-48 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] p-2 shadow-lg">

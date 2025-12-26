@@ -12,6 +12,7 @@ import { Button } from "@/features/ui-core/primitives/button";
 import { uploadMedia, deleteMedia } from "@/features/state/api/media";
 import { toastError } from "@/features/ui-core/toast";
 import { cn } from "@/lib/utils";
+import { getFontMeta } from "@/lib/fonts";
 import type { EditorNodeInspectorTab } from "../../state/types";
 import {
   ChevronDown,
@@ -57,40 +58,7 @@ const textShadowValues = new Set(
   textShadowOptions.map((option) => option.value)
 );
 
-const builtInFontOptions = [
-  { value: "font-roboto", label: "Roboto" },
-  { value: "font-robotoserif", label: "Roboto Serif" },
-  { value: "font-robotocondensed", label: "Roboto Condensed" },
-  { value: "font-conduitmedium", label: "Conduit Medium" },
-  { value: "font-conduitlight", label: "Conduit Light" },
-  { value: "font-cardo", label: "Cardo" },
-  { value: "font-shadowsintolight", label: "Shadows Into Light" },
-  { value: "font-amaticsc", label: "Amatic SC" },
-  { value: "font-armata", label: "Armata" },
-  { value: "font-cabin", label: "Cabin" },
-  { value: "font-cabincondensed", label: "Cabin Condensed" },
-  { value: "font-cormorant", label: "Cormorant" },
-  { value: "font-ebgaramond", label: "EB Garamond" },
-  { value: "font-firasans", label: "Fira Sans" },
-  { value: "font-gabriela", label: "Gabriela" },
-  { value: "font-lato", label: "Lato" },
-  { value: "font-librebaskerville", label: "Libre Baskerville" },
-  { value: "font-librefranklin", label: "Libre Franklin" },
-  { value: "font-merriweather", label: "Merriweather" },
-  { value: "font-nunito", label: "Nunito" },
-  { value: "font-opensans", label: "Open Sans" },
-  { value: "font-opensanscondensed", label: "Open Sans Condensed" },
-  { value: "font-oswald", label: "Oswald" },
-  { value: "font-playfairdisplay", label: "Playfair Display" },
-  { value: "font-poppins", label: "Poppins" },
-  { value: "font-rougescript", label: "Rouge Script" },
-  { value: "font-sairacondensed", label: "Saira Condensed" },
-  { value: "font-sriracha", label: "Sriracha" },
-  { value: "font-ubuntu", label: "Ubuntu" },
-  { value: "font-worksans", label: "Work Sans" },
-  { value: "font-zillaslab", label: "Zilla Slab" },
-  { value: "font-barlow", label: "Barlow" },
-];
+const builtInFontOptions: Array<{ value: string; label: string }> = [];
 
 const NAV_TEXT_SIZE_MIN = 8;
 const NAV_TEXT_SIZE_MAX = 18;
@@ -192,16 +160,6 @@ const clampAlpha = (value: number): number =>
 
 const clampNumber = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
-
-const parseFontEntry = (entry: string) => {
-  const trimmed = entry.trim();
-  const isUrl = /^https?:\/\//.test(trimmed) || trimmed.startsWith("/");
-  const name =
-    isUrl && trimmed.includes("/")
-      ? trimmed.split("/").pop()?.replace(/\.[^/.]+$/, "") ?? trimmed
-      : trimmed;
-  return { name, url: isUrl ? trimmed : undefined };
-};
 
 const stripMediaUrl = (url: string) => url.split(/[?#]/)[0] ?? "";
 
@@ -939,22 +897,29 @@ export function NodeInspectorPanel({
     bulkDraft
   );
   const fontToken = getFontToken(node, bulkDraft);
-  const uploadedFonts = Array.from(
-    new Set(
-      (fontList ?? [])
-        .map((entry) => parseFontEntry(entry).name)
-        .filter((name) => name.length > 0)
-    )
-  );
-  const uploadedFontOptions = uploadedFonts.map((name) => ({
-    value: `xfont-${name}`,
-    label: name,
-  }));
+  const uploadedFontOptions = (() => {
+    const options: Array<{ value: string; label: string }> = [];
+    const seen = new Set<string>();
+    (fontList ?? []).forEach((entry) => {
+      const meta = getFontMeta(entry);
+      if (!meta?.family) return;
+      if (seen.has(meta.family)) return;
+      seen.add(meta.family);
+      const labelBase = meta.displayName || meta.fileName || meta.family;
+      options.push({
+        value: meta.family,
+        label: `${labelBase} (uploaded)`,
+      });
+    });
+    return options;
+  })();
   const fontOptions = [...builtInFontOptions, ...uploadedFontOptions];
   const fontOptionValues = new Set(fontOptions.map((option) => option.value));
   const fontSelectValue = fontToken ?? "";
   const needsLegacyOption =
     fontSelectValue !== "" && !fontOptionValues.has(fontSelectValue);
+  const missingUploadedFont =
+    needsLegacyOption && fontSelectValue.startsWith("xfont-");
   const legacyFontLabel = fontSelectValue.replace(/^xfont-/, "").replace(/^font-/, "");
   const hasNavigationSetting = (token: string) =>
     navigationSettings.some(
@@ -1501,6 +1466,11 @@ export function NodeInspectorPanel({
                               />
                             </div>
                           </div>
+                          {missingUploadedFont ? (
+                            <p className="mt-2 text-xs text-[var(--warning)]">
+                              Missing uploaded font.
+                            </p>
+                          ) : null}
                         </BulkField>
                       </div>
                     </div>

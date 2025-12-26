@@ -358,9 +358,8 @@ export const buildPropsStyle = ({
   const fontToken =
     coerceValue(merged["background.font"]) ??
     coerceValue(merged["background_font"]);
-  const fontFamily = fontToken
-    ? fontToken.replace(/^xfont-/, "")
-    : undefined;
+  const trimmedFont = fontToken?.trim() ?? "";
+  const fontFamily = trimmedFont.length > 0 ? trimmedFont : undefined;
 
   const containerWidthCandidates = coerceNumberArray(
     merged["player_container_width"]
