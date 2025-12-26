@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL, resolveApiUrl } from "@/features/state/api/client";
 import {
   selectEditorAdventure,
@@ -26,6 +26,8 @@ import { GraphCanvas } from "./graph/GraphCanvas";
 import { Button } from "@/features/ui-core/primitives";
 import { useEditorAutosave } from "../hooks/useEditorAutosave";
 import { cn } from "@/lib/utils";
+import { ShareModal } from "./ShareModal";
+import { Play, PlayCircle, Share2 } from "lucide-react";
 
 type EditorRouteProps = {
   editSlug: string;
@@ -60,6 +62,15 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const applyMenuShortcutPick = useEditorStore((s) => s.applyMenuShortcutPick);
   const { draftPromptOpen, recoverDraft, discardDraft, retrySave } =
     useEditorAutosave(editSlug);
+  const selectedNodeId =
+    selectedNodeIds.length === 1 ? selectedNodeIds[0] : null;
+  const previewPath = `/testa/${editSlug}`;
+  const previewFromPath =
+    selectedNodeId != null ? `${previewPath}?nodeId=${selectedNodeId}` : "";
+  const handleOpenPreview = useCallback((path: string) => {
+    if (!path) return;
+    window.open(path, "_blank", "noopener,noreferrer");
+  }, []);
 
   useEffect(() => {
     void loadByEditSlug(editSlug);
@@ -131,6 +142,32 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
           {title ? <span className="text-[var(--text)]/80">{title}</span> : null}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => handleOpenPreview(previewPath)}>
+            <Play className="h-4 w-4" aria-hidden="true" />
+            Play
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleOpenPreview(previewFromPath)}
+            disabled={selectedNodeId == null}
+            title={selectedNodeId == null ? "Select a single node to start" : undefined}
+          >
+            <PlayCircle className="h-4 w-4" aria-hidden="true" />
+            Play from here
+          </Button>
+          {adventure ? (
+            <ShareModal
+              editSlug={editSlug}
+              viewSlug={adventure.viewSlug}
+              trigger={
+                <Button size="sm" variant="secondary">
+                  <Share2 className="h-4 w-4" aria-hidden="true" />
+                  Share
+                </Button>
+              }
+            />
+          ) : null}
           <span
             title={saveError ?? undefined}
             className={cn(
@@ -169,15 +206,21 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
       </Toolbar>
     );
   }, [
+    adventure,
     adventure?.title,
     discardDraft,
     draftPromptOpen,
     editSlug,
+    handleOpenPreview,
     hasSeenChanges,
+    previewFromPath,
+    previewPath,
     recoverDraft,
     retrySave,
     saveError,
     saveStatus,
+    selectedNodeId,
+    selectedNodeIds,
   ]);
 
   if (status === "loading" || status === "idle") {
