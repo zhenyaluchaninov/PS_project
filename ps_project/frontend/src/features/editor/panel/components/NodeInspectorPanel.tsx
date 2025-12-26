@@ -438,23 +438,6 @@ export function NodeInspectorPanel({
   onNodePropsChange,
   bulk,
 }: NodeInspectorPanelProps) {
-  const [sectionState, setSectionState] = useState<Record<string, boolean>>({
-    "Node type": false,
-    Text: false,
-    Image: false,
-    Video: false,
-    "Audio media": false,
-    Background: false,
-    Layout: false,
-    Navigation: false,
-    Audio: false,
-    Choices: true,
-    "Button appearance": false,
-    Conditions: false,
-    Tracking: false,
-  });
-  const setSectionOpen = (key: string, next: boolean) =>
-    setSectionState((prev) => ({ ...prev, [key]: next }));
   const bulkDraft = bulk?.draft ?? {};
   const bulkActive = bulk?.active ?? false;
   const stagedCount = Object.keys(bulkDraft).length;
@@ -1096,8 +1079,7 @@ export function NodeInspectorPanel({
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
               <CollapsibleSection
                 title="Node type"
-                open={sectionState["Node type"]}
-                onToggle={(next) => setSectionOpen("Node type", next)}
+                sectionKey="editor.node.content.type"
               >
                 <BulkField
                   active={isBulkFieldStaged(BULK_NODE_TYPE_PATH)}
@@ -1130,11 +1112,7 @@ export function NodeInspectorPanel({
                 </BulkField>
               </CollapsibleSection>
 
-              <CollapsibleSection
-                title="Text"
-                open={sectionState.Text}
-                onToggle={(next) => setSectionOpen("Text", next)}
-              >
+              <CollapsibleSection title="Text" sectionKey="editor.node.content.text">
                 <div className="space-y-3">
                   {isRefNode ? (
                     <BulkField
@@ -1305,8 +1283,7 @@ export function NodeInspectorPanel({
               </CollapsibleSection>
               <CollapsibleSection
                 title="Image"
-                open={sectionState.Image}
-                onToggle={(next) => setSectionOpen("Image", next)}
+                sectionKey="editor.node.content.image"
               >
                 <BulkField
                   active={false}
@@ -1348,8 +1325,7 @@ export function NodeInspectorPanel({
               </CollapsibleSection>
               <CollapsibleSection
                 title="Video"
-                open={sectionState.Video}
-                onToggle={(next) => setSectionOpen("Video", next)}
+                sectionKey="editor.node.content.video"
               >
                 <BulkField
                   active={false}
@@ -1479,8 +1455,7 @@ export function NodeInspectorPanel({
               </CollapsibleSection>
               <CollapsibleSection
                 title="Audio"
-                open={sectionState["Audio media"]}
-                onToggle={(next) => setSectionOpen("Audio media", next)}
+                sectionKey="editor.node.content.audio-media"
               >
                 <BulkField
                   active={false}
@@ -1709,8 +1684,7 @@ export function NodeInspectorPanel({
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
                 <CollapsibleSection
                   title="Background"
-                  open={sectionState.Background}
-                  onToggle={(next) => setSectionOpen("Background", next)}
+                  sectionKey="editor.node.style.background"
                 >
                   <div className="space-y-4">
                     <BulkField
@@ -1782,8 +1756,7 @@ export function NodeInspectorPanel({
 
                 <CollapsibleSection
                   title="Layout"
-                  open={sectionState.Layout}
-                  onToggle={(next) => setSectionOpen("Layout", next)}
+                  sectionKey="editor.node.style.layout"
                 >
                   <div className="space-y-4">
                     <BulkField
@@ -1922,8 +1895,7 @@ export function NodeInspectorPanel({
 
                 <CollapsibleSection
                   title="Navigation"
-                  open={sectionState.Navigation}
-                  onToggle={(next) => setSectionOpen("Navigation", next)}
+                  sectionKey="editor.node.style.navigation"
                 >
                   <div className="space-y-4">
                     <BulkField
@@ -1989,8 +1961,7 @@ export function NodeInspectorPanel({
 
                 <CollapsibleSection
                   title="Audio"
-                  open={sectionState.Audio}
-                  onToggle={(next) => setSectionOpen("Audio", next)}
+                  sectionKey="editor.node.style.audio"
                 >
                   <div className="space-y-4">
                     <BulkField
@@ -2018,8 +1989,7 @@ export function NodeInspectorPanel({
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
               <CollapsibleSection
                 title="Choices"
-                open={sectionState.Choices}
-                onToggle={(next) => setSectionOpen("Choices", next)}
+                sectionKey="editor.node.buttons.choices"
               >
                 <BulkField
                   active={isBulkFieldStaged("ordered_link_ids")}
@@ -2047,8 +2017,7 @@ export function NodeInspectorPanel({
               </CollapsibleSection>
               <CollapsibleSection
                 title="Button appearance"
-                open={sectionState["Button appearance"]}
-                onToggle={(next) => setSectionOpen("Button appearance", next)}
+                sectionKey="editor.node.buttons.appearance"
               >
                 <div className="space-y-4">
                   <BulkField
@@ -2129,8 +2098,7 @@ export function NodeInspectorPanel({
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
               <CollapsibleSection
                 title="Conditions"
-                open={sectionState.Conditions}
-                onToggle={(next) => setSectionOpen("Conditions", next)}
+                sectionKey="editor.node.logic.conditions"
               >
                 <div className="space-y-4">
                   <BulkField
@@ -2178,8 +2146,7 @@ export function NodeInspectorPanel({
               </CollapsibleSection>
               <CollapsibleSection
                 title="Tracking"
-                open={sectionState.Tracking}
-                onToggle={(next) => setSectionOpen("Tracking", next)}
+                sectionKey="editor.node.logic.tracking"
               >
                 <div className="space-y-4">
                   <BulkField

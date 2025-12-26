@@ -169,6 +169,7 @@ export function mapAdventureDto(dto: AdventureDto): AdventureModel {
     nodes: (dto.nodes ?? []).map(mapNodeDto),
     links: (dto.links ?? []).map(mapLinkDto),
     coverUrl: dto.cover_url ?? null,
+    imageId: dto.image_id ?? null,
     editVersion: dto.edit_version,
     viewCount: dto.view_count ?? 0,
     props: normalizeAdventureProps(dto.props),

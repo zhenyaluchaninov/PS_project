@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const sectionMemory = new Map<string, boolean>();
 
 type CollapsibleSectionProps = {
   title: string;
   defaultOpen?: boolean;
   titleClassName?: string;
+  sectionKey?: string;
   open?: boolean;
   onToggle?: (next: boolean) => void;
   children: ReactNode;
@@ -17,20 +20,48 @@ export function CollapsibleSection({
   title,
   defaultOpen = false,
   titleClassName,
+  sectionKey,
   open,
   onToggle,
   children,
 }: CollapsibleSectionProps) {
-  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const storageKey = useMemo(
+    () => (sectionKey ? `collapsible:${sectionKey}` : null),
+    [sectionKey]
+  );
+  const [internalOpen, setInternalOpen] = useState(() => {
+    if (storageKey && sectionMemory.has(storageKey)) {
+      return sectionMemory.get(storageKey) ?? defaultOpen;
+    }
+    return defaultOpen;
+  });
   const isOpen = open ?? internalOpen;
   const handleToggle = () => {
     const next = !isOpen;
+    if (storageKey) {
+      sectionMemory.set(storageKey, next);
+    }
     if (onToggle) {
       onToggle(next);
-    } else {
+    }
+    if (open === undefined) {
       setInternalOpen(next);
     }
   };
+
+  useEffect(() => {
+    if (!storageKey || open === undefined) return;
+    sectionMemory.set(storageKey, open);
+  }, [open, storageKey]);
+
+  useEffect(() => {
+    if (!storageKey || open !== undefined) return;
+    if (sectionMemory.has(storageKey)) {
+      setInternalOpen(sectionMemory.get(storageKey) ?? defaultOpen);
+    } else {
+      setInternalOpen(defaultOpen);
+    }
+  }, [defaultOpen, open, storageKey]);
 
   return (
     <div className="border-b border-[var(--border)] last:border-b-0">

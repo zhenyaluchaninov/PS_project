@@ -134,6 +134,10 @@ export type EditorState = {
     description?: string;
     category?: CategoryModel | null;
   }) => void;
+  updateAdventureCover: (updates: {
+    coverUrl?: string | null;
+    imageId?: number | null;
+  }) => void;
   updateAdventureProps: (
     updates: Record<string, unknown>,
     options?: PropPathOptions

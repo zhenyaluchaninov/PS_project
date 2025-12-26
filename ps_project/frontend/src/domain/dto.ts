@@ -63,6 +63,7 @@ export const adventureDtoSchema = z.object({
   category: categoryDtoSchema.optional().nullable(),
   nodes: z.array(nodeDtoSchema).optional().default([]),
   links: z.array(linkDtoSchema).optional().default([]),
+  image_id: z.coerce.number().optional().nullable(),
   cover_url: z.string().optional().nullable(),
   edit_version: z.coerce.number(),
   view_count: z.coerce.number().default(0),

@@ -103,6 +103,19 @@ const readFontList = (props?: Record<string, unknown> | null): string[] => {
   return raw.filter((item): item is string => typeof item === "string");
 };
 
+const getMediaBasename = (url: string) => {
+  const trimmed = stripMediaUrl(url);
+  const parts = trimmed.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? "";
+};
+
+const isUploadMediaUrl = (url: string) => {
+  const trimmed = stripMediaUrl(url);
+  if (!trimmed) return false;
+  if (trimmed.startsWith("/upload/")) return true;
+  return trimmed.includes("/upload/");
+};
+
 type AdventureInspectorPanelProps = {
   adventure: AdventureModel;
 };
@@ -112,6 +125,7 @@ export function AdventureInspectorPanel({
 }: AdventureInspectorPanelProps) {
   const updateAdventureFields = useEditorStore((s) => s.updateAdventureFields);
   const updateAdventureProps = useEditorStore((s) => s.updateAdventureProps);
+  const updateAdventureCover = useEditorStore((s) => s.updateAdventureCover);
   const menuShortcutPickIndex = useEditorStore(selectEditorMenuShortcutPickIndex);
   const startMenuShortcutPick = useEditorStore((s) => s.startMenuShortcutPick);
   const cancelMenuShortcutPick = useEditorStore((s) => s.cancelMenuShortcutPick);
@@ -124,6 +138,9 @@ export function AdventureInspectorPanel({
   const fontInputRef = useRef<HTMLInputElement | null>(null);
   const [fontUploading, setFontUploading] = useState(false);
   const [fontRemoving, setFontRemoving] = useState<string | null>(null);
+  const coverInputRef = useRef<HTMLInputElement | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverRemoving, setCoverRemoving] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -198,6 +215,11 @@ export function AdventureInspectorPanel({
     () => readFontList(adventureProps ?? null),
     [adventureProps]
   );
+  const coverUrl = adventure.coverUrl?.trim() ?? "";
+  const coverImageId = adventure.imageId ?? null;
+  const coverLabel = coverUrl ? getMediaBasename(coverUrl) : "";
+  const coverIsUpload = coverUrl ? isUploadMediaUrl(coverUrl) : false;
+  const hasCover = Boolean(coverUrl || coverImageId);
   const nodeById = useMemo(() => {
     const map = new Map<number, AdventureModel["nodes"][number]>();
     adventure.nodes.forEach((node) => map.set(node.nodeId, node));
@@ -289,6 +311,70 @@ export function AdventureInspectorPanel({
         ? prev
         : [...prev, nextHiddenShortcutIndex]
     );
+  };
+
+  const handleCoverUploadClick = () => {
+    if (coverUploading) return;
+    coverInputRef.current?.click();
+  };
+
+  const handleCoverFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!adventure.slug) {
+      toastError("Cover upload failed", "Missing adventure slug.");
+      return;
+    }
+    setCoverUploading(true);
+    const previousUrl = coverUrl;
+    try {
+      const result = await uploadMedia(adventure.slug, file);
+      const url = result?.url;
+      if (!url) {
+        throw new Error("Upload response missing URL.");
+      }
+      updateAdventureCover({ coverUrl: url, imageId: null });
+      if (previousUrl && previousUrl !== url && isUploadMediaUrl(previousUrl)) {
+        const previousHash = getMediaBasename(previousUrl);
+        if (previousHash) {
+          await deleteMedia(adventure.slug, previousHash);
+        }
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unable to upload cover image.";
+      toastError("Cover upload failed", message);
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
+  const handleCoverRemove = async () => {
+    if (!hasCover) return;
+    if (!adventure.slug) {
+      toastError("Cover removal failed", "Missing adventure slug.");
+      return;
+    }
+    setCoverRemoving(true);
+    try {
+      if (coverUrl && coverIsUpload) {
+        const hash = getMediaBasename(coverUrl);
+        if (hash) {
+          await deleteMedia(adventure.slug, hash);
+        }
+      }
+      updateAdventureCover({
+        coverUrl: null,
+        imageId: null,
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unable to remove cover image.";
+      toastError("Cover removal failed", message);
+    } finally {
+      setCoverRemoving(false);
+    }
   };
 
   const handleFontUploadClick = () => {
@@ -436,7 +522,92 @@ export function AdventureInspectorPanel({
         </div>
       </div>
       <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-        <CollapsibleSection title="Menu" defaultOpen>
+        <CollapsibleSection title="Cover" sectionKey="editor.adventure.cover">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                  Cover image
+                </p>
+                <p className="text-xs text-[var(--muted)]">
+                  Used for adventure previews and cards.
+                </p>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <input
+                  ref={coverInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif"
+                  onChange={handleCoverFileChange}
+                  className="hidden"
+                  aria-label="Upload cover image"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handleCoverUploadClick}
+                  disabled={coverUploading}
+                  aria-label={coverUrl ? "Replace cover image" : "Upload cover image"}
+                  title={coverUrl ? "Replace cover image" : "Upload cover image"}
+                  className="h-8 w-8"
+                >
+                  <Upload className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleCoverRemove}
+                  disabled={!hasCover || coverRemoving}
+                  aria-label="Remove cover image"
+                  title="Remove cover image"
+                  className="h-8 w-8 text-[var(--danger)] hover:text-[var(--danger)]"
+                >
+                  {coverRemoving ? (
+                    <Loader2
+                      className="h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </Button>
+              </div>
+            </div>
+            <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] p-3">
+              {coverUrl ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <img
+                    src={coverUrl}
+                    alt="Adventure cover"
+                    className="h-16 w-24 rounded-md border border-[var(--border)] object-cover"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-[var(--text-secondary)]">
+                      {coverLabel || "Cover image"}
+                    </p>
+                    <p className="truncate text-xs text-[var(--muted)]">
+                      {coverUrl}
+                    </p>
+                  </div>
+                </div>
+              ) : coverImageId != null ? (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-[var(--text-secondary)]">
+                    Image library cover
+                  </p>
+                  <p className="text-xs text-[var(--muted)]">
+                    Image #{coverImageId}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-[var(--muted)]">No cover set.</p>
+              )}
+            </div>
+          </div>
+        </CollapsibleSection>
+        <CollapsibleSection title="Menu" sectionKey="editor.adventure.menu">
           <div className="space-y-4">
             <div className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
@@ -588,9 +759,7 @@ export function AdventureInspectorPanel({
             </div>
           </div>
         </CollapsibleSection>
-      </div>
-      <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-        <CollapsibleSection title="Fonts" defaultOpen>
+        <CollapsibleSection title="Fonts" sectionKey="editor.adventure.fonts">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-1">

@@ -10,6 +10,11 @@ type AdventureFieldUpdates = {
   category?: CategoryModel | null;
 };
 
+type AdventureCoverUpdates = {
+  coverUrl?: string | null;
+  imageId?: number | null;
+};
+
 const categoriesEqual = (
   current: CategoryModel | undefined,
   next: CategoryModel | undefined
@@ -47,6 +52,39 @@ export const adventureOpsSlice: EditorSlice = (set) => ({
         if (!categoriesEqual(adventure.category, nextCategory)) {
           nextAdventure = nextAdventure === adventure ? { ...adventure } : nextAdventure;
           nextAdventure.category = nextCategory;
+          changed = true;
+        }
+      }
+
+      if (!changed) return {};
+
+      return {
+        adventure: nextAdventure,
+        dirty: true,
+      };
+    });
+  },
+  updateAdventureCover: (updates: AdventureCoverUpdates) => {
+    set((state) => {
+      const adventure = state.adventure;
+      if (!adventure) return {};
+      let changed = false;
+      let nextAdventure = adventure;
+
+      if (Object.prototype.hasOwnProperty.call(updates, "coverUrl")) {
+        const nextCover = updates.coverUrl ?? null;
+        if ((adventure.coverUrl ?? null) !== nextCover) {
+          nextAdventure = nextAdventure === adventure ? { ...adventure } : nextAdventure;
+          nextAdventure.coverUrl = nextCover;
+          changed = true;
+        }
+      }
+
+      if (Object.prototype.hasOwnProperty.call(updates, "imageId")) {
+        const nextImageId = updates.imageId ?? null;
+        if ((adventure.imageId ?? null) !== nextImageId) {
+          nextAdventure = nextAdventure === adventure ? { ...adventure } : nextAdventure;
+          nextAdventure.imageId = nextImageId;
           changed = true;
         }
       }

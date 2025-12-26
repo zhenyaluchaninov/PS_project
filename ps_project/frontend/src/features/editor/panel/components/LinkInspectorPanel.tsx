@@ -152,7 +152,10 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
           </Button>
         ) : null}
         <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-          <CollapsibleSection title="Conditions" defaultOpen>
+          <CollapsibleSection
+            title="Conditions"
+            sectionKey="editor.link.conditions"
+          >
             <ConditionEditor
               label="Show button when ALL visited"
               helper="Positive node list"

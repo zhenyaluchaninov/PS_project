@@ -68,6 +68,7 @@ export type AdventureModel = {
   nodes: NodeModel[];
   links: LinkModel[];
   coverUrl?: string | null;
+  imageId?: number | null;
   editVersion: number;
   viewCount: number;
   props: AdventurePropsModel | null;
