@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { API_BASE_URL, resolveApiUrl } from "@/features/state/api/client";
 import {
   selectEditorAdventure,
@@ -20,6 +20,8 @@ import EditorLayout from "@/features/ui-core/components/EditorLayout";
 import { EditorHotkeys } from "./EditorHotkeys";
 import { EditorInspector } from "./EditorInspector";
 import { GraphCanvas } from "./graph/GraphCanvas";
+import { Button } from "@/features/ui-core/primitives";
+import { useEditorAutosave } from "../hooks/useEditorAutosave";
 
 type EditorRouteProps = {
   editSlug: string;
@@ -30,6 +32,7 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const adventure = useEditorStore(selectEditorAdventure);
   const error = useEditorStore(selectEditorError);
   const dirty = useEditorStore(selectEditorDirty);
+  const [hasSeenChanges, setHasSeenChanges] = useState(false);
   const selection = useEditorStore(selectEditorSelection);
   const selectedNodeIds = useEditorStore(selectEditorSelectedNodeIds);
   const selectedLinkIds = useEditorStore(selectEditorSelectedLinkIds);
@@ -47,6 +50,8 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const addLink = useEditorStore((s) => s.addLink);
   const addNodeWithLink = useEditorStore((s) => s.addNodeWithLink);
   const applyMenuShortcutPick = useEditorStore((s) => s.applyMenuShortcutPick);
+  const { draftPromptOpen, recoverDraft, discardDraft } =
+    useEditorAutosave(editSlug);
 
   useEffect(() => {
     void loadByEditSlug(editSlug);
@@ -56,6 +61,16 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   useEffect(() => {
     clearSelection();
   }, [editSlug, clearSelection]);
+
+  useEffect(() => {
+    setHasSeenChanges(false);
+  }, [editSlug]);
+
+  useEffect(() => {
+    if (dirty) {
+      setHasSeenChanges(true);
+    }
+  }, [dirty]);
 
   const toolbar = useMemo(() => {
     const title = adventure?.title;
@@ -68,16 +83,39 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
           </span>
           {title ? <span className="text-[var(--text)]/80">{title}</span> : null}
           <span
-            className={dirty
-              ? "inline-flex items-center rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--accent)]"
-              : "inline-flex items-center rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]"}
+            className={
+              dirty
+                ? "inline-flex items-center rounded-full border border-amber-400/60 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400"
+                : hasSeenChanges
+                  ? "inline-flex items-center rounded-full border border-emerald-400/60 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-400"
+                  : "inline-flex items-center rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]"
+            }
           >
-            {dirty ? "Unsaved changes" : "No changes"}
+            {dirty ? "Unsaved changes" : hasSeenChanges ? "Saved" : "No changes"}
           </span>
         </div>
+        {draftPromptOpen ? (
+          <div className="ml-auto flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+            <span>Draft available</span>
+            <Button size="sm" variant="secondary" onClick={recoverDraft}>
+              Recover
+            </Button>
+            <Button size="sm" variant="ghost" onClick={discardDraft}>
+              Discard
+            </Button>
+          </div>
+        ) : null}
       </Toolbar>
     );
-  }, [adventure?.title, dirty, editSlug]);
+  }, [
+    adventure?.title,
+    dirty,
+    discardDraft,
+    draftPromptOpen,
+    editSlug,
+    hasSeenChanges,
+    recoverDraft,
+  ]);
 
   if (status === "loading" || status === "idle") {
     return (
