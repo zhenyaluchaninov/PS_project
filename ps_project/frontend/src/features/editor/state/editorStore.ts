@@ -33,6 +33,9 @@ export const selectEditorStatus = (state: EditorState) => state.status;
 export const selectEditorAdventure = (state: EditorState) => state.adventure;
 export const selectEditorError = (state: EditorState) => state.error;
 export const selectEditorDirty = (state: EditorState) => state.dirty;
+export const selectEditorSaveStatus = (state: EditorState) => state.saveStatus;
+export const selectEditorSaveError = (state: EditorState) => state.saveError;
+export const selectEditorReadOnly = (state: EditorState) => state.readOnly;
 export const selectEditorEditVersion = (state: EditorState) => state.editVersion;
 export const selectEditorSelection = (state: EditorState) => state.selection;
 export const selectEditorSelectionToolActive = (state: EditorState) =>

@@ -6,6 +6,7 @@ import {
   selectEditorAdventure,
   selectEditorClipboard,
   selectEditorMenuShortcutPickIndex,
+  selectEditorReadOnly,
   selectEditorSelectedLinkIds,
   selectEditorSelectedNodeIds,
   selectEditorSelection,
@@ -73,6 +74,7 @@ export function EditorHotkeys() {
   const selectedNodeIds = useEditorStore(selectEditorSelectedNodeIds);
   const selectedLinkIds = useEditorStore(selectEditorSelectedLinkIds);
   const menuShortcutPickIndex = useEditorStore(selectEditorMenuShortcutPickIndex);
+  const readOnly = useEditorStore(selectEditorReadOnly);
   const adventure = useEditorStore(selectEditorAdventure);
   const clipboard = useEditorStore(selectEditorClipboard);
   const undoStack = useEditorStore(selectEditorUndoStack);
@@ -97,6 +99,9 @@ export function EditorHotkeys() {
         return;
       }
       if (isEditableTarget(event.target)) return;
+      if (readOnly) {
+        return;
+      }
 
       if (event.key === "Delete" || event.key === "Backspace") {
         if (selectedNodeIds.length || selectedLinkIds.length) {
@@ -210,6 +215,7 @@ export function EditorHotkeys() {
     viewportCenter,
     menuShortcutPickIndex,
     cancelMenuShortcutPick,
+    readOnly,
   ]);
 
   return null;

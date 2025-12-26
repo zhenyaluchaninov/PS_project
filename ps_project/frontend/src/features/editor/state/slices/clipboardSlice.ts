@@ -39,6 +39,7 @@ export const clipboardSlice: EditorSlice = (set, get) => ({
     });
   },
   pasteClipboard: (target) => {
+    if (get().readOnly) return [];
     const { adventure, clipboard } = get();
     if (!adventure || !clipboard || clipboard.nodes.length === 0) return [];
     let createdIds: number[] = [];

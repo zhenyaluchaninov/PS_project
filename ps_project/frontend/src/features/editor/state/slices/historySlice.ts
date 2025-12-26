@@ -24,6 +24,7 @@ export const historySlice: EditorSlice = (set) => ({
   undoStack: [],
   undo: () => {
     set((state) => {
+      if (state.readOnly) return {};
       if (!state.adventure || state.undoStack.length === 0) return {};
       const undoStack = state.undoStack.slice(0, -1);
       const entry = state.undoStack[state.undoStack.length - 1];

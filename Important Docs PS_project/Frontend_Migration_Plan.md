@@ -1599,7 +1599,7 @@ web/js/aventyr.editor.js
 
 ---
 
-### Step 27 – Adventure settings (metadata, cover, fonts, menu, shortcuts)
+### [done] Step 27 – Adventure settings (metadata, cover, fonts, menu, shortcuts)
 
 **What we do**
 

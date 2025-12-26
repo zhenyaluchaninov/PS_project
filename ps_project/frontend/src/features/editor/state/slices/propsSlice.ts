@@ -23,6 +23,7 @@ const applyNodePropsUpdate = (
   updater: PropsUpdater,
   errorTitle: string
 ) => {
+  if (state.readOnly) return {};
   if (!state.adventure) return {};
   const nodeIndex = state.adventure.nodes.findIndex(
     (node) => node.nodeId === nodeId
@@ -63,6 +64,7 @@ const applyLinkPropsUpdate = (
   updater: PropsUpdater,
   errorTitle: string
 ) => {
+  if (state.readOnly) return {};
   if (!state.adventure) return {};
   const linkIndex = state.adventure.links.findIndex(
     (link) => link.linkId === linkId
@@ -94,6 +96,7 @@ const applyAdventurePropsUpdate = (
   updater: PropsUpdater,
   errorTitle: string
 ) => {
+  if (state.readOnly) return {};
   if (!state.adventure) return {};
   const propsInput =
     (state.adventure.props as Record<string, unknown> | null) ?? {};

@@ -64,6 +64,7 @@ const withOrderedLinkIds = (node: NodeModel, nextList: string[]) => {
 
 export const linkOpsSlice: EditorSlice = (set, get) => ({
   addLink: (sourceId, targetId) => {
+    if (get().readOnly) return null;
     const adventure = get().adventure;
     if (!adventure) return null;
     if (sourceId === targetId) return null;
@@ -104,6 +105,7 @@ export const linkOpsSlice: EditorSlice = (set, get) => ({
     return nextLinkId;
   },
   updateLinkFields: (linkId, updates) => {
+    if (get().readOnly) return;
     set((state) => {
       if (!state.adventure) return {};
       const linkIndex = state.adventure.links.findIndex(
@@ -158,6 +160,7 @@ export const linkOpsSlice: EditorSlice = (set, get) => ({
     });
   },
   swapLinkDirection: (linkId) => {
+    if (get().readOnly) return;
     set((state) => {
       if (!state.adventure) return {};
       const linkIndex = state.adventure.links.findIndex(
@@ -226,6 +229,7 @@ export const linkOpsSlice: EditorSlice = (set, get) => ({
     });
   },
   removeLinks: (linkIds) => {
+    if (get().readOnly) return;
     if (!linkIds.length) return;
     set((state) => {
       if (!state.adventure) return {};

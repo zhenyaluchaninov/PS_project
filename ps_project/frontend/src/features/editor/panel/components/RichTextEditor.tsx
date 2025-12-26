@@ -17,6 +17,7 @@ type RichTextEditorProps = {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  readOnly?: boolean;
 };
 
 const normalizeNewlines = (value: string): string =>
@@ -74,6 +75,7 @@ export function RichTextEditor({
   value,
   onChange,
   placeholder = "Write node content...",
+  readOnly = false,
 }: RichTextEditorProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
@@ -126,6 +128,7 @@ export function RichTextEditor({
 
   const runCommand = useCallback(
     (command: string, commandValue?: string) => {
+      if (readOnly) return;
       if (!contentRef.current) return;
       contentRef.current.focus();
       ensureSelection();
@@ -133,10 +136,11 @@ export function RichTextEditor({
       document.execCommand(command, false, commandValue);
       syncFromDom();
     },
-    [ensureSelection, restoreSelection, syncFromDom]
+    [ensureSelection, readOnly, restoreSelection, syncFromDom]
   );
 
   const clearFormatting = useCallback(() => {
+    if (readOnly) return;
     if (!contentRef.current) return;
     contentRef.current.focus();
     updateSelection();
@@ -180,6 +184,7 @@ export function RichTextEditor({
   }, [
     ensureSelection,
     isRangeInsideEditor,
+    readOnly,
     restoreSelection,
     syncFromDom,
     updateSelection,
@@ -212,6 +217,7 @@ export function RichTextEditor({
 
   const insertEmoji = useCallback(
     (emoji: string) => {
+      if (readOnly) return;
       if (!contentRef.current) return;
       contentRef.current.focus();
       ensureSelection();
@@ -233,7 +239,7 @@ export function RichTextEditor({
       setEmojiOpen(false);
       syncFromDom();
     },
-    [ensureSelection, restoreSelection, syncFromDom]
+    [ensureSelection, readOnly, restoreSelection, syncFromDom]
   );
 
   const isEmpty = isRichTextEmpty(value ?? "");
@@ -249,7 +255,11 @@ export function RichTextEditor({
             event.preventDefault();
             runCommand("bold");
           }}
-          className={toolbarButtonClass}
+          disabled={readOnly}
+          className={cn(
+            toolbarButtonClass,
+            readOnly && "cursor-not-allowed opacity-60"
+          )}
           aria-label="Bold"
         >
           <Bold className="h-4 w-4" aria-hidden="true" />
@@ -260,7 +270,11 @@ export function RichTextEditor({
             event.preventDefault();
             runCommand("italic");
           }}
-          className={toolbarButtonClass}
+          disabled={readOnly}
+          className={cn(
+            toolbarButtonClass,
+            readOnly && "cursor-not-allowed opacity-60"
+          )}
           aria-label="Italic"
         >
           <Italic className="h-4 w-4" aria-hidden="true" />
@@ -271,7 +285,11 @@ export function RichTextEditor({
             event.preventDefault();
             runCommand("underline");
           }}
-          className={toolbarButtonClass}
+          disabled={readOnly}
+          className={cn(
+            toolbarButtonClass,
+            readOnly && "cursor-not-allowed opacity-60"
+          )}
           aria-label="Underline"
         >
           <Underline className="h-4 w-4" aria-hidden="true" />
@@ -282,7 +300,11 @@ export function RichTextEditor({
             event.preventDefault();
             runCommand("insertUnorderedList");
           }}
-          className={toolbarButtonClass}
+          disabled={readOnly}
+          className={cn(
+            toolbarButtonClass,
+            readOnly && "cursor-not-allowed opacity-60"
+          )}
           aria-label="Bullet list"
         >
           <List className="h-4 w-4" aria-hidden="true" />
@@ -293,7 +315,11 @@ export function RichTextEditor({
             event.preventDefault();
             runCommand("insertOrderedList");
           }}
-          className={toolbarButtonClass}
+          disabled={readOnly}
+          className={cn(
+            toolbarButtonClass,
+            readOnly && "cursor-not-allowed opacity-60"
+          )}
           aria-label="Numbered list"
         >
           <ListOrdered className="h-4 w-4" aria-hidden="true" />
@@ -304,7 +330,11 @@ export function RichTextEditor({
             event.preventDefault();
             clearFormatting();
           }}
-          className={toolbarButtonClass}
+          disabled={readOnly}
+          className={cn(
+            toolbarButtonClass,
+            readOnly && "cursor-not-allowed opacity-60"
+          )}
           aria-label="Clear formatting"
         >
           <Eraser className="h-4 w-4" aria-hidden="true" />
@@ -317,12 +347,16 @@ export function RichTextEditor({
               updateSelection();
               setEmojiOpen((open) => !open);
             }}
-            className={toolbarButtonClass}
+            disabled={readOnly}
+            className={cn(
+              toolbarButtonClass,
+              readOnly && "cursor-not-allowed opacity-60"
+            )}
             aria-label="Insert emoji"
           >
             <Smile className="h-4 w-4" aria-hidden="true" />
           </button>
-          {emojiOpen ? (
+          {emojiOpen && !readOnly ? (
             <div className="absolute right-0 top-full z-20 mt-2 w-48 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] p-2 shadow-lg">
               <div className="grid grid-cols-6 gap-1">
                 {emojiOptions.map((emoji) => (
@@ -357,9 +391,10 @@ export function RichTextEditor({
         ) : null}
         <div
           ref={contentRef}
-          contentEditable
+          contentEditable={!readOnly}
           role="textbox"
           aria-multiline="true"
+          aria-readonly={readOnly}
           aria-label={placeholder}
           suppressContentEditableWarning
           spellCheck

@@ -16,6 +16,7 @@ import { LabelValue } from "@/features/ui-core/LabelValue";
 import { toastError } from "@/features/ui-core/toast";
 import {
   selectEditorMenuShortcutPickIndex,
+  selectEditorReadOnly,
   useEditorStore,
 } from "@/features/editor/state/editorStore";
 import { Button } from "@/features/ui-core/primitives/button";
@@ -127,6 +128,7 @@ export function AdventureInspectorPanel({
   const updateAdventureProps = useEditorStore((s) => s.updateAdventureProps);
   const updateAdventureCover = useEditorStore((s) => s.updateAdventureCover);
   const menuShortcutPickIndex = useEditorStore(selectEditorMenuShortcutPickIndex);
+  const readOnly = useEditorStore(selectEditorReadOnly);
   const startMenuShortcutPick = useEditorStore((s) => s.startMenuShortcutPick);
   const cancelMenuShortcutPick = useEditorStore((s) => s.cancelMenuShortcutPick);
   const [categories, setCategories] = useState<CategoryModel[]>([]);
@@ -463,6 +465,7 @@ export function AdventureInspectorPanel({
             onChange={(event) =>
               updateAdventureFields({ title: event.target.value })
             }
+            disabled={readOnly}
             className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
           />
         </div>
@@ -476,6 +479,7 @@ export function AdventureInspectorPanel({
               updateAdventureFields({ description: event.target.value })
             }
             rows={4}
+            disabled={readOnly}
             className="w-full resize-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
           />
         </div>
@@ -498,7 +502,7 @@ export function AdventureInspectorPanel({
                 null;
               updateAdventureFields({ category: nextCategory });
             }}
-            disabled={categoryDisabled}
+            disabled={readOnly || categoryDisabled}
             className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)] disabled:cursor-not-allowed disabled:text-[var(--muted)]"
           >
             {!adventure.category && categoryOptions.length ? (
@@ -539,6 +543,7 @@ export function AdventureInspectorPanel({
                   type="file"
                   accept="image/png,image/jpeg,image/gif"
                   onChange={handleCoverFileChange}
+                  disabled={readOnly}
                   className="hidden"
                   aria-label="Upload cover image"
                 />
@@ -547,7 +552,7 @@ export function AdventureInspectorPanel({
                   variant="outline"
                   size="icon"
                   onClick={handleCoverUploadClick}
-                  disabled={coverUploading}
+                  disabled={readOnly || coverUploading}
                   aria-label={coverUrl ? "Replace cover image" : "Upload cover image"}
                   title={coverUrl ? "Replace cover image" : "Upload cover image"}
                   className="h-8 w-8"
@@ -559,7 +564,7 @@ export function AdventureInspectorPanel({
                   variant="ghost"
                   size="icon"
                   onClick={handleCoverRemove}
-                  disabled={!hasCover || coverRemoving}
+                  disabled={readOnly || !hasCover || coverRemoving}
                   aria-label="Remove cover image"
                   title="Remove cover image"
                   className="h-8 w-8 text-[var(--danger)] hover:text-[var(--danger)]"
@@ -620,6 +625,7 @@ export function AdventureInspectorPanel({
                     label={MENU_OPTION_LABELS[option]}
                     checked={menuOptions.includes(option)}
                     onToggle={() => handleMenuOptionToggle(option)}
+                    disabled={readOnly}
                   />
                 ))}
               </div>
@@ -632,6 +638,7 @@ export function AdventureInspectorPanel({
                 label="Mute sound on menu navigation"
                 checked={menuSoundOverride}
                 onToggle={handleMenuSoundOverrideChange}
+                disabled={readOnly}
               />
             </div>
             <div className="space-y-3">
@@ -685,6 +692,7 @@ export function AdventureInspectorPanel({
                             size="sm"
                             onClick={() => handleShortcutPickToggle(index)}
                             aria-pressed={isPicking}
+                            disabled={readOnly}
                           >
                             <Crosshair className="h-4 w-4" aria-hidden="true" />
                             {isPicking ? "Cancel pick" : "Pick node"}
@@ -694,6 +702,7 @@ export function AdventureInspectorPanel({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleShortcutClear(index)}
+                            disabled={readOnly}
                           >
                             Clear
                           </Button>
@@ -714,6 +723,7 @@ export function AdventureInspectorPanel({
                               )
                             }
                             placeholder="Node id or #123"
+                            disabled={readOnly}
                             className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
                           />
                           {targetLabel ? (
@@ -736,6 +746,7 @@ export function AdventureInspectorPanel({
                               )
                             }
                             placeholder="Menu label"
+                            disabled={readOnly}
                             className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
                           />
                         </div>
@@ -750,6 +761,7 @@ export function AdventureInspectorPanel({
                       variant="outline"
                       size="sm"
                       onClick={handleAddShortcutRow}
+                      disabled={readOnly}
                     >
                       + Add shortcut
                     </Button>
@@ -777,6 +789,7 @@ export function AdventureInspectorPanel({
                   type="file"
                   accept=".woff,.woff2,.ttf,.otf"
                   onChange={handleFontFileChange}
+                  disabled={readOnly}
                   className="hidden"
                   aria-label="Upload font file"
                 />
@@ -785,7 +798,7 @@ export function AdventureInspectorPanel({
                   variant="outline"
                   size="sm"
                   onClick={handleFontUploadClick}
-                  disabled={fontUploading}
+                  disabled={readOnly || fontUploading}
                 >
                   <Upload className="h-4 w-4" aria-hidden="true" />
                   {fontUploading ? "Uploading..." : "Upload font"}
@@ -822,7 +835,7 @@ export function AdventureInspectorPanel({
                       variant="ghost"
                       size="icon"
                       onClick={() => handleFontRemove(entry)}
-                      disabled={isRemoving}
+                      disabled={readOnly || isRemoving}
                       aria-label="Remove font"
                       title="Remove font"
                       className="h-8 w-8 text-[var(--danger)] hover:text-[var(--danger)]"
@@ -859,10 +872,12 @@ function ToggleRow({
   label,
   checked,
   onToggle,
+  disabled = false,
 }: {
   label: string;
   checked: boolean;
   onToggle: (next: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <label className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
@@ -876,18 +891,21 @@ function ToggleRow({
           checked={checked}
           onChange={(event) => onToggle(event.target.checked)}
           aria-label={label}
+          disabled={disabled}
         />
         <span
           className={cn(
             "absolute inset-0 rounded-full border border-[var(--border)] bg-[var(--bg-tertiary)] transition",
             "peer-checked:border-[var(--accent)] peer-checked:bg-[var(--accent)]",
-            "peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--accent-muted)]"
+            "peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--accent-muted)]",
+            disabled && "opacity-60"
           )}
         />
         <span
           className={cn(
             "absolute left-0.5 h-4 w-4 rounded-full bg-[var(--bg)] shadow-sm transition",
-            "peer-checked:translate-x-5"
+            "peer-checked:translate-x-5",
+            disabled && "opacity-60"
           )}
         />
       </span>

@@ -13,6 +13,7 @@ import { uploadMedia, deleteMedia } from "@/features/state/api/media";
 import { toastError } from "@/features/ui-core/toast";
 import { cn } from "@/lib/utils";
 import { getFontMeta } from "@/lib/fonts";
+import { selectEditorReadOnly, useEditorStore } from "@/features/editor/state/editorStore";
 import type { EditorNodeInspectorTab } from "../../state/types";
 import {
   ChevronDown,
@@ -438,6 +439,7 @@ export function NodeInspectorPanel({
   onNodePropsChange,
   bulk,
 }: NodeInspectorPanelProps) {
+  const readOnly = useEditorStore(selectEditorReadOnly);
   const bulkDraft = bulk?.draft ?? {};
   const bulkActive = bulk?.active ?? false;
   const stagedCount = Object.keys(bulkDraft).length;
@@ -462,6 +464,7 @@ export function NodeInspectorPanel({
     bulk.onStage(entry);
   };
   const handleTitleChange = (title: string) => {
+    if (readOnly) return;
     if (bulkActive) {
       stageBulkChange({
         path: BULK_NODE_TITLE_PATH,
@@ -474,6 +477,7 @@ export function NodeInspectorPanel({
     onTitleChange(title);
   };
   const handleTextChange = (text: string) => {
+    if (readOnly) return;
     if (bulkActive) {
       stageBulkChange({
         path: BULK_NODE_TEXT_PATH,
@@ -486,6 +490,7 @@ export function NodeInspectorPanel({
     onTextChange(text);
   };
   const handleNodeTypeChange = (chapterTypeValue: string) => {
+    if (readOnly) return;
     if (bulkActive) {
       stageBulkChange({
         path: BULK_NODE_TYPE_PATH,
@@ -498,6 +503,7 @@ export function NodeInspectorPanel({
     onNodeTypeChange(chapterTypeValue);
   };
   const handleNodePropChange = (path: string, value: unknown) => {
+    if (readOnly) return;
     if (bulkActive) {
       stageBulkChange({
         path,
@@ -510,6 +516,7 @@ export function NodeInspectorPanel({
     onNodePropChange(path, value);
   };
   const handleNodePropsChange = (updates: Record<string, unknown>) => {
+    if (readOnly) return;
     if (bulkActive) return;
     onNodePropsChange(updates);
   };
@@ -517,6 +524,7 @@ export function NodeInspectorPanel({
     ? "Bulk edit disabled: select a single node to edit choices."
     : undefined;
   const handleLinkSelect = (linkId: number) => {
+    if (readOnly) return;
     if (bulkActive || !onSelectLink) return;
     onSelectLink(linkId);
   };
@@ -1017,7 +1025,7 @@ export function NodeInspectorPanel({
                 variant="outline"
                 size="sm"
                 onClick={bulk.onDiscardAll}
-                disabled={!hasStagedChanges}
+                disabled={readOnly || !hasStagedChanges}
               >
                 Discard staged changes
               </Button>
@@ -1025,7 +1033,7 @@ export function NodeInspectorPanel({
                 type="button"
                 size="sm"
                 onClick={bulk.onRequestApply}
-                disabled={!hasStagedChanges}
+                disabled={readOnly || !hasStagedChanges}
               >
                 Apply changes
               </Button>
@@ -1058,7 +1066,7 @@ export function NodeInspectorPanel({
         </TabsList>
 
         <TabsContent value="content">
-          <div className="space-y-4">
+          <fieldset disabled={readOnly} className="space-y-4">
             <BulkField
               active={isBulkFieldStaged(BULK_NODE_TITLE_PATH)}
               onClear={() => clearBulkPaths(BULK_NODE_TITLE_PATH)}
@@ -1146,6 +1154,7 @@ export function NodeInspectorPanel({
                           value={textValue}
                           onChange={handleTextChange}
                           placeholder="Write the node content..."
+                          readOnly={readOnly}
                         />
                       </BulkField>
                       <div className="space-y-4 pt-2">
@@ -1676,11 +1685,11 @@ export function NodeInspectorPanel({
                 className="sr-only"
               />
             </div>
-          </div>
+          </fieldset>
         </TabsContent>
 
         <TabsContent value="style">
-          <div className="space-y-4">
+          <fieldset disabled={readOnly} className="space-y-4">
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
                 <CollapsibleSection
                   title="Background"
@@ -1982,10 +1991,10 @@ export function NodeInspectorPanel({
                   </div>
                 </CollapsibleSection>
               </div>
-            </div>
-          </TabsContent>
+          </fieldset>
+        </TabsContent>
         <TabsContent value="buttons">
-          <div className="space-y-4">
+          <fieldset disabled={readOnly} className="space-y-4">
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
               <CollapsibleSection
                 title="Choices"
@@ -2091,10 +2100,10 @@ export function NodeInspectorPanel({
               </CollapsibleSection>
 
             </div>
-          </div>
+          </fieldset>
         </TabsContent>
         <TabsContent value="logic">
-          <div className="space-y-4">
+          <fieldset disabled={readOnly} className="space-y-4">
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
               <CollapsibleSection
                 title="Conditions"
@@ -2180,7 +2189,7 @@ export function NodeInspectorPanel({
                 </div>
               </CollapsibleSection>
             </div>
-          </div>
+          </fieldset>
         </TabsContent>
       </Tabs>
     </InspectorShell>

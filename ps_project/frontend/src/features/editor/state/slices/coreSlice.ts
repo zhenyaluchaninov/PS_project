@@ -15,6 +15,9 @@ type ResetState = Pick<
   | "adventure"
   | "editVersion"
   | "dirty"
+  | "saveStatus"
+  | "saveError"
+  | "readOnly"
   | "selection"
   | "selectionToolActive"
   | "toolPanel"
@@ -35,6 +38,9 @@ const createResetState = (): ResetState => ({
   adventure: undefined,
   editVersion: undefined,
   dirty: false,
+  saveStatus: "idle",
+  saveError: null,
+  readOnly: false,
   selection: { type: "none" },
   selectionToolActive: false,
   toolPanel: null,
@@ -53,6 +59,14 @@ export const coreSlice: EditorSlice = (set, get) => ({
   reset: () => set(createResetState()),
   markDirty: () => set({ dirty: true }),
   clearDirty: () => set({ dirty: false }),
+  setSaveStatus: (saveStatus, error) =>
+    set({
+      saveStatus,
+      saveError: error ?? null,
+      readOnly: saveStatus === "locked" ? true : get().readOnly,
+    }),
+  setSaveError: (saveError) => set({ saveError: saveError ?? null }),
+  setReadOnly: (readOnly) => set({ readOnly }),
   setToolPanel: (toolPanel) => set({ toolPanel }),
   setNodeInspectorTab: (nodeInspectorTab) => set({ nodeInspectorTab }),
   setViewportCenter: (viewportCenter) => set({ viewportCenter }),

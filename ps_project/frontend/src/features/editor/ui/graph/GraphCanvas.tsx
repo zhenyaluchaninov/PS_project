@@ -61,6 +61,7 @@ type GraphCanvasProps = {
     sourceId: number,
     position: { x: number; y: number }
   ) => { nodeId: number; linkId: number } | null;
+  readOnly?: boolean;
   className?: string;
 };
 
@@ -91,6 +92,7 @@ export function GraphCanvas({
   onNodePositionsChange,
   onCreateLink,
   onCreateNodeWithLink,
+  readOnly = false,
   className,
 }: GraphCanvasProps) {
   const [previewTrace, setPreviewTrace] = useState<PreviewPlayTrace>({
@@ -200,6 +202,7 @@ export function GraphCanvas({
 
   const isValidConnection = useCallback(
     (connection: Connection | Edge) => {
+      if (readOnly) return false;
       const sourceId = toNumericId(connection.source);
       const targetId = toNumericId(connection.target);
       if (sourceId == null || targetId == null) return false;
@@ -212,22 +215,27 @@ export function GraphCanvas({
       );
       return !exists;
     },
-    [adventure.links, nodeById]
+    [adventure.links, nodeById, readOnly]
   );
 
   const handleConnect = useCallback(
     (connection: Connection) => {
+      if (readOnly) return;
       if (!isValidConnection(connection)) return;
       const sourceId = toNumericId(connection.source);
       const targetId = toNumericId(connection.target);
       if (sourceId == null || targetId == null) return;
       onCreateLink(sourceId, targetId);
     },
-    [isValidConnection, onCreateLink]
+    [isValidConnection, onCreateLink, readOnly]
   );
 
   const handleConnectStart = useCallback(
     (_event: unknown, params: OnConnectStartParams) => {
+      if (readOnly) {
+        connectingNodeIdRef.current = null;
+        return;
+      }
       if (params.handleType !== "source") {
         connectingNodeIdRef.current = null;
         return;
@@ -235,11 +243,12 @@ export function GraphCanvas({
       const nodeId = toNumericId(params.nodeId);
       connectingNodeIdRef.current = nodeId;
     },
-    []
+    [readOnly]
   );
 
   const handleConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent) => {
+      if (readOnly) return;
       const sourceId = connectingNodeIdRef.current;
       connectingNodeIdRef.current = null;
       if (sourceId == null) return;
@@ -254,11 +263,12 @@ export function GraphCanvas({
       const position = instance.screenToFlowPosition(clientPosition);
       onCreateNodeWithLink(sourceId, position);
     },
-    [onCreateNodeWithLink]
+    [onCreateNodeWithLink, readOnly]
   );
 
   const handleNodeDragStop = useCallback(
     (_event: unknown, node: GraphNode, nodesAtStop?: GraphNode[]) => {
+      if (readOnly) return;
       if (nodesAtStop && nodesAtStop.length > 1) {
         return;
       }
@@ -266,11 +276,12 @@ export function GraphCanvas({
       if (nodeId == null) return;
       onNodePositionsChange([{ nodeId, position: node.position }]);
     },
-    [onNodePositionsChange]
+    [onNodePositionsChange, readOnly]
   );
 
   const handleSelectionDragStop = useCallback(
     (_event: unknown, draggedNodes: GraphNode[]) => {
+      if (readOnly) return;
       if (!draggedNodes.length) return;
       const updates = draggedNodes
         .map((node) => {
@@ -285,7 +296,7 @@ export function GraphCanvas({
       if (!updates.length) return;
       onNodePositionsChange(updates);
     },
-    [onNodePositionsChange]
+    [onNodePositionsChange, readOnly]
   );
 
   const handleNodeClick = useCallback(
@@ -432,8 +443,8 @@ export function GraphCanvas({
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
-        nodesDraggable={!pickActive}
-        nodesConnectable
+        nodesDraggable={!pickActive && !readOnly}
+        nodesConnectable={!readOnly}
         edgesReconnectable={false}
         elementsSelectable={!pickActive}
         selectionOnDrag={!pickActive && selectionToolActive}

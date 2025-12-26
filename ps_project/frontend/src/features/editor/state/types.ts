@@ -2,6 +2,13 @@ import type { AdventureModel, CategoryModel } from "@/domain/models";
 import type { PropPathOptions, StringArraySelectOptions } from "./propsEditing";
 
 export type EditorStatus = "idle" | "loading" | "ready" | "error";
+export type EditorSaveStatus =
+  | "idle"
+  | "dirty"
+  | "saving"
+  | "saved"
+  | "error"
+  | "locked";
 
 export type EditorError = {
   message: string;
@@ -56,6 +63,9 @@ export type EditorState = {
   adventure?: AdventureModel;
   editVersion?: number;
   dirty: boolean;
+  saveStatus: EditorSaveStatus;
+  saveError?: string | null;
+  readOnly: boolean;
   selection: EditorSelection;
   selectionToolActive: boolean;
   toolPanel: EditorToolPanel;
@@ -71,6 +81,9 @@ export type EditorState = {
   reset: () => void;
   markDirty: () => void;
   clearDirty: () => void;
+  setSaveStatus: (status: EditorSaveStatus, error?: string | null) => void;
+  setSaveError: (error?: string | null) => void;
+  setReadOnly: (readOnly: boolean) => void;
   setSelection: (selection: EditorSelection) => void;
   setSelectionToolActive: (active: boolean) => void;
   setToolPanel: (panel: EditorToolPanel) => void;

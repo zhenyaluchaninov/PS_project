@@ -8,6 +8,7 @@ type EditorLayoutProps = {
   graph: ReactNode;
   sidePanel: ReactNode;
   toolbar?: ReactNode;
+  banner?: ReactNode;
   className?: string;
 };
 
@@ -15,6 +16,7 @@ export default function EditorLayout({
   graph,
   sidePanel,
   toolbar,
+  banner,
   className,
 }: EditorLayoutProps) {
   return (
@@ -27,6 +29,11 @@ export default function EditorLayout({
       {toolbar ? (
         <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-2">
           {toolbar}
+        </div>
+      ) : null}
+      {banner ? (
+        <div className="border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3">
+          {banner}
         </div>
       ) : null}
       <PanelGroup direction="horizontal" className="flex-1 min-h-0">

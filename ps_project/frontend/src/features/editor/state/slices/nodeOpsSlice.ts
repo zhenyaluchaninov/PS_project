@@ -7,6 +7,7 @@ type EditorSlice = StateCreator<EditorState, [], [], Partial<EditorState>>;
 
 export const nodeOpsSlice: EditorSlice = (set, get) => ({
   updateNodeTitle: (nodeId, title) => {
+    if (get().readOnly) return;
     set((state) => {
       if (!state.adventure) return {};
       const nodeIndex = state.adventure.nodes.findIndex(
@@ -25,6 +26,7 @@ export const nodeOpsSlice: EditorSlice = (set, get) => ({
     });
   },
   updateNodeText: (nodeId, text) => {
+    if (get().readOnly) return;
     set((state) => {
       if (!state.adventure) return {};
       const nodeIndex = state.adventure.nodes.findIndex(
@@ -43,6 +45,7 @@ export const nodeOpsSlice: EditorSlice = (set, get) => ({
     });
   },
   updateNodeImageUrl: (nodeId, url) => {
+    if (get().readOnly) return;
     set((state) => {
       if (!state.adventure) return {};
       const nodeIndex = state.adventure.nodes.findIndex(
@@ -66,6 +69,7 @@ export const nodeOpsSlice: EditorSlice = (set, get) => ({
     });
   },
   updateNodePositions: (updates) => {
+    if (get().readOnly) return;
     if (!updates.length) return;
     set((state) => {
       if (!state.adventure) return {};
@@ -98,6 +102,7 @@ export const nodeOpsSlice: EditorSlice = (set, get) => ({
     });
   },
   addNodeWithLink: (sourceId, position) => {
+    if (get().readOnly) return null;
     const adventure = get().adventure;
     if (!adventure) return null;
     const sourceExists = adventure.nodes.some((node) => node.nodeId === sourceId);
@@ -146,6 +151,7 @@ export const nodeOpsSlice: EditorSlice = (set, get) => ({
     return { nodeId: nextNodeId, linkId: nextLinkId };
   },
   duplicateNode: (nodeId) => {
+    if (get().readOnly) return null;
     const adventure = get().adventure;
     if (!adventure) return null;
     const sourceNode = adventure.nodes.find((node) => node.nodeId === nodeId);
@@ -183,6 +189,7 @@ export const nodeOpsSlice: EditorSlice = (set, get) => ({
     return nextNodeId;
   },
   removeSelection: (nodeIds, linkIds) => {
+    if (get().readOnly) return;
     if (!nodeIds.length && !linkIds.length) return;
     set((state) => {
       if (!state.adventure) return {};
@@ -231,6 +238,7 @@ export const nodeOpsSlice: EditorSlice = (set, get) => ({
     });
   },
   removeNodes: (nodeIds) => {
+    if (get().readOnly) return;
     if (!nodeIds.length) return;
     set((state) => {
       if (!state.adventure) return {};

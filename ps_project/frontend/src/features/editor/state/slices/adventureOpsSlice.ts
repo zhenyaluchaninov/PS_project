@@ -27,6 +27,7 @@ const categoriesEqual = (
 export const adventureOpsSlice: EditorSlice = (set) => ({
   updateAdventureFields: (updates: AdventureFieldUpdates) => {
     set((state) => {
+      if (state.readOnly) return {};
       const adventure = state.adventure;
       if (!adventure) return {};
       let changed = false;
@@ -66,6 +67,7 @@ export const adventureOpsSlice: EditorSlice = (set) => ({
   },
   updateAdventureCover: (updates: AdventureCoverUpdates) => {
     set((state) => {
+      if (state.readOnly) return {};
       const adventure = state.adventure;
       if (!adventure) return {};
       let changed = false;

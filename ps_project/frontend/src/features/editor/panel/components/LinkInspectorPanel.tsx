@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { LinkModel, NodeModel } from "@/domain/models";
 import { LabelValue } from "@/features/ui-core/LabelValue";
 import { Button } from "@/features/ui-core/primitives/button";
-import { useEditorStore } from "@/features/editor/state/editorStore";
+import { selectEditorReadOnly, useEditorStore } from "@/features/editor/state/editorStore";
 import { cn } from "@/lib/utils";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { InspectorShell } from "./InspectorShell";
@@ -18,6 +18,7 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
   const updateLinkProps = useEditorStore((s) => s.updateLinkProps);
   const swapLinkDirection = useEditorStore((s) => s.swapLinkDirection);
   const removeLinks = useEditorStore((s) => s.removeLinks);
+  const readOnly = useEditorStore(selectEditorReadOnly);
   const nodes = useEditorStore((s) => s.adventure?.nodes ?? []);
   const nodeTitleMap = useMemo(() => {
     const map = new Map<number, NodeModel>();
@@ -105,6 +106,7 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
             onChange={(event) =>
               updateLinkFields(link.linkId, { targetTitle: event.target.value })
             }
+            disabled={readOnly}
             className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
           />
         </div>
@@ -117,6 +119,7 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
             onChange={(event) =>
               updateLinkFields(link.linkId, { type: event.target.value })
             }
+            disabled={readOnly}
             className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
           >
             <option value="default">Default</option>
@@ -137,6 +140,7 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
                   sourceTitle: event.target.value,
                 })
               }
+              disabled={readOnly}
               className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
             />
           </div>
@@ -146,6 +150,7 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
             type="button"
             variant="secondary"
             onClick={() => swapLinkDirection(link.linkId)}
+            disabled={readOnly}
             className="w-full"
           >
             Change direction
@@ -165,6 +170,7 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
                 handleAddCondition("positiveNodeList", positiveInput);
                 setPositiveInput("");
               }}
+              disabled={readOnly}
               nodes={positiveNodes}
               onRemove={(nodeId) =>
                 handleRemoveCondition("positiveNodeList", nodeId)
@@ -180,6 +186,7 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
                 handleAddCondition("negativeNodeList", negativeInput);
                 setNegativeInput("");
               }}
+              disabled={readOnly}
               nodes={negativeNodes}
               onRemove={(nodeId) =>
                 handleRemoveCondition("negativeNodeList", nodeId)
@@ -192,6 +199,7 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
           type="button"
           variant="outline"
           onClick={() => removeLinks([link.linkId])}
+          disabled={readOnly}
           className="w-full border-[var(--danger)] text-[var(--danger)] hover:border-[var(--danger)] hover:bg-[var(--bg-hover)]"
         >
           Delete link
@@ -266,6 +274,7 @@ function ConditionEditor({
   nodes,
   onRemove,
   resolveLabel,
+  disabled = false,
 }: {
   label: string;
   helper: string;
@@ -275,6 +284,7 @@ function ConditionEditor({
   nodes: string[];
   onRemove: (nodeId: string) => void;
   resolveLabel: (nodeId: string) => string;
+  disabled?: boolean;
 }) {
   return (
     <div className="space-y-2">
@@ -290,9 +300,16 @@ function ConditionEditor({
           value={inputValue}
           onChange={(event) => onInputChange(event.target.value)}
           placeholder="Node id"
+          disabled={disabled}
           className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
         />
-        <Button type="button" variant="outline" size="sm" onClick={onAdd}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onAdd}
+          disabled={disabled}
+        >
           Add
         </Button>
       </div>
@@ -313,6 +330,7 @@ function ConditionEditor({
                 variant="ghost"
                 size="sm"
                 onClick={() => onRemove(nodeId)}
+                disabled={disabled}
               >
                 Remove
               </Button>

@@ -8,6 +8,9 @@ import {
   selectEditorError,
   selectEditorFocusNodeId,
   selectEditorMenuShortcutPickIndex,
+  selectEditorReadOnly,
+  selectEditorSaveError,
+  selectEditorSaveStatus,
   selectEditorSelectedLinkIds,
   selectEditorSelectedNodeIds,
   selectEditorSelection,
@@ -22,6 +25,7 @@ import { EditorInspector } from "./EditorInspector";
 import { GraphCanvas } from "./graph/GraphCanvas";
 import { Button } from "@/features/ui-core/primitives";
 import { useEditorAutosave } from "../hooks/useEditorAutosave";
+import { cn } from "@/lib/utils";
 
 type EditorRouteProps = {
   editSlug: string;
@@ -32,7 +36,11 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const adventure = useEditorStore(selectEditorAdventure);
   const error = useEditorStore(selectEditorError);
   const dirty = useEditorStore(selectEditorDirty);
+  const saveStatus = useEditorStore(selectEditorSaveStatus);
+  const saveError = useEditorStore(selectEditorSaveError);
+  const readOnly = useEditorStore(selectEditorReadOnly);
   const [hasSeenChanges, setHasSeenChanges] = useState(false);
+  const [lockBannerDismissed, setLockBannerDismissed] = useState(false);
   const selection = useEditorStore(selectEditorSelection);
   const selectedNodeIds = useEditorStore(selectEditorSelectedNodeIds);
   const selectedLinkIds = useEditorStore(selectEditorSelectedLinkIds);
@@ -50,7 +58,7 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const addLink = useEditorStore((s) => s.addLink);
   const addNodeWithLink = useEditorStore((s) => s.addNodeWithLink);
   const applyMenuShortcutPick = useEditorStore((s) => s.applyMenuShortcutPick);
-  const { draftPromptOpen, recoverDraft, discardDraft } =
+  const { draftPromptOpen, recoverDraft, discardDraft, retrySave } =
     useEditorAutosave(editSlug);
 
   useEffect(() => {
@@ -67,13 +75,52 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   }, [editSlug]);
 
   useEffect(() => {
-    if (dirty) {
+    if (dirty || saveStatus === "saved" || saveStatus === "dirty") {
       setHasSeenChanges(true);
     }
-  }, [dirty]);
+  }, [dirty, saveStatus]);
+
+  useEffect(() => {
+    if (saveStatus === "locked") {
+      setLockBannerDismissed(false);
+    }
+  }, [saveStatus]);
+
+  const lockBannerVisible = saveStatus === "locked" && !lockBannerDismissed;
+
+  const handleReloadFromServer = () => {
+    setLockBannerDismissed(true);
+    void loadByEditSlug(editSlug);
+  };
 
   const toolbar = useMemo(() => {
     const title = adventure?.title;
+    const statusLabel =
+      saveStatus === "locked"
+        ? "Locked / read-only"
+        : saveStatus === "error"
+          ? "Error saving"
+          : saveStatus === "saving"
+            ? "Saving..."
+            : saveStatus === "dirty"
+              ? "Unsaved changes"
+              : saveStatus === "saved"
+                ? "Saved"
+                : hasSeenChanges
+                  ? "Saved"
+                  : "No changes";
+    const statusTone =
+      saveStatus === "locked"
+        ? "warning"
+        : saveStatus === "error"
+          ? "danger"
+          : saveStatus === "saving"
+            ? "accent"
+            : saveStatus === "dirty"
+              ? "warning"
+              : statusLabel === "Saved"
+                ? "success"
+                : "muted";
     return (
       <Toolbar>
         <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
@@ -82,39 +129,55 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
             /redigera/<span className="font-mono">{editSlug}</span>
           </span>
           {title ? <span className="text-[var(--text)]/80">{title}</span> : null}
-          <span
-            className={
-              dirty
-                ? "inline-flex items-center rounded-full border border-amber-400/60 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400"
-                : hasSeenChanges
-                  ? "inline-flex items-center rounded-full border border-emerald-400/60 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-400"
-                  : "inline-flex items-center rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]"
-            }
-          >
-            {dirty ? "Unsaved changes" : hasSeenChanges ? "Saved" : "No changes"}
-          </span>
         </div>
-        {draftPromptOpen ? (
-          <div className="ml-auto flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-            <span>Draft available</span>
-            <Button size="sm" variant="secondary" onClick={recoverDraft}>
-              Recover
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <span
+            title={saveError ?? undefined}
+            className={cn(
+              "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]",
+              statusTone === "accent" &&
+                "border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--accent)]",
+              statusTone === "success" &&
+                "border-[var(--success)] bg-[var(--bg-tertiary)] text-[var(--success)]",
+              statusTone === "warning" &&
+                "border-[var(--warning)] bg-[var(--bg-tertiary)] text-[var(--warning)]",
+              statusTone === "danger" &&
+                "border-[var(--danger)] bg-[var(--bg-tertiary)] text-[var(--danger)]",
+              statusTone === "muted" &&
+                "border-[var(--border)] text-[var(--muted)]"
+            )}
+          >
+            {statusLabel}
+          </span>
+          {saveStatus === "error" ? (
+            <Button size="sm" variant="outline" onClick={retrySave}>
+              Reconnect
             </Button>
-            <Button size="sm" variant="ghost" onClick={discardDraft}>
-              Discard
-            </Button>
-          </div>
-        ) : null}
+          ) : null}
+          {draftPromptOpen ? (
+            <div className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--bg)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+              <span>Draft available</span>
+              <Button size="sm" variant="secondary" onClick={recoverDraft}>
+                Recover
+              </Button>
+              <Button size="sm" variant="ghost" onClick={discardDraft}>
+                Discard
+              </Button>
+            </div>
+          ) : null}
+        </div>
       </Toolbar>
     );
   }, [
     adventure?.title,
-    dirty,
     discardDraft,
     draftPromptOpen,
     editSlug,
     hasSeenChanges,
     recoverDraft,
+    retrySave,
+    saveError,
+    saveStatus,
   ]);
 
   if (status === "loading" || status === "idle") {
@@ -215,6 +278,33 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
       <>
         <EditorLayout
           toolbar={toolbar}
+          banner={
+            lockBannerVisible ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--text-secondary)]">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-[var(--text)]">
+                    Adventure locked
+                  </p>
+                  <p className="text-xs text-[var(--muted)]">
+                    This adventure is locked for editing (opened elsewhere). You are in read-only
+                    mode.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={handleReloadFromServer}>
+                    Reload from server
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setLockBannerDismissed(true)}
+                  >
+                    Keep local draft
+                  </Button>
+                </div>
+              </div>
+            ) : null
+          }
           graph={
             <GraphCanvas
               adventure={adventure}
@@ -233,6 +323,7 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
               onNodePositionsChange={updateNodePositions}
               onCreateLink={addLink}
               onCreateNodeWithLink={addNodeWithLink}
+              readOnly={readOnly}
             />
           }
           sidePanel={

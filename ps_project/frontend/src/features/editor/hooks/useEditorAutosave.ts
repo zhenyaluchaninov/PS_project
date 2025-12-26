@@ -6,6 +6,8 @@ import { toastError } from "@/features/ui-core/toast";
 import {
   selectEditorAdventure,
   selectEditorDirty,
+  selectEditorReadOnly,
+  selectEditorSaveStatus,
   selectEditorStatus,
   useEditorStore,
 } from "../state/editorStore";
@@ -15,6 +17,7 @@ import {
 } from "../state/adventureSerialization";
 
 const AUTOSAVE_DEBOUNCE_MS = 250;
+const SAVED_STATUS_MS = 2000;
 const DRAFT_PREFIX = "ps.editor.draft.";
 
 type DraftSnapshot = {
@@ -81,12 +84,36 @@ export const useEditorAutosave = (editSlug: string) => {
   const status = useEditorStore(selectEditorStatus);
   const adventure = useEditorStore(selectEditorAdventure);
   const dirty = useEditorStore(selectEditorDirty);
+  const saveStatus = useEditorStore(selectEditorSaveStatus);
+  const readOnly = useEditorStore(selectEditorReadOnly);
+  const setSaveStatus = useEditorStore((s) => s.setSaveStatus);
+  const setReadOnly = useEditorStore((s) => s.setReadOnly);
   const [draftPromptOpen, setDraftPromptOpen] = useState(false);
   const draftRef = useRef<DraftSnapshot | null>(null);
   const checkedSlugRef = useRef<string | null>(null);
   const savingRef = useRef(false);
   const queuedRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastDirtyRef = useRef(dirty);
+  const errorToastRef = useRef<string | null>(null);
+
+  const clearSavedTimer = useCallback(() => {
+    if (savedTimerRef.current) {
+      clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleSavedReset = useCallback(() => {
+    clearSavedTimer();
+    savedTimerRef.current = setTimeout(() => {
+      const current = useEditorStore.getState();
+      if (!current.dirty && current.saveStatus === "saved" && !current.readOnly) {
+        current.setSaveStatus("idle");
+      }
+    }, SAVED_STATUS_MS);
+  }, [clearSavedTimer]);
 
   const persistDraft = useCallback(
     (overrides?: Partial<DraftSnapshot>) => {
@@ -146,7 +173,13 @@ export const useEditorAutosave = (editSlug: string) => {
       queuedRef.current = true;
       return;
     }
-    if (state.status !== "ready" || !state.adventure || !state.editSlug) {
+    if (
+      state.status !== "ready" ||
+      !state.adventure ||
+      !state.editSlug ||
+      state.readOnly ||
+      state.saveStatus === "locked"
+    ) {
       return;
     }
     if (!state.dirty) {
@@ -158,9 +191,11 @@ export const useEditorAutosave = (editSlug: string) => {
       return;
     }
     savingRef.current = true;
+    state.setSaveStatus("saving");
     const snapshotAdventure = state.adventure;
     const slug = state.editSlug;
     const payload = buildAdventureDto(snapshotAdventure, currentEditVersion);
+    let hadError = false;
 
     try {
       const saved = await saveAdventure(slug, payload);
@@ -168,17 +203,21 @@ export const useEditorAutosave = (editSlug: string) => {
       if (latest.editSlug !== slug) {
         return;
       }
+      errorToastRef.current = null;
       if (latest.adventure === snapshotAdventure) {
-        useEditorStore.setState({
+        useEditorStore.setState((current) => ({
           adventure: saved,
           editVersion: saved.editVersion,
           dirty: false,
-        });
+          saveStatus: current.saveStatus === "locked" ? current.saveStatus : "saved",
+          saveError: null,
+        }));
         persistDraft({
           adventure: saved,
           dirty: false,
           editVersion: saved.editVersion,
         });
+        scheduleSavedReset();
       } else {
         useEditorStore.setState((current) => {
           if (!current.adventure) return {};
@@ -187,17 +226,42 @@ export const useEditorAutosave = (editSlug: string) => {
             merged.editVersion === saved.editVersion
               ? merged
               : { ...merged, editVersion: saved.editVersion };
+          const nextStatus = current.dirty ? "dirty" : "saved";
           return {
             adventure: nextAdventure,
             editVersion: saved.editVersion,
+            saveStatus:
+              current.saveStatus === "locked" ? current.saveStatus : nextStatus,
+            saveError: nextStatus === "saved" ? null : current.saveError,
           };
         });
+        if (!useEditorStore.getState().dirty) {
+          scheduleSavedReset();
+        }
       }
     } catch (err) {
+      const isLocked =
+        isApiError(err) &&
+        (err.status === 423 ||
+          err.status === 409 ||
+          (err.status === 404 &&
+            typeof err.message === "string" &&
+            err.message.toLowerCase().includes("read-only")));
       const message = isApiError(err)
         ? err.message
         : "Could not reach the server.";
-      toastError("Autosave failed", message);
+      if (isLocked) {
+        setReadOnly(true);
+        setSaveStatus("locked", message);
+        queuedRef.current = false;
+        return;
+      }
+      hadError = true;
+      setSaveStatus("error", message);
+      if (errorToastRef.current !== message) {
+        errorToastRef.current = message;
+        toastError("Autosave failed", message);
+      }
       if (process.env.NODE_ENV !== "production") {
         console.error("[editor] autosave failed", err);
       }
@@ -205,7 +269,9 @@ export const useEditorAutosave = (editSlug: string) => {
       savingRef.current = false;
       if (queuedRef.current) {
         queuedRef.current = false;
-        void runSave();
+        if (!hadError) {
+          void runSave();
+        }
       }
     }
   }, [persistDraft]);
@@ -229,12 +295,27 @@ export const useEditorAutosave = (editSlug: string) => {
 
   useEffect(() => {
     if (status !== "ready" || !adventure || !editSlug) return;
+    if (readOnly || saveStatus === "locked") return;
     if (!dirty) {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
       return;
+    }
+    if (saveStatus === "error") {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+      debounceRef.current = setTimeout(() => {
+        debounceRef.current = null;
+        persistDraft();
+      }, AUTOSAVE_DEBOUNCE_MS);
+      lastDirtyRef.current = dirty;
+      return;
+    }
+    if (!lastDirtyRef.current && saveStatus !== "saving" && saveStatus !== "error") {
+      setSaveStatus("dirty");
     }
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -244,15 +325,62 @@ export const useEditorAutosave = (editSlug: string) => {
       persistDraft();
       void runSave();
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, [adventure, dirty, editSlug, persistDraft, runSave, status]);
+    lastDirtyRef.current = dirty;
+  }, [
+    adventure,
+    dirty,
+    editSlug,
+    persistDraft,
+    readOnly,
+    runSave,
+    saveStatus,
+    setSaveStatus,
+    status,
+  ]);
+
+  useEffect(() => {
+    if (lastDirtyRef.current !== dirty) {
+      lastDirtyRef.current = dirty;
+    }
+  }, [dirty]);
+
+  useEffect(() => {
+    if (readOnly || saveStatus === "locked") {
+      clearSavedTimer();
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      return;
+    }
+    if (!dirty && saveStatus === "dirty") {
+      setSaveStatus("idle");
+    }
+  }, [clearSavedTimer, dirty, readOnly, saveStatus, setSaveStatus]);
+
+  useEffect(() => {
+    const shouldWarn =
+      dirty ||
+      saveStatus === "saving" ||
+      saveStatus === "error";
+    if (!shouldWarn || typeof window === "undefined") return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue =
+        "You have unsaved changes. Please wait for autosave to finish.";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [dirty, saveStatus]);
 
   useEffect(() => {
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
+      clearSavedTimer();
     };
-  }, []);
+  }, [clearSavedTimer]);
 
   useEffect(() => {
     savingRef.current = false;
@@ -261,11 +389,28 @@ export const useEditorAutosave = (editSlug: string) => {
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
+    clearSavedTimer();
   }, [editSlug]);
+
+  const retrySave = useCallback(() => {
+    if (savingRef.current) return;
+    const state = useEditorStore.getState();
+    if (!state.dirty || state.readOnly || state.saveStatus === "locked") {
+      state.setSaveStatus("idle");
+      return;
+    }
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    setSaveStatus("saving");
+    void runSave();
+  }, [runSave, setSaveStatus]);
 
   return {
     draftPromptOpen,
     recoverDraft,
     discardDraft,
+    retrySave,
   };
 };
