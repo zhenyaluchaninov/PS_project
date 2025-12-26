@@ -162,6 +162,7 @@ export type EditorState = {
   ) => void;
   updateNodePositions: (updates: EditorNodePositionUpdate[]) => void;
   addLink: (sourceId: number, targetId: number) => number | null;
+  addNode: (position: { x: number; y: number }) => number | null;
   addNodeWithLink: (
     sourceId: number,
     position: { x: number; y: number }

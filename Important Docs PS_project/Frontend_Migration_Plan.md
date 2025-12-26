@@ -1665,7 +1665,7 @@ backend (lists reference; not in legacy editor UI)
 
 ---
 
-### Step 28 – Editor behaviors: autosave, locks (423), preview/share
+### [done] Step 28 – Editor behaviors: autosave, locks (423), preview/share
 
 **What we do**
 

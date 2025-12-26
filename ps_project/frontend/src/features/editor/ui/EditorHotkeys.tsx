@@ -14,8 +14,6 @@ import {
   selectEditorViewportCenter,
   useEditorStore,
 } from "../state/editorStore";
-import { toastInfo } from "@/features/ui-core/toast";
-
 const pasteOffset = { x: 80, y: 80 };
 const linkedNodeOffset = { x: 240, y: 120 };
 const orderedLinkKeys = ["ordered_link_ids", "button_order", "button-order"];
@@ -81,6 +79,7 @@ export function EditorHotkeys() {
   const viewportCenter = useEditorStore(selectEditorViewportCenter);
   const removeSelection = useEditorStore((s) => s.removeSelection);
   const duplicateNode = useEditorStore((s) => s.duplicateNode);
+  const addNode = useEditorStore((s) => s.addNode);
   const addNodeWithLink = useEditorStore((s) => s.addNodeWithLink);
   const setNodePropPath = useEditorStore((s) => s.setNodePropPath);
   const setSelectionSnapshot = useEditorStore((s) => s.setSelectionSnapshot);
@@ -119,30 +118,34 @@ export function EditorHotkeys() {
       }
       if (!event.metaKey && !event.ctrlKey && !event.altKey && key === "n") {
         event.preventDefault();
-        if (selection.type !== "node" || selectedNodeIds.length !== 1) {
-          toastInfo("Select a single node to create a linked node.");
+        if (selection.type === "node" && selectedNodeIds.length === 1) {
+          const sourceNode = adventure?.nodes.find(
+            (node) => node.nodeId === selection.nodeId
+          );
+          if (!sourceNode) return;
+          const position = {
+            x: sourceNode.position.x + linkedNodeOffset.x,
+            y: sourceNode.position.y + linkedNodeOffset.y,
+          };
+          const created = addNodeWithLink(selection.nodeId, position);
+          if (!created) return;
+          const existingOrder = getOrderedLinkTokens(sourceNode);
+          const linkToken = String(created.linkId);
+          const nextOrder = existingOrder.includes(linkToken)
+            ? existingOrder
+            : [...existingOrder, linkToken];
+          if (nextOrder !== existingOrder) {
+            setNodePropPath(selection.nodeId, "ordered_link_ids", nextOrder);
+          }
+          setSelectionSnapshot([created.nodeId], []);
+          setSelection({ type: "node", nodeId: created.nodeId });
           return;
         }
-        const sourceNode = adventure?.nodes.find(
-          (node) => node.nodeId === selection.nodeId
-        );
-        if (!sourceNode) return;
-        const position = {
-          x: sourceNode.position.x + linkedNodeOffset.x,
-          y: sourceNode.position.y + linkedNodeOffset.y,
-        };
-        const created = addNodeWithLink(selection.nodeId, position);
-        if (!created) return;
-        const existingOrder = getOrderedLinkTokens(sourceNode);
-        const linkToken = String(created.linkId);
-        const nextOrder = existingOrder.includes(linkToken)
-          ? existingOrder
-          : [...existingOrder, linkToken];
-        if (nextOrder !== existingOrder) {
-          setNodePropPath(selection.nodeId, "ordered_link_ids", nextOrder);
-        }
-        setSelectionSnapshot([created.nodeId], []);
-        setSelection({ type: "node", nodeId: created.nodeId });
+        const fallbackPosition = viewportCenter ?? { x: 0, y: 0 };
+        const createdNodeId = addNode(fallbackPosition);
+        if (!createdNodeId) return;
+        setSelectionSnapshot([createdNodeId], []);
+        setSelection({ type: "node", nodeId: createdNodeId });
         return;
       }
 
@@ -198,6 +201,7 @@ export function EditorHotkeys() {
   }, [
     adventure?.nodes,
     addNodeWithLink,
+    addNode,
     clipboard?.nodes.length,
     duplicateNode,
     copySelection,

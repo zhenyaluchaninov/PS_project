@@ -71,8 +71,26 @@ export const adventureDtoSchema = z.object({
   users: z.array(userDtoSchema).optional().default([]),
 });
 
+export const imageDtoSchema = z.object({
+  id: z.coerce.number(),
+  title: z.string().optional().nullable(),
+  author: z.string().optional().nullable(),
+  author_url: z.string().optional().nullable(),
+  full_url: z.string().optional().nullable(),
+  download_url: z.string().optional().nullable(),
+  thumb_url: z.string().optional().nullable(),
+});
+
+export const imageCategoryDtoSchema = z.object({
+  id: z.coerce.number(),
+  title: z.string(),
+  images: z.array(imageDtoSchema).optional().nullable(),
+});
+
 export type CategoryDto = z.infer<typeof categoryDtoSchema>;
 export type UserDto = z.infer<typeof userDtoSchema>;
 export type NodeDto = z.infer<typeof nodeDtoSchema>;
 export type LinkDto = z.infer<typeof linkDtoSchema>;
 export type AdventureDto = z.infer<typeof adventureDtoSchema>;
+export type ImageDto = z.infer<typeof imageDtoSchema>;
+export type ImageCategoryDto = z.infer<typeof imageCategoryDtoSchema>;

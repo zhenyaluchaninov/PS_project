@@ -27,7 +27,10 @@ import { Button } from "@/features/ui-core/primitives";
 import { useEditorAutosave } from "../hooks/useEditorAutosave";
 import { cn } from "@/lib/utils";
 import { ShareModal } from "./ShareModal";
-import { Play, PlayCircle, Share2 } from "lucide-react";
+import { toastInfo } from "@/features/ui-core/toast";
+import { MediaLibraryModal } from "@/features/media/MediaLibraryModal";
+import type { ImageDto } from "@/features/state/api/images";
+import { Image as ImageIcon, Play, PlayCircle, Share2 } from "lucide-react";
 
 type EditorRouteProps = {
   editSlug: string;
@@ -43,6 +46,8 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const readOnly = useEditorStore(selectEditorReadOnly);
   const [hasSeenChanges, setHasSeenChanges] = useState(false);
   const [lockBannerDismissed, setLockBannerDismissed] = useState(false);
+  const [mediaLibraryOpen, setMediaLibraryOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<ImageDto | null>(null);
   const selection = useEditorStore(selectEditorSelection);
   const selectedNodeIds = useEditorStore(selectEditorSelectedNodeIds);
   const selectedLinkIds = useEditorStore(selectEditorSelectedLinkIds);
@@ -70,6 +75,10 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const handleOpenPreview = useCallback((path: string) => {
     if (!path) return;
     window.open(path, "_blank", "noopener,noreferrer");
+  }, []);
+  const handleMediaSelect = useCallback((image: ImageDto) => {
+    setSelectedImage(image);
+    toastInfo(`Selected image: ${image.id} ${image.title || "Untitled"}`);
   }, []);
 
   useEffect(() => {
@@ -156,6 +165,10 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
             <PlayCircle className="h-4 w-4" aria-hidden="true" />
             Play from here
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setMediaLibraryOpen(true)}>
+            <ImageIcon className="h-4 w-4" aria-hidden="true" />
+            Media Library
+          </Button>
           {adventure ? (
             <ShareModal
               editSlug={editSlug}
@@ -167,6 +180,11 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
                 </Button>
               }
             />
+          ) : null}
+          {selectedImage ? (
+            <span className="text-xs text-[var(--muted)]">
+              Selected image: #{selectedImage.id} {selectedImage.title || "Untitled"}
+            </span>
           ) : null}
           <span
             title={saveError ?? undefined}
@@ -219,6 +237,7 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
     retrySave,
     saveError,
     saveStatus,
+    selectedImage,
     selectedNodeId,
     selectedNodeIds,
   ]);
@@ -372,6 +391,11 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
           sidePanel={
             <EditorInspector />
           }
+        />
+        <MediaLibraryModal
+          open={mediaLibraryOpen}
+          onOpenChange={setMediaLibraryOpen}
+          onSelect={handleMediaSelect}
         />
         <EditorHotkeys />
       </>

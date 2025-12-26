@@ -101,6 +101,37 @@ export const nodeOpsSlice: EditorSlice = (set, get) => ({
       };
     });
   },
+  addNode: (position) => {
+    if (get().readOnly) return null;
+    const adventure = get().adventure;
+    if (!adventure) return null;
+    const nextNodeId = getNextNodeId(adventure);
+    const newNode = {
+      id: 0,
+      nodeId: nextNodeId,
+      title: `#${nextNodeId}`,
+      text: "",
+      icon: null,
+      position: { x: position.x, y: position.y },
+      image: { url: null, id: null, layoutType: null },
+      type: "default",
+      changed: true,
+      props: null,
+      rawProps: null,
+    };
+    set((state) => {
+      if (!state.adventure) return {};
+      return {
+        adventure: {
+          ...state.adventure,
+          nodes: [...state.adventure.nodes, newNode],
+        },
+        dirty: true,
+        undoStack: pushHistory(state),
+      };
+    });
+    return nextNodeId;
+  },
   addNodeWithLink: (sourceId, position) => {
     if (get().readOnly) return null;
     const adventure = get().adventure;
