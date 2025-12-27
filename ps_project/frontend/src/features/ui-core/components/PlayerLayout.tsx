@@ -57,6 +57,7 @@ export function PlayerLayout({
   const containerStyle: CSSProperties = {
     ...(layout?.textAlign ? { textAlign: layout.textAlign } : {}),
   };
+  const outerStyle: CSSProperties = {};
 
   if (layout?.containerWidthVw && Number.isFinite(layout.containerWidthVw)) {
     containerStyle.width = `${layout.containerWidthVw}vw`;
@@ -67,8 +68,8 @@ export function PlayerLayout({
     layout?.containerMarginsVw &&
     (layout.containerMarginsVw[0] > 0 || layout.containerMarginsVw[1] > 0)
   ) {
-    containerStyle.marginLeft = `${layout.containerMarginsVw[0]}vw`;
-    containerStyle.marginRight = `${layout.containerMarginsVw[1]}vw`;
+    outerStyle.paddingLeft = `${layout.containerMarginsVw[0]}vw`;
+    outerStyle.paddingRight = `${layout.containerMarginsVw[1]}vw`;
   }
 
   const rootStyle: CSSProperties = {
@@ -141,7 +142,7 @@ export function PlayerLayout({
         ) : null}
       </div>
 
-      <div className="ps-player__outer">
+      <div className="ps-player__outer" style={outerStyle}>
         <div
           className="ps-player__content"
           data-props={dataProps?.content || undefined}
