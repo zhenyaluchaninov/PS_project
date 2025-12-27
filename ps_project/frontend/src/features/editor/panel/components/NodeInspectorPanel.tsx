@@ -66,7 +66,7 @@ const textShadowValues = new Set(
 const builtInFontOptions: Array<{ value: string; label: string }> = [];
 
 const NAV_TEXT_SIZE_MIN = 8;
-const NAV_TEXT_SIZE_MAX = 18;
+const NAV_TEXT_SIZE_MAX = 30;
 const NAV_TEXT_SIZE_DEFAULT = 14;
 
 const verticalPositionOptions = [
@@ -2151,7 +2151,7 @@ export function NodeInspectorPanel({
                       value={navTextSize}
                       min={NAV_TEXT_SIZE_MIN}
                       max={NAV_TEXT_SIZE_MAX}
-                      step={2}
+                      step={1}
                       onChange={(next) =>
                         handleNodePropChange("playerNavigation_textSize", [
                           String(next),

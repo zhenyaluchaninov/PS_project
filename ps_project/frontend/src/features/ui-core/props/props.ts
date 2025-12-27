@@ -287,6 +287,7 @@ const mapColors = (
     styleVars["--accent"] = accent;
     styleVars["--accent-strong"] = accent;
     styleVars["--player-accent"] = accent;
+    styleVars["--player-button-bg"] = accent;
   }
 
   const buttonText = colorWithAlpha(
@@ -296,6 +297,7 @@ const mapColors = (
   );
   if (buttonText) {
     styleVars["--muted"] = buttonText;
+    styleVars["--player-button-text"] = buttonText;
   }
 
   return { style, styleVars, overlayColor: foreground };
@@ -360,6 +362,14 @@ export const buildPropsStyle = ({
     coerceValue(merged["background_font"]);
   const trimmedFont = fontToken?.trim() ?? "";
   const fontFamily = trimmedFont.length > 0 ? trimmedFont : undefined;
+  const navTextSize = coerceNumber(
+    merged["playerNavigation_textSize"] ??
+      merged["playerNavigation.textSize"] ??
+      merged["playerNavigationTextSize"]
+  );
+  if (navTextSize && navTextSize > 0) {
+    styleVars["--player-nav-text-size"] = `${navTextSize}pt`;
+  }
 
   const containerWidthCandidates = coerceNumberArray(
     merged["player_container_width"]
