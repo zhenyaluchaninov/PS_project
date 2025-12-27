@@ -168,10 +168,10 @@
   padding: 0.85rem 1rem;
   border-radius: 14px;
   border: 1px solid var(--player-accent, rgba(255, 255, 255, 0.14));
-  background: var(--player-button-bg, var(--player-text-bg, rgba(0, 0, 0, 0.35)));
+  background: var(--player-button-bg, rgba(0, 0, 0, 0.35));
   background: color-mix(
     in srgb,
-    var(--player-button-bg, var(--player-text-bg, transparent)) 75%,
+    var(--player-button-bg, rgba(0, 0, 0, 0.35)) 75%,
     rgba(0, 0, 0, 0.35)
   );
   color: var(--player-button-text, inherit);

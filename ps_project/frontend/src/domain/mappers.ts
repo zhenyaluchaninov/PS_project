@@ -57,6 +57,100 @@ function cleanString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+const DEFAULT_MENU_OPTIONS = ["back", "home", "menu", "sound"] as const;
+const MENU_OPTION_KEYS = [
+  "menu_option",
+  "menu_options",
+  "menuOption",
+  "menuOptions",
+] as const;
+
+const hasOwn = (record: Record<string, unknown>, key: string) =>
+  Object.prototype.hasOwnProperty.call(record, key);
+
+const findFirstKeyValue = (
+  record: Record<string, unknown>,
+  keys: readonly string[]
+) => {
+  for (const key of keys) {
+    if (hasOwn(record, key)) {
+      return { key, value: record[key] };
+    }
+  }
+  return { key: null, value: undefined };
+};
+
+const normalizeMenuOptions = (record: Record<string, unknown>): string[] => {
+  const { key, value } = findFirstKeyValue(record, MENU_OPTION_KEYS);
+  const hasKey = Boolean(key);
+
+  let values: string[] | null = null;
+  if (Array.isArray(value)) {
+    values = value.filter((item): item is string => typeof item === "string");
+  } else if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      values = [];
+    } else if (trimmed === "all") {
+      values = [...DEFAULT_MENU_OPTIONS];
+    } else {
+      values = [trimmed];
+    }
+  }
+
+  if (!hasKey) {
+    return [...DEFAULT_MENU_OPTIONS];
+  }
+
+  if (!values) {
+    return [];
+  }
+
+  return DEFAULT_MENU_OPTIONS.filter((option) => values.includes(option));
+};
+
+const normalizeMenuShortcuts = (
+  record: Record<string, unknown>
+): Array<Record<string, unknown>> => {
+  const { key, value } = findFirstKeyValue(record, ["menu_shortcuts", "menuShortcuts"]);
+  const hasKey = Boolean(key);
+
+  let list: unknown[] = [];
+  if (Array.isArray(value)) {
+    list = value;
+  } else if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          list = parsed;
+        }
+      } catch {
+        list = [];
+      }
+    } else if (trimmed) {
+      list = [trimmed];
+    }
+  } else if (!hasKey) {
+    list = [];
+  }
+
+  return Array.from({ length: 9 }, (_, index) => {
+    const entry = isPlainRecord(list[index]) ? { ...list[index] } : {};
+    const rawNodeId =
+      entry.nodeId ?? entry.node_id ?? entry.nodeID ?? entry.nodeid;
+    let nodeId = "";
+    if (typeof rawNodeId === "number" && Number.isFinite(rawNodeId)) {
+      nodeId = String(rawNodeId);
+    } else if (typeof rawNodeId === "string") {
+      nodeId = rawNodeId.trim().replace(/^#/, "");
+    }
+    const text = typeof entry.text === "string" ? entry.text : "";
+    return { ...entry, nodeId, text };
+  });
+};
+
 function normalizeAdventureProps(raw: unknown): AdventurePropsModel | null {
   const record = parseJsonRecord(raw);
   if (!record) return null;
@@ -67,9 +161,15 @@ function normalizeAdventureProps(raw: unknown): AdventurePropsModel | null {
       ? record.fontList.filter((item) => typeof item === "string")
       : [];
 
-  if (!fontList.length) return { ...record };
+  const normalized = {
+    ...record,
+    menu_option: normalizeMenuOptions(record),
+    menu_shortcuts: normalizeMenuShortcuts(record),
+  };
 
-  return { ...record, fontList };
+  if (!fontList.length) return normalized;
+
+  return { ...normalized, fontList };
 }
 
 function normalizeNodeProps(raw: unknown): NodePropsModel | null {

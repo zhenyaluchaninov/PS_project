@@ -32,6 +32,7 @@ import { trackNodeVisit } from "@/features/state/api/adventures";
 import { cn } from "@/lib/utils";
 import { buildFontFaceRules } from "@/lib/fonts";
 import "./player-runtime.css";
+import "./player-legacy-skin.css";
 import {
   selectPlayerAdventure,
   selectPlayerCurrentNode,
@@ -40,8 +41,6 @@ import {
   selectPlayerHistoryLength,
   selectPlayerMode,
   selectPlayerOutgoingLinks,
-  selectPlayerProgress,
-  selectPlayerVisitedCount,
   type PlayerStoreHook,
   usePlayerStore,
 } from "../state/playerStore";
@@ -324,7 +323,6 @@ type NavItem = { kind: "link"; link: LinkModel } | { kind: "current" };
 type NavigationButton = {
   key: string;
   label: string;
-  meta?: string;
   linkId?: number;
   targetNodeId?: number;
   disabled?: boolean;
@@ -528,8 +526,6 @@ export function PlayerRuntime({
   const mode = store(selectPlayerMode);
   const historyLength = store(selectPlayerHistoryLength);
   const history = store((s) => s.history);
-  const visitedCount = store(selectPlayerVisitedCount);
-  const progress = store(selectPlayerProgress);
   const visitedNodes = store((s) => s.visited);
   const chooseLink = store((s) => s.chooseLink);
   const start = store((s) => s.start);
@@ -1306,7 +1302,6 @@ export function PlayerRuntime({
       return {
         key: String(link.linkId),
         label,
-        meta: isBroken ? "No target" : `-> Node ${link.toNodeId}`,
         linkId: link.linkId,
         targetNodeId: link.toNodeId,
         disabled: isBroken,
@@ -1327,7 +1322,6 @@ export function PlayerRuntime({
         buttons.push({
           key: "current",
           label: currentNode?.title || "Current node",
-          meta: "You are here",
           isCurrent: true,
         });
         return;
@@ -1359,6 +1353,7 @@ export function PlayerRuntime({
 
   const playerClassName = cn(
     embedded ? "ps-player--embedded" : "",
+    "ps-player--legacy-skin",
     `ps-player--nav-${navigationConfig.style}`,
     navigationConfig.placement === "bottom" ? "ps-player--nav-bottom" : "",
     navigationConfig.swipeMode ? "ps-player--swipe" : "",
@@ -1411,7 +1406,7 @@ export function PlayerRuntime({
       <PlayerOverlay
         canGoBack={canGoBack}
         canGoHome={canGoHome}
-        showBackButton={menuButtons.back}
+        showBackButton={menuButtons.back && mode === "preview" && embedded}
         showHomeButton={menuButtons.home}
         showMenuButton={menuButtons.menu}
         showSoundButton={menuButtons.sound}
@@ -1504,84 +1499,48 @@ export function PlayerRuntime({
   ) => {
     if (!node) return null;
     return (
-      <div className="ps-player__card">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.2em] opacity-70">
-              {adventure.title}
-            </p>
-            <p className="text-sm opacity-70">
-              Node {node.nodeId ?? "?"} - {nodeKind}
-            </p>
+      <>
+        <div className="ps-player__text">
+          <div className="ps-player__card">
+            <NodeContent nodeText={node.text ?? ""} />
+
+            {isActive && (nodeKind === "reference" || nodeKind === "reference-tab") ? (
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/15 bg-black/20 p-3">
+                <Button onClick={openReference} disabled={!referenceUrl} size="sm">
+                  {nodeKind === "reference-tab" ? "Open in new tab" : "Open link"}
+                </Button>
+                <div className="min-w-0 flex-1 text-xs opacity-80">
+                  {referenceUrl ? (
+                    <span className="break-words">{referenceUrl}</span>
+                  ) : (
+                    <span className="text-red-300">No URL found in this node.</span>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </div>
-          {isActive ? (
-            <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase">
-              {mode === "preview" ? (
-                <span className="rounded-full bg-white/15 px-3 py-1 text-white">
-                  Preview
-                </span>
-              ) : null}
-              {flags.highContrast ? (
-                <span className="rounded-full bg-black/60 px-3 py-1 text-white border border-white/30">
-                  High contrast
-                </span>
-              ) : null}
-              {flags.hideBackground ? (
-                <span className="rounded-full bg-black/50 px-3 py-1 text-white border border-white/20">
-                  Background hidden
-                </span>
-              ) : null}
-            </div>
-          ) : null}
         </div>
 
-        <NodeContent
-          nodeKind={nodeKind}
-          nodeTitle={node.title ?? ""}
-          nodeText={node.text ?? ""}
-        />
-
-        {isActive && (nodeKind === "reference" || nodeKind === "reference-tab") ? (
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/15 bg-black/20 p-3">
-            <Button onClick={openReference} disabled={!referenceUrl} size="sm">
-              {nodeKind === "reference-tab" ? "Open in new tab" : "Open link"}
-            </Button>
-            <div className="min-w-0 flex-1 text-xs opacity-80">
-              {referenceUrl ? (
-                <span className="break-words">{referenceUrl}</span>
-              ) : (
-                <span className="text-red-300">No URL found in this node.</span>
-              )}
-            </div>
+        {isActive ? (
+          <div className="ps-player__nav">
+            <NavigationArea
+              navStyle={navigationConfig.style}
+              navPlacement={navigationConfig.placement}
+              swipeMode={navigationConfig.swipeMode}
+              buttons={navigationModel.buttons}
+              primaryLinkId={navigationModel.primaryLinkId}
+              showLeftArrow={navigationConfig.style === "leftright"}
+              showRightArrow={
+                navigationConfig.style === "leftright" || navigationConfig.style === "right"
+              }
+              showDownArrow={false}
+              onChooseLink={(linkId) => chooseLink(linkId)}
+              onBack={goBack}
+              disableBack={historyLength <= 1}
+            />
           </div>
         ) : null}
-
-        {isActive ? (
-          <div className="flex flex-wrap items-center gap-2 text-xs opacity-80">
-            <span>Visited {visitedCount}/{adventure.nodes.length}</span>
-            <span aria-hidden>-</span>
-            <span>Progress {progress}%</span>
-          </div>
-        ) : null}
-
-        {isActive ? (
-          <NavigationArea
-            navStyle={navigationConfig.style}
-            navPlacement={navigationConfig.placement}
-            swipeMode={navigationConfig.swipeMode}
-            buttons={navigationModel.buttons}
-            primaryLinkId={navigationModel.primaryLinkId}
-            showLeftArrow={navigationConfig.style === "leftright"}
-            showRightArrow={
-              navigationConfig.style === "leftright" || navigationConfig.style === "right"
-            }
-            showDownArrow={false}
-            onChooseLink={(linkId) => chooseLink(linkId)}
-            onBack={goBack}
-            disableBack={historyLength <= 1}
-          />
-        ) : null}
-      </div>
+      </>
     );
   };
 
@@ -1665,6 +1624,7 @@ export function StaticPlayerPreview({
   node: NodeModel;
   className?: string;
 }) {
+  const adventureProps = adventure.props as Record<string, unknown> | null | undefined;
   const rawProps =
     node.rawProps ?? (node.props as Record<string, unknown> | null) ?? null;
 
@@ -1680,6 +1640,32 @@ export function StaticPlayerPreview({
   const { style: propsStyle, flags, dataProps, layout, media, typography } = propsResult;
 
   useLoadAdventureFonts(adventure.props?.fontList);
+
+  const menuOptions = useMemo(() => readMenuOptions(adventureProps ?? null), [adventureProps]);
+  const menuShortcuts = useMemo(() => readMenuShortcuts(adventureProps ?? null), [adventureProps]);
+  const menuButtons = useMemo(
+    () => ({
+      back: menuOptions.includes("back"),
+      home: menuOptions.includes("home"),
+      menu: menuOptions.includes("menu"),
+      sound: menuOptions.includes("sound"),
+    }),
+    [menuOptions]
+  );
+  const homeShortcut = menuShortcuts[0];
+  const homeTargetId = homeShortcut?.nodeId ?? null;
+  const homeLabel = homeShortcut?.text?.trim() ?? "";
+  const menuShortcutItems = useMemo(() => {
+    const items = menuShortcuts.slice(1).map((shortcut, index) => ({
+      nodeId: shortcut.nodeId,
+      label:
+        shortcut.text?.trim() ||
+        (shortcut.nodeId != null ? `Node #${shortcut.nodeId}` : `Shortcut ${index + 1}`),
+    }));
+    return items.filter(
+      (shortcut): shortcut is MenuShortcutItem => shortcut.nodeId != null
+    );
+  }, [menuShortcuts]);
 
   const navigationConfig = useMemo(
     () => buildNavigationConfig(rawProps),
@@ -1749,7 +1735,6 @@ export function StaticPlayerPreview({
       return {
         key: String(link.linkId),
         label,
-        meta: isBroken ? "No target" : `-> Node ${link.toNodeId}`,
         linkId: link.linkId,
         targetNodeId: link.toNodeId,
         disabled: isBroken,
@@ -1770,7 +1755,6 @@ export function StaticPlayerPreview({
         buttons.push({
           key: "current",
           label: node.title || "Current node",
-          meta: "You are here",
           isCurrent: true,
         });
         return;
@@ -1805,6 +1789,8 @@ export function StaticPlayerPreview({
 
   const playerClassName = cn(
     "ps-player--embedded",
+    "ps-player--legacy-skin",
+    "ps-player--static",
     `ps-player--nav-${navigationConfig.style}`,
     navigationConfig.placement === "bottom" ? "ps-player--nav-bottom" : "",
     className
@@ -1825,6 +1811,47 @@ export function StaticPlayerPreview({
     .filter(Boolean)
     .join(" ")
     .trim();
+
+  const canGoHome = homeTargetId != null && homeTargetId !== node.nodeId;
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const overlayContent = (
+    <div className="ps-overlay-shell space-y-2">
+      <PlayerOverlay
+        canGoBack={false}
+        canGoHome={canGoHome}
+        showBackButton={false}
+        showHomeButton={menuButtons.home}
+        showMenuButton={menuButtons.menu}
+        showSoundButton={menuButtons.sound}
+        homeLabel={homeLabel}
+        menuShortcuts={menuShortcutItems}
+        menuOpen={false}
+        highContrast={flags.highContrast}
+        hideBackground={flags.hideBackground}
+        soundEnabled
+        statisticsEnabled={false}
+        statisticsDisabled
+        statisticsDisabledReason={null}
+        navigationStyle={navigationConfig.style}
+        navPlacement={navigationConfig.placement}
+        gameNodeId={node.nodeId ?? null}
+        viewportActiveNodeId={node.nodeId ?? null}
+        scrollytellActive={false}
+        onBack={() => undefined}
+        onHome={() => undefined}
+        onToggleMenu={() => undefined}
+        onCloseMenu={() => undefined}
+        onToggleHighContrast={() => undefined}
+        onToggleHideBackground={() => undefined}
+        onToggleSound={() => undefined}
+        onToggleStatistics={() => undefined}
+        onShortcut={() => undefined}
+        menuRef={menuRef}
+        showDebug={false}
+      />
+    </div>
+  );
 
   return (
     <PlayerLayout
@@ -1849,31 +1876,33 @@ export function StaticPlayerPreview({
         containerMarginsVw: layout.containerMarginsVw,
         textAlign: layout.textAlign,
       }}
+      overlay={overlayContent}
     >
-      <div className="ps-player__card">
-        <NodeContent
-          nodeKind={nodeKind}
-          nodeTitle={node.title ?? ""}
-          nodeText={node.text ?? ""}
-        />
-
-        <NavigationArea
-          navStyle={navigationConfig.style}
-          navPlacement={navigationConfig.placement}
-          swipeMode={navigationConfig.swipeMode}
-          buttons={navigationModel.buttons}
-          primaryLinkId={navigationModel.primaryLinkId}
-          showLeftArrow={navigationConfig.style === "leftright"}
-          showRightArrow={
-            navigationConfig.style === "leftright" || navigationConfig.style === "right"
-          }
-          showDownArrow={false}
-          interactionDisabled
-          onChooseLink={() => undefined}
-          onBack={() => undefined}
-          disableBack
-        />
-      </div>
+      <>
+        <div className="ps-player__text">
+          <div className="ps-player__card">
+            <NodeContent nodeText={node.text ?? ""} />
+          </div>
+        </div>
+        <div className="ps-player__nav">
+          <NavigationArea
+            navStyle={navigationConfig.style}
+            navPlacement={navigationConfig.placement}
+            swipeMode={navigationConfig.swipeMode}
+            buttons={navigationModel.buttons}
+            primaryLinkId={navigationModel.primaryLinkId}
+            showLeftArrow={navigationConfig.style === "leftright"}
+            showRightArrow={
+              navigationConfig.style === "leftright" || navigationConfig.style === "right"
+            }
+            showDownArrow={false}
+            interactionDisabled
+            onChooseLink={() => undefined}
+            onBack={() => undefined}
+            disableBack
+          />
+        </div>
+      </>
     </PlayerLayout>
   );
 }
@@ -2389,17 +2418,7 @@ function NavigationArea({
             disabled={isDisabled}
             aria-disabled={isDisabled}
           >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex flex-col">
-                <span className="font-semibold">{primaryButton.label}</span>
-                {primaryButton.isBroken ? (
-                  <span className="text-xs opacity-75 text-red-200">Broken link</span>
-                ) : null}
-              </div>
-              {primaryButton.meta ? (
-                <span className="text-xs opacity-75">{primaryButton.meta}</span>
-              ) : null}
-            </div>
+            <span className="font-semibold">{primaryButton.label}</span>
           </button>
         </div>
       </div>
@@ -2462,19 +2481,7 @@ function NavigationArea({
                   disabled={isDisabled}
                   aria-disabled={isDisabled}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex flex-col">
-                      <span className="font-semibold">{button.label}</span>
-                      {button.isCurrent ? (
-                        <span className="text-xs opacity-75">Current node</span>
-                      ) : button.isBroken ? (
-                        <span className="text-xs opacity-75 text-red-200">Broken link</span>
-                      ) : null}
-                    </div>
-                    {button.meta ? (
-                      <span className="text-xs opacity-75">{button.meta}</span>
-                    ) : null}
-                  </div>
+                  <span className="font-semibold">{button.label}</span>
                 </button>
               );
             })
@@ -2540,52 +2547,12 @@ function NavArrowButton({
   );
 }
 
-function NodeContent({
-  nodeKind,
-  nodeTitle,
-  nodeText,
-}: {
-  nodeKind: NodeKind;
-  nodeTitle: string;
-  nodeText: string;
-}) {
+function NodeContent({ nodeText }: { nodeText: string }) {
   const prose = nodeText ? (
     <LegacyContent value={nodeText} className="ps-player__prose" />
   ) : (
     <p className="text-sm opacity-70">No content.</p>
   );
-
-  if (nodeKind === "start") {
-    return (
-      <div className="space-y-3">
-        <h1 className="ps-player__title text-3xl">{nodeTitle || "Start"}</h1>
-        {prose}
-      </div>
-    );
-  }
-
-  if (nodeKind === "chapter") {
-    return (
-      <div className="space-y-3">
-        <div className="border-b border-white/15 pb-2">
-          <p className="text-xs uppercase tracking-[0.2em] opacity-70">Chapter</p>
-          <h2 className="ps-player__title mt-1 text-2xl">
-            {nodeTitle || "Untitled chapter"}
-          </h2>
-        </div>
-        {prose}
-      </div>
-    );
-  }
-
-  if (nodeKind === "chapter-plain") {
-    return (
-      <div className="space-y-2">
-        <h2 className="ps-player__title text-xl">{nodeTitle || "Untitled chapter"}</h2>
-        {prose}
-      </div>
-    );
-  }
 
   return <div className="space-y-3">{prose}</div>;
 }
