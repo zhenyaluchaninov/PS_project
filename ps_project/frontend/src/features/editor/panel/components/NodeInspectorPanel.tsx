@@ -786,6 +786,8 @@ export function NodeInspectorPanel({
   };
   const chapterType = getNodeChapterType(node, bulkDraft);
   const isRefNode = chapterType.startsWith("ref-node");
+  const isRandomNode = chapterType === "random-node";
+  const showRouterInspector = isRandomNode || isRefNode;
   const navigationStyle = getNavigationStyle(node, bulkDraft);
   const navigationSettings = getNavigationSettings(node, bulkDraft);
   const verticalPosition = getVerticalPosition(node, bulkDraft);
@@ -1053,76 +1055,161 @@ export function NodeInspectorPanel({
           </div>
         </div>
       ) : null}
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => onTabChange(value as EditorNodeInspectorTab)}
-      >
-        <TabsList className="w-full">
-          {tabOptions.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value} className="flex-1">
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      {showRouterInspector ? (
+        <fieldset disabled={readOnly} className="space-y-4">
+          <BulkField
+            active={isBulkFieldStaged(BULK_NODE_TITLE_PATH)}
+            onClear={() => clearBulkPaths(BULK_NODE_TITLE_PATH)}
+          >
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                Node name
+              </label>
+              <input
+                value={titleValue}
+                onChange={(event) => handleTitleChange(event.target.value)}
+                placeholder="Untitled node"
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+              />
+            </div>
+          </BulkField>
 
-        <TabsContent value="content">
-          <fieldset disabled={readOnly} className="space-y-4">
-            <BulkField
-              active={isBulkFieldStaged(BULK_NODE_TITLE_PATH)}
-              onClear={() => clearBulkPaths(BULK_NODE_TITLE_PATH)}
-            >
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-                  Node name
-                </label>
-                <input
-                  value={titleValue}
-                  onChange={(event) => handleTitleChange(event.target.value)}
-                  placeholder="Untitled node"
-                  className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
-                />
+          {isRandomNode ? (
+            <>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-xs text-[var(--muted)]">
+                Random nodes do not render in the player; they immediately
+                redirect via their outgoing links (prefer unvisited).
               </div>
-            </BulkField>
+              <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+                <CollapsibleSection
+                  title="Outgoing links"
+                  defaultOpen
+                  sectionKey="editor.node.router.links"
+                >
+                  <BulkField
+                    active={isBulkFieldStaged("ordered_link_ids")}
+                    disabledReason={choicesDisabledReason}
+                    onClear={() => clearBulkPaths("ordered_link_ids")}
+                  >
+                    {orderedOutgoingLinks.length === 0 ? (
+                      <p className="text-sm text-[var(--muted)]">
+                        No outgoing links yet.
+                      </p>
+                    ) : (
+                      <ReorderList
+                        items={orderedOutgoingLinks}
+                        selectedId={selectedLinkId}
+                        onSelect={handleLinkSelect}
+                        enableReorder={false}
+                      />
+                    )}
+                  </BulkField>
+                </CollapsibleSection>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-xs text-[var(--muted)]">
+                This node opens a link. Content and styling are not rendered.
+              </div>
+              <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+                <CollapsibleSection
+                  title="URL"
+                  defaultOpen
+                  sectionKey="editor.node.ref.url"
+                >
+                  <BulkField
+                    active={isBulkFieldStaged(BULK_NODE_TEXT_PATH)}
+                    onClear={() => clearBulkPaths(BULK_NODE_TEXT_PATH)}
+                  >
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                        URL
+                      </label>
+                      <input
+                        value={textValue}
+                        onChange={(event) => handleTextChange(event.target.value)}
+                        placeholder="https://example.com"
+                        className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                      />
+                    </div>
+                  </BulkField>
+                </CollapsibleSection>
+              </div>
+            </>
+          )}
+        </fieldset>
+      ) : (
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => onTabChange(value as EditorNodeInspectorTab)}
+        >
+          <TabsList className="w-full">
+            {tabOptions.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value} className="flex-1">
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-            <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-              <CollapsibleSection title="Text" sectionKey="editor.node.content.text">
-                <div className="space-y-3">
-                  {isRefNode ? (
-                    <BulkField
-                      active={isBulkFieldStaged(BULK_NODE_TEXT_PATH)}
-                      onClear={() => clearBulkPaths(BULK_NODE_TEXT_PATH)}
-                    >
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
-                          Reference URL
-                        </label>
-                        <input
-                          value={textValue}
-                          onChange={(event) =>
-                            handleTextChange(event.target.value)
-                          }
-                          placeholder="https://example.com"
-                          className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
-                        />
-                        <p className="text-xs text-[var(--muted)]">
-                          Reference nodes open the first URL found in `node.text`.
-                        </p>
-                      </div>
-                    </BulkField>
-                  ) : (
-                    <>
+          <TabsContent value="content">
+            <fieldset disabled={readOnly} className="space-y-4">
+              <BulkField
+                active={isBulkFieldStaged(BULK_NODE_TITLE_PATH)}
+                onClear={() => clearBulkPaths(BULK_NODE_TITLE_PATH)}
+              >
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                    Node name
+                  </label>
+                  <input
+                    value={titleValue}
+                    onChange={(event) => handleTitleChange(event.target.value)}
+                    placeholder="Untitled node"
+                    className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                  />
+                </div>
+              </BulkField>
+
+              <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+                <CollapsibleSection title="Text" sectionKey="editor.node.content.text">
+                  <div className="space-y-3">
+                    {isRefNode ? (
                       <BulkField
                         active={isBulkFieldStaged(BULK_NODE_TEXT_PATH)}
                         onClear={() => clearBulkPaths(BULK_NODE_TEXT_PATH)}
                       >
-                        <RichTextEditor
-                          value={textValue}
-                          onChange={handleTextChange}
-                          placeholder="Write the node content..."
-                          readOnly={readOnly}
-                        />
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                            Reference URL
+                          </label>
+                          <input
+                            value={textValue}
+                            onChange={(event) =>
+                              handleTextChange(event.target.value)
+                            }
+                            placeholder="https://example.com"
+                            className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                          />
+                          <p className="text-xs text-[var(--muted)]">
+                            Reference nodes open the first URL found in `node.text`.
+                          </p>
+                        </div>
                       </BulkField>
-                      <div className="space-y-4 pt-2">
+                    ) : (
+                      <>
+                        <BulkField
+                          active={isBulkFieldStaged(BULK_NODE_TEXT_PATH)}
+                          onClear={() => clearBulkPaths(BULK_NODE_TEXT_PATH)}
+                        >
+                          <RichTextEditor
+                            value={textValue}
+                            onChange={handleTextChange}
+                            placeholder="Write the node content..."
+                            readOnly={readOnly}
+                          />
+                        </BulkField>
+                        <div className="space-y-4 pt-2">
                         <BulkField
                           active={isBulkFieldStaged(
                             "outer_container.textShadow"
@@ -2191,6 +2278,7 @@ export function NodeInspectorPanel({
           </fieldset>
         </TabsContent>
       </Tabs>
+      )}
     </InspectorShell>
   );
 }
@@ -2487,11 +2575,15 @@ function ReorderList({
   selectedId,
   onSelect,
   onReorder,
+  enableReorder = true,
 }: {
   items: Array<{ linkId: number; targetId: number; label: string }>;
   selectedId?: number | null;
   onSelect?: (linkId: number) => void;
-  onReorder: (items: Array<{ linkId: number; targetId: number; label: string }>) => void;
+  onReorder?: (
+    items: Array<{ linkId: number; targetId: number; label: string }>
+  ) => void;
+  enableReorder?: boolean;
 }) {
   const rowRefs = useRef(new Map<number, HTMLDivElement>());
   const ghostRef = useRef<HTMLDivElement | null>(null);
@@ -2500,6 +2592,7 @@ function ReorderList({
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const draggingIdRef = useRef<number | null>(null);
   const didDropRef = useRef(false);
+  const canReorder = enableReorder && Boolean(onReorder);
 
   useEffect(() => {
     draftItemsRef.current = draftItems;
@@ -2532,6 +2625,7 @@ function ReorderList({
   };
 
   const handleDragStart = (itemId: number) => (event: React.DragEvent) => {
+    if (!canReorder) return;
     didDropRef.current = false;
     setDraggingId(itemId);
     setDraftItems(items);
@@ -2566,12 +2660,14 @@ function ReorderList({
   };
 
   const handleDragOver = (itemId: number) => (event: React.DragEvent) => {
+    if (!canReorder) return;
     if (draggingId === null || draggingId === itemId) return;
     event.preventDefault();
     setDraftItems((prev) => reorderItems(prev, draggingId, itemId));
   };
 
   const handleDrop = (event: React.DragEvent) => {
+    if (!canReorder || !onReorder) return;
     event.preventDefault();
     didDropRef.current = true;
     const finalItems = draftItemsRef.current;
@@ -2597,16 +2693,20 @@ function ReorderList({
     ghostRef.current = null;
   };
 
-  const displayItems = draftItems;
+  const displayItems = canReorder ? draftItems : items;
 
   return (
     <div
       className="space-y-2"
       role="list"
-      onDragOver={(event) => {
-        if (draggingId !== null) event.preventDefault();
-      }}
-      onDrop={handleDrop}
+      onDragOver={
+        canReorder
+          ? (event) => {
+              if (draggingId !== null) event.preventDefault();
+            }
+          : undefined
+      }
+      onDrop={canReorder ? handleDrop : undefined}
     >
       {displayItems.map((item) => (
         <div
@@ -2619,8 +2719,8 @@ function ReorderList({
               rowRefs.current.delete(item.linkId);
             }
           }}
-          onDragOver={handleDragOver(item.linkId)}
-          onDrop={handleDrop}
+          onDragOver={canReorder ? handleDragOver(item.linkId) : undefined}
+          onDrop={canReorder ? handleDrop : undefined}
           className={cn(
             "flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-2",
             "hover:border-[var(--border-light)] hover:bg-[var(--bg-hover)]",
@@ -2640,26 +2740,28 @@ function ReorderList({
             onSelect?.(item.linkId);
           }}
         >
-          <button
-            type="button"
-            draggable
-            onDragStart={(event) => {
-              if (process.env.NODE_ENV !== "production") {
-                console.debug("[Choices] drag start", { linkId: item.linkId });
-              }
-              handleDragStart(item.linkId)(event);
-            }}
-            onDragEnd={handleDragEnd}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            aria-label={`Reorder ${item.label}`}
-            className="cursor-grab px-1 text-[var(--muted)] active:cursor-grabbing"
-          >
-            <GripVertical className="h-4 w-4" aria-hidden="true" />
-          </button>
+          {canReorder ? (
+            <button
+              type="button"
+              draggable
+              onDragStart={(event) => {
+                if (process.env.NODE_ENV !== "production") {
+                  console.debug("[Choices] drag start", { linkId: item.linkId });
+                }
+                handleDragStart(item.linkId)(event);
+              }}
+              onDragEnd={handleDragEnd}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              aria-label={`Reorder ${item.label}`}
+              className="cursor-grab px-1 text-[var(--muted)] active:cursor-grabbing"
+            >
+              <GripVertical className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : null}
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-[var(--text-secondary)]">
               {item.label}

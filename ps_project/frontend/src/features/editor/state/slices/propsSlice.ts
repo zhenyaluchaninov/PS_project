@@ -16,6 +16,81 @@ import { pushHistory } from "./historySlice";
 type EditorSlice = StateCreator<EditorState, [], [], Partial<EditorState>>;
 
 type PropsUpdater = (props: Record<string, unknown>) => PropsChangeResult;
+type AdventureNode = NonNullable<EditorState["adventure"]>["nodes"][number];
+
+const readStringArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string");
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((entry): entry is string => typeof entry === "string");
+        }
+      } catch {
+        return [trimmed];
+      }
+    }
+    return [trimmed];
+  }
+  return [];
+};
+
+const getNodeChapterType = (node: AdventureNode): string => {
+  const rawProps = (node.rawProps ?? {}) as Record<string, unknown>;
+  const fallbackProps = (node.props as Record<string, unknown> | null) ?? {};
+  const rawValue =
+    rawProps.settings_chapterType ??
+    rawProps.settingsChapterType ??
+    rawProps.chapterType ??
+    rawProps.chapter_type ??
+    fallbackProps.settings_chapterType ??
+    fallbackProps.settingsChapterType ??
+    fallbackProps.chapterType ??
+    fallbackProps.chapter_type;
+  const values = readStringArray(rawValue);
+  return values[0] ?? "";
+};
+
+const applyNodeStringArraySelect = (
+  node: AdventureNode,
+  path: string,
+  selectedValue: string,
+  options: StringArraySelectOptions | undefined,
+  errorTitle: string
+) => {
+  const updater = (props: Record<string, unknown>) =>
+    setStringArraySelect(props, path, selectedValue, options);
+  const rawInput =
+    node.rawProps ?? (node.props as Record<string, unknown> | null) ?? {};
+  const rawResult = updatePropsInput(rawInput, updater);
+  if (!rawResult.ok) {
+    toastError(errorTitle, rawResult.error);
+    return { node, changed: false };
+  }
+  const propsInput = (node.props as Record<string, unknown> | null) ?? {};
+  const propsResult = updatePropsInput(propsInput, updater);
+  if (!propsResult.ok) {
+    toastError(errorTitle, propsResult.error);
+    return { node, changed: false };
+  }
+  if (!rawResult.changed && !propsResult.changed) {
+    return { node, changed: false };
+  }
+  return {
+    node: {
+      ...node,
+      rawProps: rawResult.props,
+      props: propsResult.props,
+      changed: true,
+    },
+    changed: true,
+  };
+};
 
 const applyNodePropsUpdate = (
   state: EditorState,
@@ -135,6 +210,71 @@ export const propsSlice: EditorSlice = (set) => ({
     );
   },
   setNodePropStringArraySelect: (nodeId, path, selectedValue, options) => {
+    if (path === "settings_chapterType") {
+      set((state) => {
+        if (state.readOnly) return {};
+        if (!state.adventure) return {};
+        const promoteToRoot = selectedValue === "start-node";
+        let changed = false;
+        const nodes = state.adventure.nodes.map((node) => {
+          const isTarget = node.nodeId === nodeId;
+          const currentChapterType = getNodeChapterType(node);
+          let nextNode = node;
+          let nodeChanged = false;
+
+          if (
+            isTarget ||
+            (promoteToRoot &&
+              currentChapterType === "start-node" &&
+              node.nodeId !== nodeId)
+          ) {
+            const nextChapterType = isTarget ? selectedValue : "";
+            const result = applyNodeStringArraySelect(
+              nextNode,
+              path,
+              nextChapterType,
+              options,
+              "Node props invalid"
+            );
+            if (result.changed) {
+              nextNode = result.node;
+              nodeChanged = true;
+            }
+          }
+
+          let nextType = nextNode.type;
+          if (promoteToRoot) {
+            if (isTarget) {
+              nextType = "root";
+            } else if (nextType === "root") {
+              nextType = "default";
+            }
+          } else if (isTarget && nextType === "root") {
+            nextType = "default";
+          }
+
+          if (nextType !== nextNode.type) {
+            nextNode = { ...nextNode, type: nextType, changed: true };
+            nodeChanged = true;
+          } else if (nodeChanged && !nextNode.changed) {
+            nextNode = { ...nextNode, changed: true };
+          }
+
+          if (nodeChanged) {
+            changed = true;
+          }
+
+          return nextNode;
+        });
+        if (!changed) return {};
+        return {
+          adventure: { ...state.adventure, nodes },
+          dirty: true,
+          undoStack: pushHistory(state),
+        };
+      });
+      return;
+    }
     set((state) =>
       applyNodePropsUpdate(
         state,
