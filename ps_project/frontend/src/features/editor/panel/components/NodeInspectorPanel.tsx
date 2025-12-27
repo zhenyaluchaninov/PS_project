@@ -17,8 +17,12 @@ import { selectEditorReadOnly, useEditorStore } from "@/features/editor/state/ed
 import type { EditorNodeInspectorTab } from "../../state/types";
 import {
   ChevronDown,
+  FileText,
+  Film,
   GripVertical,
+  Image as ImageIcon,
   Loader2,
+  Music,
   Trash2,
   Upload,
   type LucideIcon,
@@ -1172,7 +1176,11 @@ export function NodeInspectorPanel({
               </BulkField>
 
               <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-                <CollapsibleSection title="Text" sectionKey="editor.node.content.text">
+                <CollapsibleSection
+                  title="Text"
+                  titleIcon={<FileText className="h-4 w-4" />}
+                  sectionKey="editor.node.content.text"
+                >
                   <div className="space-y-3">
                     {isRefNode ? (
                       <BulkField
@@ -1344,6 +1352,7 @@ export function NodeInspectorPanel({
               </CollapsibleSection>
               <CollapsibleSection
                 title="Image"
+                titleIcon={<ImageIcon className="h-4 w-4" />}
                 sectionKey="editor.node.content.image"
               >
                 <BulkField
@@ -1386,6 +1395,7 @@ export function NodeInspectorPanel({
               </CollapsibleSection>
               <CollapsibleSection
                 title="Video"
+                titleIcon={<Film className="h-4 w-4" />}
                 sectionKey="editor.node.content.video"
               >
                 <BulkField
@@ -1516,6 +1526,7 @@ export function NodeInspectorPanel({
               </CollapsibleSection>
               <CollapsibleSection
                 title="Audio"
+                titleIcon={<Music className="h-4 w-4" />}
                 sectionKey="editor.node.content.audio-media"
               >
                 <BulkField

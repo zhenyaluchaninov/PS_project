@@ -50,6 +50,19 @@ function isFlagEnabled(value: unknown): boolean {
   return isTruthyFlag(value);
 }
 
+function stripNodeText(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasTextContent(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return stripNodeText(value).length > 0;
+}
+
 function getChapterType(rawProps: Record<string, unknown> | null): string | null {
   if (!rawProps) return null;
   const rawValue =
@@ -59,6 +72,12 @@ function getChapterType(rawProps: Record<string, unknown> | null): string | null
     rawProps.chapter_type;
   const values = readStringArray(rawValue);
   return values[0] ?? null;
+}
+
+function isVideoUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  const trimmed = url.split(/[?#]/)[0]?.toLowerCase() ?? "";
+  return trimmed.endsWith(".mp4");
 }
 
 export function getNodeVariant(
@@ -144,9 +163,13 @@ export function buildGraphNodes(
     const variant = getNodeVariant(chapterType, node.type ?? null);
     const hasStatistics = hasStatisticsFlag(node.rawProps);
     const hasNodeVariable = hasNodeVariableFlag(node.rawProps);
+    const hasText = hasTextContent(node.text);
     const hasImage = Boolean(node.image.url || node.image.id);
     const hasAudio = Boolean(node.props?.audioUrl || node.props?.audioUrlAlt);
-    const hasVideo = Boolean(node.props?.subtitlesUrl) || chapterType === "videoplayer-node";
+    const hasVideo =
+      isVideoUrl(node.image.url) ||
+      Boolean(node.props?.subtitlesUrl) ||
+      chapterType === "videoplayer-node";
     const badges: GraphNodeData["badges"] = [];
 
     if (hasStatistics) {
@@ -154,6 +177,9 @@ export function buildGraphNodes(
     }
     if (hasNodeVariable) {
       badges.push({ key: "node-variable", label: "VAR", tone: "flag" });
+    }
+    if (hasText) {
+      badges.push({ key: "text", label: "Text", tone: "media" });
     }
     if (hasVideo) {
       badges.push({ key: "video", label: "VID", tone: "media" });

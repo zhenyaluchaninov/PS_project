@@ -13,6 +13,7 @@ import {
   Music,
   PlayCircle,
   Shuffle,
+  Type,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -44,6 +45,7 @@ const badgeIcons: Record<string, LucideIcon> = {
   image: ImageIcon,
   video: Film,
   audio: Music,
+  text: Type,
   stats: BarChart3,
   "node-variable": FunctionSquare,
 };

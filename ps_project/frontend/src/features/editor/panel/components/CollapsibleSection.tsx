@@ -10,6 +10,7 @@ type CollapsibleSectionProps = {
   title: string;
   defaultOpen?: boolean;
   titleClassName?: string;
+  titleIcon?: ReactNode;
   sectionKey?: string;
   open?: boolean;
   onToggle?: (next: boolean) => void;
@@ -20,6 +21,7 @@ export function CollapsibleSection({
   title,
   defaultOpen = false,
   titleClassName,
+  titleIcon,
   sectionKey,
   open,
   onToggle,
@@ -81,13 +83,20 @@ export function CollapsibleSection({
           )}
           aria-hidden="true"
         />
-        <span
-          className={
-            titleClassName ??
-            "text-sm font-semibold uppercase tracking-[0.18em] text-[var(--muted)]"
-          }
-        >
-          {title}
+        <span className="flex items-center gap-2">
+          {titleIcon ? (
+            <span className="text-[var(--muted)]" aria-hidden="true">
+              {titleIcon}
+            </span>
+          ) : null}
+          <span
+            className={
+              titleClassName ??
+              "text-sm font-semibold uppercase tracking-[0.18em] text-[var(--muted)]"
+            }
+          >
+            {title}
+          </span>
         </span>
       </button>
       {isOpen ? (
