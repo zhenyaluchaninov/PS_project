@@ -387,11 +387,13 @@ export const buildPropsStyle = ({
   const verticalAlignTokens =
     dataProps.player?.split(" ").filter(Boolean) ?? [];
   const verticalAlign: "top" | "center" | "bottom" =
-    verticalAlignTokens.includes("vertical-align-center")
-      ? "center"
-      : verticalAlignTokens.includes("vertical-align-bottom")
-        ? "bottom"
-        : "top";
+    verticalAlignTokens.includes("vertical-align-top")
+      ? "top"
+      : verticalAlignTokens.includes("vertical-align-center")
+        ? "center"
+        : verticalAlignTokens.includes("vertical-align-bottom")
+          ? "bottom"
+          : "center";
 
   const textShadow = pickTextShadow(
     dataProps.outer_container?.split(" ").filter(Boolean) ?? []

@@ -1720,7 +1720,7 @@ router/
 
 ## Block G – Media Feature
 
-### Step 29 – MediaLibrary & media API wiring
+### [partially] Step 29 – MediaLibrary & media API wiring
 
 **What we do**
 
@@ -1771,7 +1771,7 @@ web/
 
 ---
 
-### Step 30 – Public layout & navigation header
+### Step [NotNeeded] 30 – Public layout & navigation header
 
 **What we do**
 

@@ -80,7 +80,7 @@ const SCROLL_SPEED_MAX = 1.5;
 const SCROLL_SPEED_DEFAULT = 0.5;
 const BLUR_MIN = 0;
 const BLUR_MAX = 100;
-const MARGIN_DEFAULT = 18;
+const MARGIN_DEFAULT = 0;
 const MARGIN_MIN = 0;
 const MARGIN_MAX = 100;
 const AUDIO_VOLUME_MIN = 0;
@@ -1085,41 +1085,6 @@ export function NodeInspectorPanel({
             </BulkField>
 
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-              <CollapsibleSection
-                title="Node type"
-                sectionKey="editor.node.content.type"
-              >
-                <BulkField
-                  active={isBulkFieldStaged(BULK_NODE_TYPE_PATH)}
-                  onClear={() => clearBulkPaths(BULK_NODE_TYPE_PATH)}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <label className="text-sm font-medium text-[var(--text-secondary)]">
-                      Type
-                    </label>
-                    <div className="relative w-48">
-                      <select
-                        value={chapterType}
-                        onChange={(event) =>
-                          handleNodeTypeChange(event.target.value)
-                        }
-                        className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
-                      >
-                        {chapterTypeOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown
-                        className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
-                        aria-hidden="true"
-                      />
-                    </div>
-                  </div>
-                </BulkField>
-              </CollapsibleSection>
-
               <CollapsibleSection title="Text" sectionKey="editor.node.content.text">
                 <div className="space-y-3">
                   {isRefNode ? (
@@ -2105,6 +2070,40 @@ export function NodeInspectorPanel({
         <TabsContent value="logic">
           <fieldset disabled={readOnly} className="space-y-4">
             <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+              <CollapsibleSection
+                title="Node type"
+                sectionKey="editor.node.logic.type"
+              >
+                <BulkField
+                  active={isBulkFieldStaged(BULK_NODE_TYPE_PATH)}
+                  onClear={() => clearBulkPaths(BULK_NODE_TYPE_PATH)}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-sm font-medium text-[var(--text-secondary)]">
+                      Type
+                    </label>
+                    <div className="relative w-48">
+                      <select
+                        value={chapterType}
+                        onChange={(event) =>
+                          handleNodeTypeChange(event.target.value)
+                        }
+                        className="w-full appearance-none rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 pr-7 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                      >
+                        {chapterTypeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted)]"
+                        aria-hidden="true"
+                      />
+                    </div>
+                  </div>
+                </BulkField>
+              </CollapsibleSection>
               <CollapsibleSection
                 title="Conditions"
                 sectionKey="editor.node.logic.conditions"

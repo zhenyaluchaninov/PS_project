@@ -37,6 +37,9 @@ export function ShortcutHud() {
   if (hasSelection) {
     hints.push({ keys: "Del/Backspace", label: "Delete" });
   }
+  if (!hasSelection) {
+    hints.push({ keys: "N", label: "New node" });
+  }
   if (hasNodeSelection) {
     hints.push({ keys: "Ctrl/Cmd+C", label: "Copy" });
   }

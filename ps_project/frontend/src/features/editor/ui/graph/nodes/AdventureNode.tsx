@@ -15,8 +15,18 @@ import {
   Shuffle,
   type LucideIcon,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/features/ui-core/primitives/dropdown-menu";
+import { chapterTypeOptions } from "@/features/editor/panel/constants";
+import { selectEditorReadOnly, useEditorStore } from "@/features/editor/state/editorStore";
 import { cn } from "@/lib/utils";
 import type { GraphNode, NodeVariant } from "../types";
+import { getNodeVariant } from "../utils/buildGraphNodes";
 
 const nodeTypeIcons: Record<NodeVariant, LucideIcon> = {
   start: PlayCircle,
@@ -39,20 +49,55 @@ const badgeIcons: Record<string, LucideIcon> = {
 };
 
 export function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
-  const flagBadges = data.badges
-    .filter((badge) => badge.tone === "flag")
-    .sort((a, b) => {
-      if (a.key === b.key) return 0;
-      if (a.key === "stats") return 1;
-      if (b.key === "stats") return -1;
-      return a.key.localeCompare(b.key);
-    });
+  const readOnly = useEditorStore(selectEditorReadOnly);
+  const multiSelectActive = useEditorStore((state) => state.selectedNodeIds.length > 1);
+  const setNodePropPath = useEditorStore((state) => state.setNodePropPath);
+  const setNodePropStringArraySelect = useEditorStore(
+    (state) => state.setNodePropStringArraySelect
+  );
+  const chapterTypeValue = data.chapterType ?? "";
+  const currentChapterType =
+    chapterTypeOptions.find((option) => option.value === chapterTypeValue) ??
+    chapterTypeOptions[0];
+  const statisticsEnabled = Boolean(data.statisticsEnabled);
+  const nodeVariableEnabled = Boolean(data.nodeVariableEnabled);
+  const controlsDisabled = readOnly || multiSelectActive;
+  const disabledReason = multiSelectActive
+    ? "Disabled in multi-select."
+    : readOnly
+      ? "Read-only."
+      : undefined;
   const mediaBadges = data.badges.filter((badge) => badge.tone === "media");
   const isStart = data.variant === "start";
   const NodeTypeIcon = nodeTypeIcons[data.variant] ?? FileText;
   const playState = data.playState ?? null;
   const isPlayCurrent = playState === "current";
   const isPlayVisited = playState === "visited";
+  const iconButtonClass = (active: boolean) =>
+    cn(
+      "nodrag flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] transition",
+      active ? "text-[var(--warning)]" : "text-[var(--muted)]",
+      "hover:border-[var(--border-light)] hover:bg-[var(--bg-hover)]",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]",
+      "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[var(--bg-secondary)]"
+    );
+
+  const handleChapterTypeChange = (nextValue: string) => {
+    if (controlsDisabled) return;
+    setNodePropStringArraySelect(data.nodeId, "settings_chapterType", nextValue);
+  };
+
+  const handleStatisticsToggle = () => {
+    if (controlsDisabled) return;
+    const next = !statisticsEnabled;
+    setNodePropPath(data.nodeId, "node_statistics", [next ? "on" : ""]);
+  };
+
+  const handleNodeVariableToggle = () => {
+    if (controlsDisabled) return;
+    const next = !nodeVariableEnabled;
+    setNodePropPath(data.nodeId, "node_conditions", [next ? "hide_visited" : ""]);
+  };
 
   return (
     <div
@@ -81,32 +126,90 @@ export function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
             : "border-[var(--editor-node-border)] bg-[var(--bg-tertiary)]"
         )}
       >
-        <span
-          className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-md border",
-            isStart
-              ? "border-[var(--editor-node-start-border)] bg-[var(--editor-node-start-bg)] text-[var(--success)]"
-              : "border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--warning)]"
-          )}
-        >
-          <NodeTypeIcon className="h-4 w-4" aria-hidden="true" />
-        </span>
-        {flagBadges.length > 0 ? (
-          <div className="ml-auto flex items-center gap-1">
-            {flagBadges.map((badge) => {
-              const BadgeIcon = badgeIcons[badge.key] ?? FileText;
-              return (
-                <span
-                  key={badge.key}
-                  title={badge.label}
-                  className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--muted)]"
-                >
-                  <BadgeIcon className="h-4 w-4" aria-hidden="true" />
-                </span>
-              );
-            })}
-          </div>
-        ) : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            type="button"
+            disabled={controlsDisabled}
+            title={disabledReason ?? `Node type: ${currentChapterType.label}`}
+            aria-label={`Change node type (${currentChapterType.label})`}
+            onPointerDown={(event) => event.stopPropagation()}
+            className={cn(
+              "nodrag flex h-7 w-7 items-center justify-center rounded-md border transition",
+              isStart
+                ? "border-[var(--editor-node-start-border)] bg-[var(--editor-node-start-bg)] text-[var(--success)]"
+                : "border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--warning)]",
+              "hover:border-[var(--border-light)] hover:bg-[var(--bg-hover)]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]",
+              "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[var(--bg-secondary)]"
+            )}
+          >
+            <NodeTypeIcon className="h-4 w-4" aria-hidden="true" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="min-w-[180px] bg-[var(--surface)]"
+          >
+            <DropdownMenuRadioGroup
+              value={chapterTypeValue}
+              onValueChange={handleChapterTypeChange}
+            >
+              {chapterTypeOptions.map((option) => {
+                const OptionIcon =
+                  nodeTypeIcons[getNodeVariant(option.value || null, null)] ??
+                  FileText;
+                const isSelected = option.value === chapterTypeValue;
+                return (
+                  <DropdownMenuRadioItem
+                    key={option.value || "default"}
+                    value={option.value}
+                    className="pl-8"
+                  >
+                    <OptionIcon
+                      className={cn(
+                        "h-4 w-4",
+                        isSelected ? "text-[var(--warning)]" : "text-[var(--muted)]"
+                      )}
+                      aria-hidden="true"
+                    />
+                    <span>{option.label}</span>
+                  </DropdownMenuRadioItem>
+                );
+              })}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            aria-label="Statistics tracking"
+            aria-pressed={statisticsEnabled}
+            title={disabledReason ?? "Statistics tracking"}
+            disabled={controlsDisabled}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleStatisticsToggle();
+            }}
+            className={iconButtonClass(statisticsEnabled)}
+          >
+            <BarChart3 className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            aria-label="Node variable"
+            aria-pressed={nodeVariableEnabled}
+            title={disabledReason ?? "Node variable"}
+            disabled={controlsDisabled}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleNodeVariableToggle();
+            }}
+            className={iconButtonClass(nodeVariableEnabled)}
+          >
+            <FunctionSquare className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       <div

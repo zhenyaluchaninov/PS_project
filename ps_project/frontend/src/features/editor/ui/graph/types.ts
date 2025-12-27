@@ -18,6 +18,8 @@ export type GraphNodeData = {
   nodeId: number;
   chapterType: string | null;
   variant: NodeVariant;
+  statisticsEnabled: boolean;
+  nodeVariableEnabled: boolean;
   badges: Array<{ key: string; label: string; tone: "flag" | "media" }>;
   playState?: PlayTraceState;
 };

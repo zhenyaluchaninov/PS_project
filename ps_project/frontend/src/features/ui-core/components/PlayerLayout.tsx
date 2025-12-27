@@ -85,7 +85,7 @@ export function PlayerLayout({
     <div
       className={cn("ps-player", className)}
       data-props={dataProps?.player || undefined}
-      data-align={layout?.verticalAlign ?? "top"}
+      data-align={layout?.verticalAlign ?? "center"}
       data-hide-bg={hideBackground ? "true" : undefined}
       style={rootStyle}
     >

@@ -174,6 +174,8 @@ export function buildGraphNodes(
         nodeId: node.nodeId,
         chapterType,
         variant,
+        statisticsEnabled: hasStatistics,
+        nodeVariableEnabled: hasNodeVariable,
         badges,
       },
       selected: existing?.selected ?? false,
