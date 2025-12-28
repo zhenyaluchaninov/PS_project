@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import sanitizeHtml from "sanitize-html";
 import MarkdownIt from "markdown-it";
 
@@ -17,6 +17,7 @@ const sanitize = (value: string) =>
     allowedTags: [
       "p",
       "strong",
+      "b",
       "em",
       "a",
       "ul",
@@ -38,6 +39,9 @@ const sanitize = (value: string) =>
       a: ["href", "title", "target", "rel"],
       span: ["style"],
       p: ["style"],
+      h1: ["style"],
+      h2: ["style"],
+      blockquote: ["style"],
       code: ["class"],
       pre: ["class"],
     },
@@ -76,7 +80,7 @@ type LegacyContentProps = {
   className?: string;
 };
 
-export function LegacyContent({
+export const LegacyContent = memo(function LegacyContent({
   value,
   allowMarkdown = true,
   className,
@@ -91,4 +95,5 @@ export function LegacyContent({
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
-}
+});
+LegacyContent.displayName = "LegacyContent";

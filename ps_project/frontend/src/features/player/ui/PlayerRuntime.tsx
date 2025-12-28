@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   useRef,
@@ -459,6 +460,95 @@ const readLegacyAnimationSettings = (
   };
 };
 
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const normalizeLegacyHtml = (value: string) =>
+  value.replace(/font-size:\s*(\d+(?:\.\d+)?)pt/gi, (match, num) => {
+    const parsed = parseInt(num, 10);
+    if (!Number.isFinite(parsed)) return match;
+    return `font-size: ${(parsed / 10).toFixed(3)}em`;
+  });
+
+const hasEditorVersion = (props?: Record<string, unknown> | null): boolean => {
+  if (!props) return false;
+  const raw = readRawProp(props, [
+    "editorVersion",
+    "editor_version",
+    "editorversion",
+  ]);
+  const primary = Array.isArray(raw) ? raw[0] : raw;
+  if (primary === undefined || primary === null) return false;
+  const value = String(primary).trim();
+  return value !== "" && value !== "0";
+};
+
+const resolveChapterType = (props?: Record<string, unknown> | null): string => {
+  if (!props) return "";
+  const raw = readRawProp(props, [
+    "settings_chapterType",
+    "settingsChapterType",
+    "chapterType",
+    "chapter_type",
+  ]);
+  return tokenize(raw)[0]?.toLowerCase() ?? "";
+};
+
+const buildLegacyNodeText = (
+  node: NodeModel,
+  nodeProps: Record<string, unknown>
+) => {
+  const rawText = node.text ?? "";
+  const title = (node.title ?? "").trim();
+  const hasImage = Boolean(node.image?.url);
+  const hasContent = rawText.trim().length > 0;
+  let content = rawText;
+  let usedFallbackTitle = false;
+
+  if (!hasContent && !hasImage) {
+    content = title || "Här finns inget innehåll";
+    usedFallbackTitle = true;
+  }
+
+  const chapterType = resolveChapterType(nodeProps);
+  if (chapterType === "start-node") {
+    if (title) {
+      return `<h1 class="title">${escapeHtml(title)}</h1>`;
+    }
+    return content;
+  }
+
+  if (chapterType === "chapter-node" || chapterType === "chapter-node-plain") {
+    if (!title) return content;
+    const style =
+      chapterType === "chapter-node-plain" ? ' style="border-bottom: none;"' : "";
+    const heading = `<h1 class="title"${style}>${escapeHtml(title)}</h1>`;
+    if (!hasContent && usedFallbackTitle && content === title) {
+      return heading;
+    }
+    return content ? `${heading}\n${content}` : heading;
+  }
+
+  return content;
+};
+
+const buildLegacyContent = (
+  node: NodeModel,
+  nodeProps: Record<string, unknown>
+) => {
+  const value = buildLegacyNodeText(node, nodeProps);
+  const allowMarkdown = !hasEditorVersion(nodeProps);
+  return {
+    value: allowMarkdown ? value : normalizeLegacyHtml(value),
+    allowMarkdown,
+  };
+};
+
 const buildAudioSourceConfig = (
   node?: NodeModel | null,
   adventure?: AdventureModel | null
@@ -658,6 +748,7 @@ export function PlayerRuntime({
   const playerRootRef = useRef<HTMLDivElement | null>(null);
   const runningAnimationsRef = useRef<Animation[]>([]);
   const previousBackgroundIdentityRef = useRef<string | null>(null);
+  const animationRetryRef = useRef(0);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => {
     if (typeof window === "undefined" || !window.matchMedia) return false;
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -969,18 +1060,24 @@ export function PlayerRuntime({
     setScrollyReturnNonce((prev) => prev + 1);
   };
 
+  const mergedNodeProps = useMemo(
+    () => ({
+      ...parsePropsInput(activeNode?.rawProps),
+      ...parsePropsInput(activeNode?.props),
+    }),
+    [activeNode?.rawProps, activeNode?.props]
+  );
   const propsResult = useMemo(
     () =>
       buildPropsStyle({
         adventureProps: adventure?.props ?? undefined,
-        nodeProps: activeNode?.rawProps ?? activeNode?.props ?? undefined,
+        nodeProps: mergedNodeProps,
         overrideHighContrast: preferences.highContrast,
         overrideHideBackground: preferences.hideBackground,
       }),
     [
       adventure?.props,
-      activeNode?.props,
-      activeNode?.rawProps,
+      mergedNodeProps,
       preferences.highContrast,
       preferences.hideBackground,
     ]
@@ -988,12 +1085,8 @@ export function PlayerRuntime({
 
   const { style: propsStyle, flags, dataProps, layout, media, typography } = propsResult;
   const animationSettings = useMemo(
-    () =>
-      readLegacyAnimationSettings(
-        adventure?.props,
-        activeNode?.rawProps ?? activeNode?.props
-      ),
-    [adventure?.props, activeNode?.props, activeNode?.rawProps]
+    () => readLegacyAnimationSettings(adventure?.props, mergedNodeProps),
+    [adventure?.props, mergedNodeProps]
   );
   const soundEnabled = preferences.soundEnabled ?? true;
   const effectiveSoundEnabled =
@@ -1343,8 +1436,9 @@ export function PlayerRuntime({
     runningAnimationsRef.current = [];
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     cancelLegacyAnimations();
+    animationRetryRef.current = 0;
 
     const root = playerRootRef.current;
     const currentBackground = backgroundIdentity;
@@ -1353,20 +1447,21 @@ export function PlayerRuntime({
       return;
     }
 
-    const prose =
-      root.querySelector<HTMLElement>(".ps-player__text .ps-player__prose") ??
-      root.querySelector<HTMLElement>(".ps-player__prose");
-    const nav = root.querySelector<HTMLElement>(".ps-nav");
-    const media = root.querySelector<HTMLElement>(".ps-player__media");
-
     const reduceMotionQuery =
       typeof window !== "undefined" &&
       window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     if (!shouldAnimateLegacy || reduceMotionQuery) {
+      const prose =
+        root.querySelector<HTMLElement>(".ps-player__text .ps-player__prose") ??
+        root.querySelector<HTMLElement>(".ps-player__prose");
+      const nav = root.querySelector<HTMLElement>(".ps-nav");
+      const media = root.querySelector<HTMLElement>(".ps-player__media");
       nav?.style.removeProperty("opacity");
       media?.style.removeProperty("opacity");
       if (prose) {
-        prose.querySelectorAll<HTMLElement>("p, h1, h2").forEach((element) => {
+        prose
+          .querySelectorAll<HTMLElement>("p, h1, h2, ul, ol, blockquote, pre")
+          .forEach((element) => {
           element.style.removeProperty("opacity");
         });
         prose.style.removeProperty("opacity");
@@ -1407,47 +1502,83 @@ export function PlayerRuntime({
       runningAnimationsRef.current.push(animation);
     };
 
-    const headings = prose ? Array.from(prose.querySelectorAll<HTMLElement>("h1, h2")) : [];
-    headings.forEach((heading) => {
-      heading.style.opacity = "0";
-      animateElement(heading, animationDelay, baseOptions.duration, true);
-    });
-
-    const paragraphs = prose ? Array.from(prose.querySelectorAll<HTMLElement>("p")) : [];
-    paragraphs.forEach((paragraph, index) => {
-      paragraph.style.opacity = "0";
-      animateElement(
-        paragraph,
-        animationDelay + index * paragraphDelay,
-        baseOptions.duration,
-        true
+    const runAnimations = (mode: "initial" | "retry") => {
+      const prose =
+        root.querySelector<HTMLElement>(".ps-player__text .ps-player__prose") ??
+        root.querySelector<HTMLElement>(".ps-player__prose");
+      const nav = root.querySelector<HTMLElement>(".ps-nav");
+      const media = root.querySelector<HTMLElement>(".ps-player__media");
+      const proseChildren = prose ? Array.from(prose.children) : [];
+      const headings = proseChildren.filter((child): child is HTMLElement =>
+        child instanceof HTMLElement && child.matches("h1, h2")
       );
-    });
-
-    if (nav) {
-      const navigationDelaySeconds =
-        animationDelay + paragraphs.length * paragraphDelay + navigationDelay;
-      animateElement(nav, navigationDelaySeconds);
-    }
-
-    if (prose && headings.length === 0 && paragraphs.length === 0) {
-      prose.style.opacity = "0";
-      animateElement(prose, animationDelay, baseOptions.duration, true);
-    }
-
-    const previousBackground = previousBackgroundIdentityRef.current;
-    const hasBackgroundChange =
-      Boolean(currentBackground) && currentBackground !== previousBackground;
-    if (hasBackgroundChange && media && !flags.hideBackground) {
-      animateElement(
-        media,
-        0,
-        Math.max(0, backgroundFadeSeconds) * 1000
+      const paragraphs = proseChildren.filter((child): child is HTMLElement =>
+        child instanceof HTMLElement &&
+        child.matches("p, ul, ol, blockquote, pre")
       );
+
+      headings.forEach((heading) => {
+        heading.style.opacity = "0";
+        animateElement(heading, animationDelay, baseOptions.duration, true);
+      });
+
+      paragraphs.forEach((paragraph, index) => {
+        paragraph.style.opacity = "0";
+        animateElement(
+          paragraph,
+          animationDelay + index * paragraphDelay,
+          baseOptions.duration,
+          true
+        );
+      });
+
+      if (prose && headings.length === 0 && paragraphs.length === 0) {
+        prose.style.opacity = "0";
+        animateElement(prose, animationDelay, baseOptions.duration, true);
+      }
+
+      if (mode === "initial" && nav) {
+        const navigationDelaySeconds =
+          animationDelay + paragraphs.length * paragraphDelay + navigationDelay;
+        animateElement(nav, navigationDelaySeconds);
+      }
+
+      if (mode === "initial") {
+        const previousBackground = previousBackgroundIdentityRef.current;
+        const hasBackgroundChange =
+          Boolean(currentBackground) && currentBackground !== previousBackground;
+        if (hasBackgroundChange && media && !flags.hideBackground) {
+          animateElement(
+            media,
+            0,
+            Math.max(0, backgroundFadeSeconds) * 1000
+          );
+        }
+      }
+
+      return {
+        prose,
+        textElement: headings[0] ?? paragraphs[0] ?? null,
+      };
+    };
+
+    const { textElement: debugTextElement } = runAnimations("initial");
+    let stabilityTimer: ReturnType<typeof setTimeout> | null = null;
+    if (debugTextElement) {
+      stabilityTimer = setTimeout(() => {
+        const connected = debugTextElement.isConnected;
+        if (!connected && animationRetryRef.current === 0) {
+          animationRetryRef.current = 1;
+          runAnimations("retry");
+        }
+      }, 50);
     }
 
     previousBackgroundIdentityRef.current = currentBackground;
-    return cancelLegacyAnimations;
+    return () => {
+      if (stabilityTimer) clearTimeout(stabilityTimer);
+      cancelLegacyAnimations();
+    };
   }, [
     animationSettings,
     backgroundIdentity,
@@ -1713,11 +1844,19 @@ export function PlayerRuntime({
     isActive: boolean
   ) => {
     if (!node) return null;
+    const nodeProps = {
+      ...parsePropsInput(node.rawProps),
+      ...parsePropsInput(node.props),
+    };
+    const legacyContent = buildLegacyContent(node, nodeProps);
     return (
       <>
         <div className="ps-player__text">
           <div className="ps-player__card">
-            <NodeContent nodeText={node.text ?? ""} />
+            <NodeContent
+              nodeText={legacyContent.value}
+              allowMarkdown={legacyContent.allowMarkdown}
+            />
 
             {isActive && (nodeKind === "reference" || nodeKind === "reference-tab") ? (
               <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/15 bg-black/20 p-3">
@@ -1841,19 +1980,28 @@ export function StaticPlayerPreview({
   className?: string;
 }) {
   const adventureProps = adventure.props as Record<string, unknown> | null | undefined;
-  const rawProps =
-    node.rawProps ?? (node.props as Record<string, unknown> | null) ?? null;
+  const mergedNodeProps = useMemo(
+    () => ({
+      ...parsePropsInput(node.rawProps),
+      ...parsePropsInput(node.props),
+    }),
+    [node.rawProps, node.props]
+  );
 
   const propsResult = useMemo(
     () =>
       buildPropsStyle({
         adventureProps: adventure.props ?? undefined,
-        nodeProps: rawProps ?? node.props ?? undefined,
+        nodeProps: mergedNodeProps,
       }),
-    [adventure.props, node.props, rawProps]
+    [adventure.props, mergedNodeProps]
   );
 
   const { style: propsStyle, flags, dataProps, layout, media, typography } = propsResult;
+  const legacyContent = useMemo(
+    () => buildLegacyContent(node, mergedNodeProps),
+    [node, mergedNodeProps]
+  );
 
   useLoadAdventureFonts(adventure.props?.fontList);
 
@@ -1884,8 +2032,8 @@ export function StaticPlayerPreview({
   }, [menuShortcuts]);
 
   const navigationConfig = useMemo(
-    () => buildNavigationConfig(rawProps),
-    [rawProps]
+    () => buildNavigationConfig(mergedNodeProps),
+    [mergedNodeProps]
   );
 
   const linksBySource = useMemo(
@@ -2097,7 +2245,10 @@ export function StaticPlayerPreview({
       <>
         <div className="ps-player__text">
           <div className="ps-player__card">
-            <NodeContent nodeText={node.text ?? ""} />
+            <NodeContent
+              nodeText={legacyContent.value}
+              allowMarkdown={legacyContent.allowMarkdown}
+            />
           </div>
         </div>
         <div className="ps-player__nav">
@@ -2763,9 +2914,19 @@ function NavArrowButton({
   );
 }
 
-function NodeContent({ nodeText }: { nodeText: string }) {
+function NodeContent({
+  nodeText,
+  allowMarkdown,
+}: {
+  nodeText: string;
+  allowMarkdown: boolean;
+}) {
   const prose = nodeText ? (
-    <LegacyContent value={nodeText} className="ps-player__prose" />
+    <LegacyContent
+      value={nodeText}
+      allowMarkdown={allowMarkdown}
+      className="ps-player__prose"
+    />
   ) : (
     <p className="text-sm opacity-70">No content.</p>
   );

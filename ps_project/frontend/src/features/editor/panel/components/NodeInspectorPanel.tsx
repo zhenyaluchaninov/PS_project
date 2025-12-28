@@ -389,6 +389,19 @@ const getScrollSpeed = (node: NodeModel, draft?: BulkDraft): number => {
   return Number.isFinite(parsed) ? parsed : SCROLL_SPEED_DEFAULT;
 };
 
+const hasEditorVersion = (node: NodeModel, draft?: BulkDraft): boolean => {
+  const value =
+    readNodePropValue(node, "editorVersion", draft) ??
+    readNodePropValue(node, "editor_version", draft) ??
+    readNodePropValue(node, "editorversion", draft);
+  if (typeof value === "string") {
+    return value.trim() !== "" && value.trim() !== "0";
+  }
+  const tokens = readStringArray(value);
+  const token = tokens[0] ?? "";
+  return token.trim() !== "" && token.trim() !== "0";
+};
+
 const getNodeChapterType = (node: NodeModel, draft?: BulkDraft): string => {
   const primaryProps = (node.props as Record<string, unknown> | null) ?? {};
   const fallbackProps = node.rawProps ?? {};
@@ -454,6 +467,10 @@ export function NodeInspectorPanel({
     bulkActive && stagedTitle ? String(stagedTitle.value ?? "") : node.title ?? "";
   const textValue =
     bulkActive && stagedText ? String(stagedText.value ?? "") : node.text ?? "";
+  const editorVersionRef = useRef(hasEditorVersion(node, bulkDraft));
+  useEffect(() => {
+    editorVersionRef.current = hasEditorVersion(node, bulkDraft);
+  }, [node, bulkDraft]);
   const isBulkFieldStaged = (paths: string | string[]) => {
     if (!bulkActive) return false;
     const pathList = Array.isArray(paths) ? paths : [paths];
@@ -490,6 +507,10 @@ export function NodeInspectorPanel({
         kind: "nodeText",
       });
       return;
+    }
+    if (!editorVersionRef.current) {
+      onNodePropChange("editorVersion", "2");
+      editorVersionRef.current = true;
     }
     onTextChange(text);
   };
@@ -1215,6 +1236,7 @@ export function NodeInspectorPanel({
                             onChange={handleTextChange}
                             placeholder="Write the node content..."
                             readOnly={readOnly}
+                            fontList={fontList}
                           />
                         </BulkField>
                         <div className="space-y-4 pt-2">

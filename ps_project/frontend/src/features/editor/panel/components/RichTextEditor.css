@@ -1,0 +1,52 @@
+.ps-richtext-uniform {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ps-richtext-uniform:focus,
+.ps-richtext-uniform:focus-visible,
+.ps-richtext-uniform.ProseMirror-focused {
+  outline: none;
+}
+
+.ps-richtext-uniform [style*="font-size"] {
+  font-size: inherit !important;
+}
+
+.ps-richtext-uniform h1,
+.ps-richtext-uniform h2,
+.ps-richtext-uniform p,
+.ps-richtext-uniform li,
+.ps-richtext-uniform blockquote,
+.ps-richtext-uniform code,
+.ps-richtext-uniform pre,
+.ps-richtext-uniform span {
+  font-size: inherit;
+}
+
+.ps-richtext-uniform blockquote {
+  font-style: italic;
+  color: var(--text-secondary);
+  margin: 6px 0;
+  padding: 0;
+}
+
+.ps-richtext-uniform blockquote > p {
+  margin: 0;
+}
+
+.ps-richtext-uniform blockquote > p + p {
+  margin-top: 0.35em;
+}
+
+.ps-richtext-uniform blockquote > p:first-child::before {
+  content: "\201C";
+  margin-right: 0.35em;
+  opacity: 0.8;
+}
+
+.ps-richtext-uniform blockquote > p:last-child::after {
+  content: "\201D";
+  margin-left: 0.35em;
+  opacity: 0.8;
+}

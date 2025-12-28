@@ -72,11 +72,127 @@
   margin-top: clamp(10px, 1vw, 16px);
 }
 
-.ps-player--legacy-skin .ps-player__prose p,
-.ps-player--legacy-skin .ps-player__prose h1,
+.ps-player--legacy-skin .ps-player__prose {
+  font-size: inherit;
+  line-height: inherit;
+  font-family: inherit;
+  font-synthesis: weight style;
+  color: inherit;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  --tw-prose-body: currentColor;
+  --tw-prose-headings: currentColor;
+  --tw-prose-bold: currentColor;
+  --tw-prose-links: var(--player-accent, currentColor);
+  --tw-prose-bullets: currentColor;
+  --tw-prose-counters: currentColor;
+}
+
+.ps-player--legacy-skin .ps-player__prose > * {
+  margin: 0;
+}
+
+.ps-player--legacy-skin .ps-player__prose > p,
+.ps-player--legacy-skin .ps-player__prose > h1,
+.ps-player--legacy-skin .ps-player__prose > h2,
+.ps-player--legacy-skin .ps-player__prose > ul,
+.ps-player--legacy-skin .ps-player__prose > ol,
+.ps-player--legacy-skin .ps-player__prose > blockquote,
+.ps-player--legacy-skin .ps-player__prose > pre {
+  background: var(--player-text-bg, transparent);
+  padding: 0.65em 0.9em;
+  border-radius: 0;
+}
+
+.ps-player--legacy-skin .ps-player__prose > p:first-child,
+.ps-player--legacy-skin .ps-player__prose > h1:first-child,
+.ps-player--legacy-skin .ps-player__prose > h2:first-child,
+.ps-player--legacy-skin .ps-player__prose > ul:first-child,
+.ps-player--legacy-skin .ps-player__prose > ol:first-child,
+.ps-player--legacy-skin .ps-player__prose > blockquote:first-child,
+.ps-player--legacy-skin .ps-player__prose > pre:first-child {
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+}
+
+.ps-player--legacy-skin .ps-player__prose > p:last-child,
+.ps-player--legacy-skin .ps-player__prose > h1:last-child,
+.ps-player--legacy-skin .ps-player__prose > h2:last-child,
+.ps-player--legacy-skin .ps-player__prose > ul:last-child,
+.ps-player--legacy-skin .ps-player__prose > ol:last-child,
+.ps-player--legacy-skin .ps-player__prose > blockquote:last-child,
+.ps-player--legacy-skin .ps-player__prose > pre:last-child {
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.ps-player--legacy-skin .ps-player__prose ul,
+.ps-player--legacy-skin .ps-player__prose ol {
+  padding-left: 1.25em;
+  list-style-position: outside;
+}
+
+.ps-player--legacy-skin .ps-player__prose ul {
+  list-style-type: disc;
+}
+
+.ps-player--legacy-skin .ps-player__prose ol {
+  list-style-type: decimal;
+}
+
+.ps-player--legacy-skin .ps-player__prose li {
+  margin: 0.15em 0;
+}
+
+.ps-player--legacy-skin .ps-player__prose a {
+  color: currentColor;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ps-player--legacy-skin .ps-player__prose blockquote {
+  font-style: italic;
+  color: currentColor;
+  opacity: 0.85;
+  margin: 0;
+}
+
+.ps-player--legacy-skin .ps-player__prose blockquote > p {
+  margin: 0;
+}
+
+.ps-player--legacy-skin .ps-player__prose blockquote > p + p {
+  margin-top: 0.35em;
+}
+
+.ps-player--legacy-skin .ps-player__prose blockquote > p:first-child::before {
+  content: "\201C";
+  margin-right: 0.35em;
+  opacity: 0.85;
+}
+
+.ps-player--legacy-skin .ps-player__prose blockquote > p:last-child::after {
+  content: "\201D";
+  margin-left: 0.35em;
+  opacity: 0.85;
+}
+
+.ps-player--legacy-skin .ps-player__prose h1 {
+  font-size: 1.5em;
+  font-weight: 700;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
 .ps-player--legacy-skin .ps-player__prose h2 {
-  padding: 0.45em 0.75em;
-  border-radius: 8px;
+  font-size: 1.25em;
+  font-weight: 600;
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .ps-player--legacy-skin .ps-nav {
