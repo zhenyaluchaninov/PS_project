@@ -6,6 +6,42 @@ import { pushHistory } from "./historySlice";
 type EditorSlice = StateCreator<EditorState, [], [], Partial<EditorState>>;
 
 export const nodeOpsSlice: EditorSlice = (set, get) => ({
+  updateNodeImageUrl: (nodeId, url) => {
+    if (get().readOnly) return;
+    const withCacheBust = (value: string | null) => {
+      if (!value) return null;
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      const [base, hash] = trimmed.split("#");
+      const [path, query] = base.split("?");
+      const params = new URLSearchParams(query ?? "");
+      params.set("v", String(Date.now()));
+      const nextBase = `${path}?${params.toString()}`;
+      return hash ? `${nextBase}#${hash}` : nextBase;
+    };
+
+    set((state) => {
+      if (!state.adventure) return {};
+      const nodeIndex = state.adventure.nodes.findIndex(
+        (node) => node.nodeId === nodeId
+      );
+      if (nodeIndex === -1) return {};
+      const node = state.adventure.nodes[nodeIndex];
+      const nextUrl = withCacheBust(url);
+      if (node.image.url === nextUrl) return {};
+      const nextNodes = [...state.adventure.nodes];
+      nextNodes[nodeIndex] = {
+        ...node,
+        image: { ...node.image, url: nextUrl },
+        changed: true,
+      };
+      return {
+        adventure: { ...state.adventure, nodes: nextNodes },
+        dirty: true,
+        undoStack: pushHistory(state),
+      };
+    });
+  },
   updateNodeTitle: (nodeId, title) => {
     if (get().readOnly) return;
     set((state) => {
@@ -37,30 +73,6 @@ export const nodeOpsSlice: EditorSlice = (set, get) => ({
       if (node.text === text) return {};
       const nextNodes = [...state.adventure.nodes];
       nextNodes[nodeIndex] = { ...node, text, changed: true };
-      return {
-        adventure: { ...state.adventure, nodes: nextNodes },
-        dirty: true,
-        undoStack: pushHistory(state),
-      };
-    });
-  },
-  updateNodeImageUrl: (nodeId, url) => {
-    if (get().readOnly) return;
-    set((state) => {
-      if (!state.adventure) return {};
-      const nodeIndex = state.adventure.nodes.findIndex(
-        (node) => node.nodeId === nodeId
-      );
-      if (nodeIndex === -1) return {};
-      const node = state.adventure.nodes[nodeIndex];
-      const nextUrl = url ?? null;
-      if (node.image.url === nextUrl) return {};
-      const nextNodes = [...state.adventure.nodes];
-      nextNodes[nodeIndex] = {
-        ...node,
-        image: { ...node.image, url: nextUrl },
-        changed: true,
-      };
       return {
         adventure: { ...state.adventure, nodes: nextNodes },
         dirty: true,

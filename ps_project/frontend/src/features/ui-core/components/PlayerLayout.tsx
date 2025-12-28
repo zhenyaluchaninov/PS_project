@@ -14,6 +14,8 @@ type PlayerLayoutProps = {
     muted?: boolean;
     controls?: boolean;
     loop?: boolean;
+    autoPlay?: boolean;
+    preload?: "auto" | "metadata" | "none";
     videoRef?: (node: HTMLVideoElement | null) => void;
   };
   hideBackground?: boolean;
@@ -84,6 +86,10 @@ export function PlayerLayout({
     ...(backgroundSize ? { ["--player-bg-size" as keyof CSSProperties]: backgroundSize } : {}),
   };
 
+  const encodedBackgroundImage = backgroundImage
+    ? `url("${encodeURI(backgroundImage)}")`
+    : "none";
+
   return (
     <div
       className={cn("ps-player", className)}
@@ -108,9 +114,9 @@ export function PlayerLayout({
             controls={backgroundVideo.controls ?? false}
             ref={backgroundVideo.videoRef}
             playsInline
-            autoPlay
+            autoPlay={backgroundVideo.autoPlay ?? true}
             loop={backgroundVideo.loop ?? true}
-            preload="auto"
+            preload={backgroundVideo.preload ?? "auto"}
             aria-hidden={backgroundVideo.controls ? undefined : true}
             data-interactive={backgroundVideo.controls ? "true" : undefined}
           >
@@ -134,7 +140,7 @@ export function PlayerLayout({
             className="ps-player__bg-image"
             data-props={dataProps?.backgroundImage || undefined}
             style={{
-              backgroundImage: backgroundImage ? `url(${backgroundImage})` : "none",
+              backgroundImage: encodedBackgroundImage,
             }}
             aria-hidden
           />

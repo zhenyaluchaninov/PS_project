@@ -333,6 +333,36 @@ const resolveAudioCandidates = (
   rawValue: string | null
 ) => resolveUploadCandidates(adventureSlug, adventureViewSlug, rawValue);
 
+const isVideoUrl = (value?: string | null): boolean =>
+  typeof value === "string" && value.toLowerCase().includes(".mp4");
+
+const resolveNodeImageUrl = (
+  node?: NodeModel | null,
+  adventure?: AdventureModel | null
+): string | null => {
+  if (!node) return null;
+  const propsRecord = node.props as Record<string, unknown> | null | undefined;
+  const rawCandidate =
+    node.image?.url ??
+    pickFirstString(readRawProp(node.rawProps, ["image_url", "imageUrl"])) ??
+    pickFirstString(readRawProp(propsRecord, ["image_url", "imageUrl"]));
+  if (!rawCandidate) return null;
+  const candidates = resolveUploadCandidates(
+    adventure?.slug,
+    adventure?.viewSlug,
+    rawCandidate
+  );
+  return candidates[0] ?? rawCandidate;
+};
+
+const resolveNodeVideoSource = (
+  node?: NodeModel | null,
+  imageUrl?: string | null
+): string | null => {
+  if (imageUrl && isVideoUrl(imageUrl)) return imageUrl;
+  return resolveVideoSource(node);
+};
+
 type NavItem = { kind: "link"; link: LinkModel } | { kind: "current" };
 type NavigationButton = {
   key: string;
@@ -505,7 +535,9 @@ const buildLegacyNodeText = (
 ) => {
   const rawText = node.text ?? "";
   const title = (node.title ?? "").trim();
-  const hasImage = Boolean(node.image?.url);
+  const hasImage = Boolean(
+    node.image?.url ?? pickFirstString(readRawProp(nodeProps, ["image_url", "imageUrl"]))
+  );
   const hasContent = rawText.trim().length > 0;
   let content = rawText;
   let usedFallbackTitle = false;
@@ -1374,13 +1406,10 @@ export function PlayerRuntime({
       ? resolveReferenceUrl(currentNode)
       : null;
 
-  const videoSource = resolveVideoSource(activeNode);
+  const resolvedImageUrl = resolveNodeImageUrl(activeNode, adventure);
+  const videoSource = resolveNodeVideoSource(activeNode, resolvedImageUrl);
   const isVideoNode = activeNodeKind === "video";
-  const backgroundImage = isVideoNode
-    ? activeNode?.image?.url ?? null
-    : videoSource
-      ? null
-      : activeNode?.image?.url ?? null;
+  const backgroundImage = videoSource ? null : resolvedImageUrl;
   const backgroundVideo = useMemo(
     () =>
       videoSource
@@ -2160,12 +2189,19 @@ export function StaticPlayerPreview({
     className
   );
 
-  const videoSource = resolveVideoSource(node);
-  const backgroundImage = isVideoNode
-    ? node.image?.url ?? null
-    : videoSource
-      ? null
-      : node.image?.url ?? null;
+  const resolvedImageUrl = resolveNodeImageUrl(node, adventure);
+  const videoSource = resolveNodeVideoSource(node, resolvedImageUrl);
+  const backgroundImage = videoSource ? null : resolvedImageUrl;
+  const backgroundVideo = videoSource
+    ? {
+        src: videoSource,
+        muted: true,
+        controls: false,
+        loop: false,
+        autoPlay: false,
+        preload: "metadata" as const,
+      }
+    : undefined;
 
   const contentDataProps = [
     dataProps.player_container,
@@ -2223,6 +2259,7 @@ export function StaticPlayerPreview({
       style={propsStyle}
       overlayColor={flags.hideBackground ? null : typography.overlayColor ?? undefined}
       backgroundImage={backgroundImage}
+      backgroundVideo={backgroundVideo}
       hideBackground={flags.hideBackground}
       mediaFilter={media.filter}
       objectFit={media.objectFit}
