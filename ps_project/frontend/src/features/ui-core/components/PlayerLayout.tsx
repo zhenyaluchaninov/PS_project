@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, ReactNode, Ref } from "react";
 import { cn } from "@/lib/utils";
 import "./player-layout.css";
 
@@ -36,6 +36,7 @@ type PlayerLayoutProps = {
   };
   className?: string;
   style?: CSSProperties;
+  rootRef?: Ref<HTMLDivElement>;
 };
 
 export function PlayerLayout({
@@ -53,6 +54,7 @@ export function PlayerLayout({
   layout,
   className,
   style,
+  rootRef,
 }: PlayerLayoutProps) {
   const containerStyle: CSSProperties = {
     ...(layout?.textAlign ? { textAlign: layout.textAlign } : {}),
@@ -89,6 +91,7 @@ export function PlayerLayout({
       data-align={layout?.verticalAlign ?? "center"}
       data-hide-bg={hideBackground ? "true" : undefined}
       style={rootStyle}
+      ref={rootRef}
     >
       <div
         className="ps-player__media"

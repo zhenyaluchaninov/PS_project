@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { LegacyContent } from "@/features/ui-core/components/LegacyContent";
 import { PlayerLayout } from "@/features/ui-core/components/PlayerLayout";
-import { buildPropsStyle } from "@/features/ui-core/props";
+import { buildPropsStyle, type PropsInput } from "@/features/ui-core/props";
 import { Button } from "@/features/ui-core/primitives";
 import { toastError, toastInfo } from "@/features/ui-core/toast";
 import { trackNodeVisit } from "@/features/state/api/adventures";
@@ -190,6 +190,19 @@ const MENU_OPTION_VALUES = ["back", "home", "menu", "sound"] as const;
 
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+const parsePropsInput = (input?: PropsInput | null): Record<string, unknown> => {
+  if (!input) return {};
+  if (typeof input === "string") {
+    try {
+      const parsed = JSON.parse(input) as unknown;
+      return isPlainRecord(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return isPlainRecord(input) ? input : {};
+};
 
 const readMenuOptions = (props?: Record<string, unknown> | null): string[] => {
   if (!props) return [...MENU_OPTION_VALUES];
@@ -401,6 +414,51 @@ const pickFirstString = (value: unknown): string | null => {
   return null;
 };
 
+const resolveParagraphDelay = (value?: string | null): number => {
+  const suffix = value?.split("-")[1]?.toLowerCase() ?? "";
+  switch (suffix) {
+    case "faster":
+      return 1.0;
+    case "paragraphs":
+      return 2.0;
+    case "slower":
+      return 3.0;
+    case "slowerer":
+      return 4.0;
+    case "slowest":
+      return 5.0;
+    default:
+      return 0.0;
+  }
+};
+
+const readLegacyAnimationSettings = (
+  adventureProps?: PropsInput,
+  nodeProps?: PropsInput
+) => {
+  const merged = {
+    ...parsePropsInput(adventureProps),
+    ...parsePropsInput(nodeProps),
+  };
+  const animationDelay =
+    coerceSeconds(readRawProp(merged, ["animation_delay"])) ?? 0;
+  const navigationDelay =
+    coerceSeconds(readRawProp(merged, ["playerNavigation_delay"])) ?? 0;
+  const backgroundFadeSeconds =
+    coerceSeconds(readRawProp(merged, ["animation_backgroundfade"])) ?? 1;
+  const animationToken = pickFirstString(
+    readRawProp(merged, ["player_container.animation"])
+  );
+  const paragraphDelay = resolveParagraphDelay(animationToken);
+
+  return {
+    animationDelay,
+    navigationDelay,
+    backgroundFadeSeconds,
+    paragraphDelay,
+  };
+};
+
 const buildAudioSourceConfig = (
   node?: NodeModel | null,
   adventure?: AdventureModel | null
@@ -597,6 +655,13 @@ export function PlayerRuntime({
   const [viewportActiveNodeId, setViewportActiveNodeId] = useState<number | null>(null);
   const [scrollyReturnNonce, setScrollyReturnNonce] = useState(0);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const playerRootRef = useRef<HTMLDivElement | null>(null);
+  const runningAnimationsRef = useRef<Animation[]>([]);
+  const previousBackgroundIdentityRef = useRef<string | null>(null);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  });
   const [subtitleUrl, setSubtitleUrl] = useState<string | null>(null);
   const [subtitleStatus, setSubtitleStatus] = useState<SubtitleStatus>({
     state: "idle",
@@ -612,6 +677,20 @@ export function PlayerRuntime({
       "ontouchstart" in window ||
       (navigator?.maxTouchPoints ?? 0) > 0
     );
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => {
+      setPrefersReducedMotion(media.matches);
+    };
+    update();
+    if ("addEventListener" in media) {
+      media.addEventListener("change", update);
+      return () => media.removeEventListener("change", update);
+    }
+    media.addListener(update);
+    return () => media.removeListener(update);
   }, []);
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const [audioDebug, setAudioDebug] = useState<AudioDebugSnapshot | null>(null);
@@ -908,6 +987,14 @@ export function PlayerRuntime({
   );
 
   const { style: propsStyle, flags, dataProps, layout, media, typography } = propsResult;
+  const animationSettings = useMemo(
+    () =>
+      readLegacyAnimationSettings(
+        adventure?.props,
+        activeNode?.rawProps ?? activeNode?.props
+      ),
+    [adventure?.props, activeNode?.props, activeNode?.rawProps]
+  );
   const soundEnabled = preferences.soundEnabled ?? true;
   const effectiveSoundEnabled =
     soundEnabled && mutedMenuNodeIdRef.current !== currentNodeId;
@@ -1241,6 +1328,134 @@ export function PlayerRuntime({
       backgroundVideoRef.current = null;
     }
   }, [backgroundVideo]);
+
+  const backgroundIdentity = backgroundVideo?.src ?? backgroundImage ?? "";
+  const shouldAnimateLegacy =
+    !flags.highContrast && !prefersReducedMotion && !isScrollytell && !isSwipeNav;
+  const cancelLegacyAnimations = useCallback(() => {
+    runningAnimationsRef.current.forEach((animation) => {
+      try {
+        animation.cancel();
+      } catch (err) {
+        console.warn("[player] animation cancel failed", err);
+      }
+    });
+    runningAnimationsRef.current = [];
+  }, []);
+
+  useEffect(() => {
+    cancelLegacyAnimations();
+
+    const root = playerRootRef.current;
+    const currentBackground = backgroundIdentity;
+    if (!root) {
+      previousBackgroundIdentityRef.current = currentBackground;
+      return;
+    }
+
+    const prose =
+      root.querySelector<HTMLElement>(".ps-player__text .ps-player__prose") ??
+      root.querySelector<HTMLElement>(".ps-player__prose");
+    const nav = root.querySelector<HTMLElement>(".ps-nav");
+    const media = root.querySelector<HTMLElement>(".ps-player__media");
+
+    const reduceMotionQuery =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (!shouldAnimateLegacy || reduceMotionQuery) {
+      nav?.style.removeProperty("opacity");
+      media?.style.removeProperty("opacity");
+      if (prose) {
+        prose.querySelectorAll<HTMLElement>("p, h1, h2").forEach((element) => {
+          element.style.removeProperty("opacity");
+        });
+        prose.style.removeProperty("opacity");
+      }
+      previousBackgroundIdentityRef.current = currentBackground;
+      return;
+    }
+
+    const fadeKeyframes = [{ opacity: 0 }, { opacity: 1 }];
+    const baseOptions = { fill: "both", duration: 1000 };
+    const { animationDelay, paragraphDelay, navigationDelay, backgroundFadeSeconds } =
+      animationSettings;
+
+    const animateElement = (
+      element: HTMLElement,
+      delaySeconds: number,
+      durationMs = baseOptions.duration,
+      clearOpacityOnFinish = false
+    ) => {
+      if (typeof element.animate !== "function") {
+        if (clearOpacityOnFinish) {
+          element.style.removeProperty("opacity");
+        }
+        return;
+      }
+      const animation = element.animate(fadeKeyframes, {
+        ...baseOptions,
+        duration: durationMs,
+        delay: Math.max(0, delaySeconds) * 1000,
+      });
+      if (clearOpacityOnFinish) {
+        const clearOpacity = () => {
+          element.style.removeProperty("opacity");
+        };
+        animation.onfinish = clearOpacity;
+        animation.oncancel = clearOpacity;
+      }
+      runningAnimationsRef.current.push(animation);
+    };
+
+    const headings = prose ? Array.from(prose.querySelectorAll<HTMLElement>("h1, h2")) : [];
+    headings.forEach((heading) => {
+      heading.style.opacity = "0";
+      animateElement(heading, animationDelay, baseOptions.duration, true);
+    });
+
+    const paragraphs = prose ? Array.from(prose.querySelectorAll<HTMLElement>("p")) : [];
+    paragraphs.forEach((paragraph, index) => {
+      paragraph.style.opacity = "0";
+      animateElement(
+        paragraph,
+        animationDelay + index * paragraphDelay,
+        baseOptions.duration,
+        true
+      );
+    });
+
+    if (nav) {
+      const navigationDelaySeconds =
+        animationDelay + paragraphs.length * paragraphDelay + navigationDelay;
+      animateElement(nav, navigationDelaySeconds);
+    }
+
+    if (prose && headings.length === 0 && paragraphs.length === 0) {
+      prose.style.opacity = "0";
+      animateElement(prose, animationDelay, baseOptions.duration, true);
+    }
+
+    const previousBackground = previousBackgroundIdentityRef.current;
+    const hasBackgroundChange =
+      Boolean(currentBackground) && currentBackground !== previousBackground;
+    if (hasBackgroundChange && media && !flags.hideBackground) {
+      animateElement(
+        media,
+        0,
+        Math.max(0, backgroundFadeSeconds) * 1000
+      );
+    }
+
+    previousBackgroundIdentityRef.current = currentBackground;
+    return cancelLegacyAnimations;
+  }, [
+    animationSettings,
+    backgroundIdentity,
+    cancelLegacyAnimations,
+    currentNodeId,
+    flags.hideBackground,
+    shouldAnimateLegacy,
+  ]);
 
   const resolvedMargins = layout.containerMarginsVw;
 
@@ -1596,6 +1811,7 @@ export function PlayerRuntime({
       objectFit={media.objectFit}
       backgroundPosition={media.backgroundPosition}
       backgroundSize={media.backgroundSize}
+      rootRef={playerRootRef}
       dataProps={{
         background: dataProps.background,
         backgroundImage: dataProps.background_image,
