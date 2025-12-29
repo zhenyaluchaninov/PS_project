@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "validate:fixtures": "tsx src/dev/validate-fixtures.ts"
+    "validate:fixtures": "tsx src/dev/validate-fixtures.ts",
+    "test:legacy-video-url": "tsx src/dev/test-legacy-video-url.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
