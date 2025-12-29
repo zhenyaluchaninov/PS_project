@@ -2501,6 +2501,7 @@ function PlayerOverlay({
                   icon={<ArrowLeft aria-hidden />}
                   disabled={!canGoBack}
                   onClick={onBack}
+                  iconOnly
                 />
               ) : null}
             </div>

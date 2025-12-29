@@ -231,9 +231,7 @@
 }
 
 .ps-overlay__group--left {
-  position: absolute;
-  top: 0;
-  left: 0;
+  align-self: flex-start;
   align-items: flex-start;
 }
 
@@ -255,9 +253,9 @@
   padding: 10px 12px;
   min-height: 44px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(0, 0, 0, 0.6);
-  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.7);
+  color: #ffffff;
   transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, opacity 140ms ease;
   box-shadow: 0 14px 60px -40px rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(8px) saturate(115%);
@@ -271,11 +269,11 @@
 
 .ps-overlay__btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  border-color: var(--player-accent, rgba(255, 255, 255, 0.7));
-  background: rgba(0, 0, 0, 0.6);
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.75);
   box-shadow:
     0 14px 60px -40px rgba(0, 0, 0, 0.8),
-    0 0 0 1px var(--player-accent, rgba(255, 255, 255, 0.35));
+    0 0 0 1px rgba(255, 255, 255, 0.35);
 }
 
 .ps-overlay__btn:disabled {
@@ -284,11 +282,11 @@
 }
 
 .ps-overlay__btn[data-active="true"] {
-  border-color: var(--player-accent, rgba(255, 255, 255, 0.85));
-  background: rgba(0, 0, 0, 0.6);
+  border-color: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.75);
   box-shadow:
     0 14px 60px -40px rgba(0, 0, 0, 0.8),
-    0 0 0 1px var(--player-accent, rgba(255, 255, 255, 0.45));
+    0 0 0 1px rgba(255, 255, 255, 0.45);
 }
 
 .ps-overlay__btn-icon {
