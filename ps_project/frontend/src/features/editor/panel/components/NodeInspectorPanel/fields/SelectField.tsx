@@ -4,6 +4,7 @@ export type SelectFieldOption = {
   value: string;
   label: string;
   key?: string;
+  disabled?: boolean;
 };
 
 export function SelectField({
@@ -45,6 +46,7 @@ export function SelectField({
             <option
               key={option.key ?? (option.value || option.label)}
               value={option.value}
+              disabled={option.disabled}
             >
               {option.label}
             </option>

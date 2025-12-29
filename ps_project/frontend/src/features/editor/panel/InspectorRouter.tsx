@@ -17,6 +17,13 @@ import {
 } from "./components";
 import type { BulkDraft, BulkDraftEntry } from "./types";
 import {
+  getAnimationDelay,
+  getBackgroundFade,
+  getLegacyAnimationKind,
+  getLegacyAnimationValue,
+  getNavigationDelay,
+} from "./components/NodeInspectorPanel/utils/propReaders";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -125,6 +132,14 @@ export function InspectorRouter() {
     setBulkNotice(null);
   }, []);
 
+  const formatLegacyAnimationValue = (
+    node: NodeModel | undefined,
+    value: string
+  ) => {
+    const kind = node ? getLegacyAnimationKind(node) : "unknown";
+    return kind === "string" ? value : [value];
+  };
+
   const handleBulkApply = useCallback(() => {
     if (!bulkHasDraft) {
       setBulkApplyOpen(false);
@@ -138,6 +153,18 @@ export function InspectorRouter() {
         }
         if (entry.kind === "nodeText") {
           updateNodeText(nodeId, String(entry.value ?? ""));
+          return;
+        }
+        if (entry.kind === "legacyAnimation") {
+          const nextValue =
+            entry.op === "unset" ? "" : String(entry.value ?? "");
+          const node = nodeById.get(nodeId);
+          setNodePropPath(
+            nodeId,
+            entry.path,
+            formatLegacyAnimationValue(node, nextValue),
+            entry.op === "unset" ? { removeIfEmpty: true } : undefined
+          );
           return;
         }
         if (entry.kind === "propStringArray") {
@@ -165,7 +192,9 @@ export function InspectorRouter() {
   }, [
     bulkDraftEntries,
     bulkHasDraft,
+    nodeById,
     selectedNodeIds,
+    formatLegacyAnimationValue,
     setNodePropPath,
     setNodePropStringArraySelect,
     updateNodeText,
@@ -230,6 +259,30 @@ export function InspectorRouter() {
     .map((nodeId) => nodeById.get(nodeId))
     .filter((node): node is NodeModel => Boolean(node));
 
+  const isMixedValue = <T,>(
+    nodes: NodeModel[],
+    getValue: (node: NodeModel) => T
+  ) => {
+    if (nodes.length <= 1) return false;
+    const first = getValue(nodes[0]);
+    return nodes.some((node) => !Object.is(first, getValue(node)));
+  };
+
+  const bulkAnimMixed = bulkActive
+    ? {
+        mode: isMixedValue(bulkTargets, (node) => getLegacyAnimationValue(node)),
+        delay: isMixedValue(bulkTargets, (node) => getAnimationDelay(node)),
+        navigationDelay: isMixedValue(
+          bulkTargets,
+          (node) => getNavigationDelay(node)
+        ),
+        backgroundFade: isMixedValue(
+          bulkTargets,
+          (node) => getBackgroundFade(node)
+        ),
+      }
+    : undefined;
+
   const formatBulkValue = (value: unknown) => {
     if (value === null || value === undefined) return "(empty)";
     if (Array.isArray(value)) {
@@ -287,6 +340,7 @@ export function InspectorRouter() {
           onNodePropsChange={(updates) =>
             updateNodeProps(primaryNode.nodeId, updates)
           }
+          animMixed={bulkAnimMixed}
           bulk={{
             active: true,
             selectedNodeCount: selectedNodeIds.length,
@@ -398,6 +452,7 @@ export function InspectorRouter() {
         onNodePropsChange={(updates) =>
           updateNodeProps(selectedNode.nodeId, updates)
         }
+        animMixed={bulkAnimMixed}
       />
     );
   }

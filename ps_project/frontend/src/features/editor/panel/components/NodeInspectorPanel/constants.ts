@@ -23,6 +23,19 @@ export const textShadowValues = new Set(
   textShadowOptions.map((option) => option.value)
 );
 
+export const animationModeOptions = [
+  { value: "", label: "None" },
+  { value: "fading-faster", label: "Fast" },
+  { value: "fading-paragraphs", label: "Normal" },
+  { value: "fading-slower", label: "Slow" },
+  { value: "fading-slowerer", label: "Slower" },
+  { value: "fading-slowest", label: "Slowest" },
+];
+
+export const animationModeValues = new Set(
+  animationModeOptions.map((option) => option.value)
+);
+
 export const builtInFontOptions: Array<{ value: string; label: string }> = [];
 
 export const NAV_TEXT_SIZE_MIN = 8;
@@ -44,6 +57,9 @@ export const SCROLL_SPEED_MAX = 1.5;
 export const SCROLL_SPEED_DEFAULT = 0.5;
 export const BLUR_MIN = 0;
 export const BLUR_MAX = 100;
+export const ANIMATION_DELAY_DEFAULT = 0;
+export const NAVIGATION_DELAY_DEFAULT = 0;
+export const BACKGROUND_FADE_DEFAULT = 1;
 export const MARGIN_DEFAULT = 0;
 export const MARGIN_MIN = 0;
 export const MARGIN_MAX = 100;

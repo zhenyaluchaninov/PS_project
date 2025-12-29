@@ -27,6 +27,7 @@ import { useNodeProps } from "./hooks/useNodeProps";
 import { RouterInspector } from "./RouterInspector";
 import { InspectorTabs } from "./tabs";
 import { hasEditorVersion } from "./utils/propReaders";
+import type { AnimMixedState } from "./tabs/AnimTab";
 
 type NodeInspectorPanelProps = {
   node: NodeModel;
@@ -44,6 +45,7 @@ type NodeInspectorPanelProps = {
   onNodePropChange: (path: string, value: unknown) => void;
   onNodePropsChange: (updates: Record<string, unknown>) => void;
   bulk?: BulkEditConfig;
+  animMixed?: AnimMixedState;
 };
 
 export function NodeInspectorPanel({
@@ -62,6 +64,7 @@ export function NodeInspectorPanel({
   onNodePropChange,
   onNodePropsChange,
   bulk,
+  animMixed,
 }: NodeInspectorPanelProps) {
   const readOnly = useEditorStore(selectEditorReadOnly);
   const setNodePropPath = useEditorStore((s) => s.setNodePropPath);
@@ -240,6 +243,11 @@ export function NodeInspectorPanel({
     verticalPosition,
     scrollSpeed,
     textShadow,
+    animationMode,
+    animationModeKind,
+    animationDelay,
+    navigationDelay,
+    backgroundFade,
     grayscaleEnabled,
     blurAmount,
     hideVisitedEnabled,
@@ -288,6 +296,21 @@ export function NodeInspectorPanel({
       next.push(token);
     }
     handleNodePropChange("playerNavigation.settings", next);
+  };
+
+  const handleAnimationModeChange = (value: string) => {
+    if (readOnly) return;
+    if (bulkActive) {
+      stageBulkChange({
+        path: "player_container.animation",
+        op: "set",
+        value,
+        kind: "legacyAnimation",
+      });
+      return;
+    }
+    const nextValue = animationModeKind === "string" ? value : [value];
+    onNodePropChange("player_container.animation", nextValue);
   };
 
   return (
@@ -372,6 +395,12 @@ export function NodeInspectorPanel({
           audioVolume={audioVolume}
           marginLeft={marginLeft}
           marginRight={marginRight}
+          animationMode={animationMode}
+          animationDelay={animationDelay}
+          navigationDelay={navigationDelay}
+          backgroundFade={backgroundFade}
+          animMixed={animMixed}
+          handleAnimationModeChange={handleAnimationModeChange}
           hasNavigationSetting={hasNavigationSetting}
           updateNavigationSetting={updateNavigationSetting}
           orderedOutgoingLinks={orderedOutgoingLinks}

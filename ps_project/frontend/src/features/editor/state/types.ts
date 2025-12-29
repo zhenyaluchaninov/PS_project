@@ -24,7 +24,12 @@ export type EditorSelection =
 
 export type EditorToolPanel = "search" | null;
 
-export type EditorNodeInspectorTab = "content" | "style" | "buttons" | "logic";
+export type EditorNodeInspectorTab =
+  | "content"
+  | "style"
+  | "buttons"
+  | "logic"
+  | "anim";
 
 export type EditorNodePositionUpdate = {
   nodeId: number;

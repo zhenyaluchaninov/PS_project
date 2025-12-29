@@ -4,7 +4,8 @@ export type BulkDraftKind =
   | "nodeTitle"
   | "nodeText"
   | "propPath"
-  | "propStringArray";
+  | "propStringArray"
+  | "legacyAnimation";
 
 export type BulkDraftEntry = {
   path: string;

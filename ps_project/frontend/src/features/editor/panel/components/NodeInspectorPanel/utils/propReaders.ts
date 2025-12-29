@@ -2,7 +2,10 @@ import type { NodeModel } from "@/domain/models";
 import type { BulkDraft } from "../../types";
 import { BULK_NODE_TYPE_PATH } from "../../../constants";
 import {
+  ANIMATION_DELAY_DEFAULT,
   AUDIO_VOLUME_MAX,
+  BACKGROUND_FADE_DEFAULT,
+  NAVIGATION_DELAY_DEFAULT,
   NAV_TEXT_SIZE_DEFAULT,
   NAV_TEXT_SIZE_MAX,
   NAV_TEXT_SIZE_MIN,
@@ -35,6 +38,8 @@ export const readStringArray = (value: unknown): string[] => {
   }
   return [];
 };
+
+export type LegacyAnimationKind = "array" | "string" | "unknown";
 
 export const readNodePropValue = (
   node: NodeModel,
@@ -72,6 +77,49 @@ export const getStringArrayValue = (
   const token = tokens[0];
   return typeof token === "string" ? token : String(token ?? fallback);
 };
+
+export const getLegacyAnimationValue = (
+  node: NodeModel,
+  draft?: BulkDraft
+): string => getStringArrayValue(node, "player_container.animation", "", draft);
+
+export const getLegacyAnimationKind = (
+  node: NodeModel,
+  draft?: BulkDraft
+): LegacyAnimationKind => {
+  const value = readNodePropValue(node, "player_container.animation", draft);
+  if (Array.isArray(value)) return "array";
+  if (typeof value === "string") return "string";
+  return "unknown";
+};
+
+export const getAnimationDelay = (
+  node: NodeModel,
+  draft?: BulkDraft
+): number =>
+  getNumberProp(node, "animation_delay", ANIMATION_DELAY_DEFAULT, draft);
+
+export const getNavigationDelay = (
+  node: NodeModel,
+  draft?: BulkDraft
+): number =>
+  getNumberProp(
+    node,
+    "playerNavigation_delay",
+    NAVIGATION_DELAY_DEFAULT,
+    draft
+  );
+
+export const getBackgroundFade = (
+  node: NodeModel,
+  draft?: BulkDraft
+): number =>
+  getNumberProp(
+    node,
+    "animation_backgroundfade",
+    BACKGROUND_FADE_DEFAULT,
+    draft
+  );
 
 export const getColorProp = (
   node: NodeModel,

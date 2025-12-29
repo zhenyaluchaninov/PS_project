@@ -12,6 +12,8 @@ import {
   videoAudioValues,
 } from "../constants";
 import {
+  getAnimationDelay,
+  getBackgroundFade,
   getAlphaProp,
   getAlphaValue,
   getAudioVolume,
@@ -20,6 +22,8 @@ import {
   getColorValue,
   getFontToken,
   getGrayscaleEnabled,
+  getLegacyAnimationKind,
+  getLegacyAnimationValue,
   getHideVisitedEnabled,
   getNavTextSize,
   getNavigationSettings,
@@ -27,6 +31,7 @@ import {
   getNodeChapterType,
   getNumberProp,
   getOrderedLinkIds,
+  getNavigationDelay,
   getScrollSpeed,
   getStatisticsEnabled,
   getStringArrayValue,
@@ -68,6 +73,11 @@ export const useNodeProps = ({
   const verticalPosition = getVerticalPosition(node, bulkDraft);
   const scrollSpeed = getScrollSpeed(node, bulkDraft);
   const textShadow = getTextShadow(node, bulkDraft);
+  const animationMode = getLegacyAnimationValue(node, bulkDraft);
+  const animationModeKind = getLegacyAnimationKind(node, bulkDraft);
+  const animationDelay = getAnimationDelay(node, bulkDraft);
+  const navigationDelay = getNavigationDelay(node, bulkDraft);
+  const backgroundFade = getBackgroundFade(node, bulkDraft);
   const grayscaleEnabled = getGrayscaleEnabled(node, bulkDraft);
   const blurAmount = getBlurAmount(node, bulkDraft);
   const hideVisitedEnabled = getHideVisitedEnabled(node, bulkDraft);
@@ -270,6 +280,11 @@ export const useNodeProps = ({
     verticalPosition,
     scrollSpeed,
     textShadow,
+    animationMode,
+    animationModeKind,
+    animationDelay,
+    navigationDelay,
+    backgroundFade,
     grayscaleEnabled,
     blurAmount,
     hideVisitedEnabled,

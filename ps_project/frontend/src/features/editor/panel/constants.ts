@@ -15,6 +15,7 @@ export const chapterTypeOptions = [
 export const tabOptions: Array<{ value: EditorNodeInspectorTab; label: string }> = [
   { value: "content", label: "Content" },
   { value: "style", label: "Style" },
+  { value: "anim", label: "Anim" },
   { value: "buttons", label: "Buttons" },
   { value: "logic", label: "Logic" },
 ];

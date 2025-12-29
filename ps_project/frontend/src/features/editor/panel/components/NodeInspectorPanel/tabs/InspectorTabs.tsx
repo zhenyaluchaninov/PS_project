@@ -1,4 +1,4 @@
-import { type ChangeEvent, type RefObject } from "react";
+import { type ChangeEvent, type RefObject, useRef } from "react";
 import {
   Tabs,
   TabsContent,
@@ -9,6 +9,7 @@ import type { EditorNodeInspectorTab } from "../../state/types";
 import { tabOptions } from "../../../constants";
 import type { SceneColors } from "../hooks/useNodeProps";
 import type { SelectFieldOption } from "../fields";
+import { AnimTab, type AnimMixedState } from "./AnimTab";
 import { ButtonsTab } from "./ButtonsTab";
 import { ContentTab } from "./ContentTab";
 import { LogicTab } from "./LogicTab";
@@ -114,6 +115,12 @@ export function InspectorTabs({
   conditionsColor,
   conditionsAlpha,
   statisticsEnabled,
+  animationMode,
+  animationDelay,
+  navigationDelay,
+  backgroundFade,
+  animMixed,
+  handleAnimationModeChange,
 }: {
   activeTab: EditorNodeInspectorTab;
   onTabChange: (tab: EditorNodeInspectorTab) => void;
@@ -218,15 +225,42 @@ export function InspectorTabs({
   conditionsColor: string;
   conditionsAlpha: number;
   statisticsEnabled: boolean;
+  animationMode: string;
+  animationDelay: number;
+  navigationDelay: number;
+  backgroundFade: number;
+  animMixed?: AnimMixedState;
+  handleAnimationModeChange: (value: string) => void;
 }) {
+  const tabListRef = useRef<HTMLDivElement | null>(null);
+
   return (
     <Tabs
       value={activeTab}
       onValueChange={(value) => onTabChange(value as EditorNodeInspectorTab)}
     >
-      <TabsList className="w-full">
+      <TabsList
+        ref={tabListRef}
+        className="w-full flex-nowrap justify-start overflow-x-auto overflow-y-hidden"
+        onWheel={(event) => {
+          const list = tabListRef.current;
+          if (!list) return;
+          if (list.scrollWidth <= list.clientWidth) return;
+          const delta =
+            Math.abs(event.deltaX) > Math.abs(event.deltaY)
+              ? event.deltaX
+              : event.deltaY;
+          if (delta === 0) return;
+          event.preventDefault();
+          list.scrollLeft += delta;
+        }}
+      >
         {tabOptions.map((tab) => (
-          <TabsTrigger key={tab.value} value={tab.value} className="flex-1">
+          <TabsTrigger
+            key={tab.value}
+            value={tab.value}
+            className="flex-none whitespace-nowrap px-4"
+          >
             {tab.label}
           </TabsTrigger>
         ))}
@@ -340,6 +374,22 @@ export function InspectorTabs({
           handleLiveInteractionEnd={handleLiveInteractionEnd}
           handleColorScrubStart={handleColorScrubStart}
           handleColorScrubEnd={handleColorScrubEnd}
+        />
+      </TabsContent>
+
+      <TabsContent value="anim">
+        <AnimTab
+          readOnly={readOnly}
+          bulkActive={bulkActive}
+          isBulkFieldStaged={isBulkFieldStaged}
+          clearBulkPaths={clearBulkPaths}
+          animationMode={animationMode}
+          animationDelay={animationDelay}
+          navigationDelay={navigationDelay}
+          backgroundFade={backgroundFade}
+          animMixed={animMixed}
+          onAnimationModeChange={handleAnimationModeChange}
+          handleNodePropChange={handleNodePropChange}
         />
       </TabsContent>
 
