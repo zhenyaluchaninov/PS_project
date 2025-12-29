@@ -22,6 +22,7 @@ export type EngineContext = {
   linksBySource: Record<number, LinkModel[]>;
   linksById: Record<number, LinkModel>;
   visited: Set<number>;
+  currentNodeId?: number | null;
 };
 
 export type EnterNodeDecision =
@@ -230,7 +231,23 @@ export const decideOnClick = (
     };
   }
 
-  const targetNode = context.nodes[link.toNodeId];
+  const normalizedType = String(link.type ?? "").toLowerCase();
+  const isBidirectional = normalizedType.includes("bidirectional");
+  let targetNodeId = link.toNodeId;
+  if (isBidirectional && context.currentNodeId != null) {
+    if (context.currentNodeId === link.toNodeId) {
+      targetNodeId = link.fromNodeId;
+    }
+  }
+
+  if (targetNodeId == null) {
+    return {
+      type: "error",
+      error: { title: "Broken link", description: "This choice has no destination." },
+    };
+  }
+
+  const targetNode = context.nodes[targetNodeId];
   if (!targetNode) {
     return {
       type: "error",

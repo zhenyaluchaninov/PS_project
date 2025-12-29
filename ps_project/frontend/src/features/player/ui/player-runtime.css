@@ -216,6 +216,17 @@
   flex-wrap: wrap;
 }
 
+.ps-overlay__group--right {
+  margin-left: auto;
+  align-items: flex-end;
+}
+
+.ps-overlay__group--stack {
+  flex-direction: column;
+  align-items: flex-end;
+  flex-wrap: nowrap;
+}
+
 .ps-overlay__btn {
   display: inline-flex;
   align-items: center;
@@ -229,6 +240,12 @@
   transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, opacity 140ms ease;
   box-shadow: 0 14px 60px -40px rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(8px) saturate(115%);
+}
+
+.ps-overlay__btn--icon {
+  padding: 10px;
+  min-width: 44px;
+  justify-content: center;
 }
 
 .ps-overlay__btn:hover:not(:disabled) {

@@ -145,9 +145,6 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
       <Toolbar>
         <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
           <span className="font-semibold uppercase tracking-[0.18em]">Editor</span>
-          <span>
-            /redigera/<span className="font-mono">{editSlug}</span>
-          </span>
           {title ? <span className="text-[var(--text)]/80">{title}</span> : null}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">

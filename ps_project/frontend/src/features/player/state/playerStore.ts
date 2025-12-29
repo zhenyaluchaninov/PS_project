@@ -342,7 +342,7 @@ const createPlayerState: StateCreator<PlayerState> = (set, get) => {
   },
 
   chooseLink: (linkId: number) => {
-    const { nodeIndex, linksBySource, linksById, visited } = get();
+    const { nodeIndex, linksBySource, linksById, visited, currentNodeId } = get();
     if (!nodeIndex || !linksBySource || !linksById) return false;
 
     const decision = decideOnClick(linkId, {
@@ -350,6 +350,7 @@ const createPlayerState: StateCreator<PlayerState> = (set, get) => {
       linksBySource,
       linksById,
       visited,
+      currentNodeId,
     });
 
     if (decision.type === "error") {

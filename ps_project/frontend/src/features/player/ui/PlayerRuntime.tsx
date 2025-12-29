@@ -41,7 +41,6 @@ import {
   selectPlayerCurrentNodeId,
   selectPlayerHistoryLength,
   selectPlayerMode,
-  selectPlayerOutgoingLinks,
   type PlayerStoreHook,
   usePlayerStore,
 } from "../state/playerStore";
@@ -53,9 +52,7 @@ import {
   type AudioSourceConfig,
 } from "../media/audioEngine";
 import {
-  buildLinksBySource,
   buildNavigationConfig,
-  getOutgoingLinksForNode,
   normalizeNavStyle,
   type NavPlacement,
   type NavStyle,
@@ -675,6 +672,45 @@ const applyOrder = <T,>(
   return ordered;
 };
 
+const EMPTY_LINKS: LinkModel[] = Object.freeze([]) as unknown as LinkModel[];
+
+const isBidirectionalLink = (link: LinkModel) =>
+  String(link.type ?? "").toLowerCase().includes("bidirectional");
+
+const getNavigationLinksForNode = (
+  nodeId: number | null | undefined,
+  links: LinkModel[] | null | undefined
+): LinkModel[] => {
+  if (nodeId == null || !links || links.length === 0) return EMPTY_LINKS;
+  return links.filter((link) => {
+    if (link.fromNodeId === nodeId) return true;
+    return isBidirectionalLink(link) && link.toNodeId === nodeId;
+  });
+};
+
+const resolveNavigationTargetId = (
+  link: LinkModel,
+  currentNodeId: number | null | undefined
+): number | null => {
+  if (currentNodeId == null) return link.toNodeId ?? null;
+  if (isBidirectionalLink(link) && link.toNodeId === currentNodeId) {
+    return link.fromNodeId ?? null;
+  }
+  return link.toNodeId ?? null;
+};
+
+const resolveNavigationLabel = (
+  link: LinkModel,
+  currentNodeId: number | null | undefined
+): string | null => {
+  if (currentNodeId != null && isBidirectionalLink(link) && link.toNodeId === currentNodeId) {
+    const label = link.sourceTitle?.trim();
+    return label ? label : null;
+  }
+  const label = link.label?.trim();
+  return label ? label : null;
+};
+
 const addPressedClass = (event: ReactPointerEvent<HTMLElement>) => {
   event.currentTarget.classList.add("btn-pressed");
 };
@@ -702,7 +738,6 @@ export function PlayerRuntime({
   const currentNode = store(selectPlayerCurrentNode);
   const currentNodeKind = store(selectPlayerCurrentNodeKind);
   const currentNodeId = store(selectPlayerCurrentNodeId);
-  const outgoingLinks = store(selectPlayerOutgoingLinks);
   const mode = store(selectPlayerMode);
   const historyLength = store(selectPlayerHistoryLength);
   const history = store((s) => s.history);
@@ -712,6 +747,11 @@ export function PlayerRuntime({
   const getNodeById = store((s) => s.getNodeById);
   const goBack = store((s) => s.goBack);
   const goToNode = store((s) => s.goToNode);
+
+  const navigationLinks = useMemo(
+    () => getNavigationLinksForNode(currentNodeId ?? null, adventure?.links ?? EMPTY_LINKS),
+    [adventure?.links, currentNodeId]
+  );
 
   const adventureProps = adventure?.props as Record<string, unknown> | null | undefined;
   const menuOptions = useMemo(() => readMenuOptions(adventureProps ?? null), [adventureProps]);
@@ -1630,10 +1670,13 @@ export function PlayerRuntime({
 
   const navigationModel = useMemo<NavigationModel>(() => {
     // Preserve API ordering for deterministic fallback when no custom order is defined.
-    const baseItems: NavItem[] = outgoingLinks.map((link) => ({ kind: "link", link }));
+    const baseItems: NavItem[] = navigationLinks.map((link) => ({ kind: "link", link }));
     if (navigationConfig.showCurrent && currentNode) {
       baseItems.push({ kind: "current" });
     }
+
+    const resolveTargetId = (link: LinkModel) =>
+      resolveNavigationTargetId(link, currentNodeId);
 
     const orderedItems = applyOrder(
       baseItems,
@@ -1642,7 +1685,8 @@ export function PlayerRuntime({
     );
 
     const shouldHideLink = (link: LinkModel) => {
-      const targetNode = getNodeById(link.toNodeId);
+      const targetNodeId = resolveTargetId(link);
+      const targetNode = getNodeById(targetNodeId ?? null);
       if (!targetNode) return false;
       const visited = visitedNodes.has(targetNode.nodeId);
       if (!visited) return false;
@@ -1653,8 +1697,9 @@ export function PlayerRuntime({
     const firstUsableLink = orderedItems.find((item) => {
       if (item.kind !== "link") return false;
       if (shouldHideLink(item.link)) return false;
-      const targetNode = getNodeById(item.link.toNodeId);
-      return Boolean(item.link.toNodeId && targetNode);
+      const targetNodeId = resolveTargetId(item.link);
+      const targetNode = getNodeById(targetNodeId ?? null);
+      return targetNodeId != null && Boolean(targetNode);
     });
 
     if (navigationConfig.style === "noButtons") {
@@ -1667,18 +1712,18 @@ export function PlayerRuntime({
     }
 
     const buildButton = (link: LinkModel, fallbackIndex: number): NavigationButton => {
-      const targetNode = getNodeById(link.toNodeId);
-      const isBroken = !link.toNodeId || !targetNode;
+      const targetNodeId = resolveTargetId(link);
+      const targetNode = getNodeById(targetNodeId ?? null);
       const label =
-        link.label && link.label.trim().length > 0
-          ? link.label.trim()
-          : targetNode?.title || `Continue ${fallbackIndex}`;
+        resolveNavigationLabel(link, currentNodeId) ??
+        (targetNode?.title || `Continue ${fallbackIndex}`);
+      const isBroken = targetNodeId == null || !targetNode;
 
       return {
         key: String(link.linkId),
         label,
         linkId: link.linkId,
-        targetNodeId: link.toNodeId,
+        targetNodeId: targetNodeId ?? undefined,
         disabled: isBroken,
         isBroken,
       };
@@ -1715,13 +1760,14 @@ export function PlayerRuntime({
           : undefined,
     };
   }, [
-    outgoingLinks,
+    navigationLinks,
     navigationConfig.showCurrent,
     navigationConfig.orderedIds,
     navigationConfig.style,
     navigationConfig.hideVisited,
     navigationConfig.skipCount,
     currentNode,
+    currentNodeId,
     getNodeById,
     visitedNodes,
   ]);
@@ -2065,25 +2111,23 @@ export function StaticPlayerPreview({
     [mergedNodeProps]
   );
 
-  const linksBySource = useMemo(
-    () => buildLinksBySource(adventure.links),
-    [adventure.links]
-  );
-
   const nodeById = useMemo(() => buildNodeById(adventure.nodes), [adventure.nodes]);
 
-  const outgoingLinks = useMemo(
-    () => getOutgoingLinksForNode(node.nodeId, linksBySource),
-    [linksBySource, node.nodeId]
+  const navigationLinks = useMemo(
+    () => getNavigationLinksForNode(node.nodeId, adventure.links),
+    [adventure.links, node.nodeId]
   );
 
   const visitedNodes = useMemo(() => new Set<number>(), []);
 
   const navigationModel = useMemo<NavigationModel>(() => {
-    const baseItems: NavItem[] = outgoingLinks.map((link) => ({ kind: "link", link }));
+    const baseItems: NavItem[] = navigationLinks.map((link) => ({ kind: "link", link }));
     if (navigationConfig.showCurrent) {
       baseItems.push({ kind: "current" });
     }
+
+    const resolveTargetId = (link: LinkModel) =>
+      resolveNavigationTargetId(link, node.nodeId);
 
     const orderedItems = applyOrder(
       baseItems,
@@ -2092,7 +2136,8 @@ export function StaticPlayerPreview({
     );
 
     const shouldHideLink = (link: LinkModel) => {
-      const targetNode = nodeById.get(link.toNodeId);
+      const targetNodeId = resolveTargetId(link);
+      const targetNode = targetNodeId != null ? nodeById.get(targetNodeId) : undefined;
       if (!targetNode) return false;
       const visited = visitedNodes.has(targetNode.nodeId);
       if (!visited) return false;
@@ -2103,8 +2148,9 @@ export function StaticPlayerPreview({
     const firstUsableLink = orderedItems.find((item) => {
       if (item.kind !== "link") return false;
       if (shouldHideLink(item.link)) return false;
-      const targetNode = nodeById.get(item.link.toNodeId);
-      return Boolean(item.link.toNodeId && targetNode);
+      const targetNodeId = resolveTargetId(item.link);
+      const targetNode = targetNodeId != null ? nodeById.get(targetNodeId) : undefined;
+      return targetNodeId != null && Boolean(targetNode);
     });
 
     if (navigationConfig.style === "noButtons") {
@@ -2118,18 +2164,18 @@ export function StaticPlayerPreview({
     }
 
     const buildButton = (link: LinkModel, fallbackIndex: number): NavigationButton => {
-      const targetNode = nodeById.get(link.toNodeId);
-      const isBroken = !link.toNodeId || !targetNode;
+      const targetNodeId = resolveTargetId(link);
+      const targetNode = targetNodeId != null ? nodeById.get(targetNodeId) : undefined;
       const label =
-        link.label && link.label.trim().length > 0
-          ? link.label.trim()
-          : targetNode?.title || `Continue ${fallbackIndex}`;
+        resolveNavigationLabel(link, node.nodeId) ??
+        (targetNode?.title || `Continue ${fallbackIndex}`);
+      const isBroken = targetNodeId == null || !targetNode;
 
       return {
         key: String(link.linkId),
         label,
         linkId: link.linkId,
-        targetNodeId: link.toNodeId,
+        targetNodeId: targetNodeId ?? undefined,
         disabled: isBroken,
         isBroken,
       };
@@ -2172,8 +2218,9 @@ export function StaticPlayerPreview({
     navigationConfig.skipCount,
     navigationConfig.style,
     node.title,
+    node.nodeId,
     nodeById,
-    outgoingLinks,
+    navigationLinks,
     visitedNodes,
   ]);
 
@@ -2376,8 +2423,8 @@ function PlayerOverlay({
   menuRef: MutableRefObject<HTMLDivElement | null>;
   showDebug: boolean;
 }) {
-  const showLeftGroup = showBackButton || showHomeButton;
-  const showRightGroup = showSoundButton || showMenuButton;
+  const showLeftGroup = showBackButton;
+  const showRightGroup = showHomeButton || showSoundButton || showMenuButton;
 
   return (
     <div className="ps-overlay" data-menu-open={menuOpen ? "true" : undefined}>
@@ -2393,37 +2440,37 @@ function PlayerOverlay({
                   onClick={onBack}
                 />
               ) : null}
-              {showHomeButton ? (
-                <OverlayButton
-                  label="Home"
-                  subtleLabel={homeLabel || undefined}
-                  icon={<Home aria-hidden />}
-                  disabled={!canGoHome}
-                  onClick={onHome}
-                />
-              ) : null}
             </div>
           ) : null}
           {showRightGroup ? (
-            <div className="ps-overlay__group">
+            <div className="ps-overlay__group ps-overlay__group--right ps-overlay__group--stack">
+              {showHomeButton ? (
+                <OverlayButton
+                  label={homeLabel ? `Home: ${homeLabel}` : "Home"}
+                  icon={<Home aria-hidden />}
+                  disabled={!canGoHome}
+                  onClick={onHome}
+                  iconOnly
+                />
+              ) : null}
               {showSoundButton ? (
                 <OverlayButton
-                  label="Sound"
-                  subtleLabel={soundEnabled ? "On" : "Muted"}
+                  label={soundEnabled ? "Sound on" : "Sound muted"}
                   icon={soundEnabled ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
                   onClick={onToggleSound}
                   active={soundEnabled}
                   ariaPressed={soundEnabled}
+                  iconOnly
                 />
               ) : null}
               {showMenuButton ? (
                 <OverlayButton
-                  label="Menu"
-                  subtleLabel={menuOpen ? "Close" : "Open"}
+                  label={menuOpen ? "Close menu" : "Open menu"}
                   icon={menuOpen ? <X aria-hidden /> : <MenuIcon aria-hidden />}
                   onClick={menuOpen ? onCloseMenu : onToggleMenu}
                   active={menuOpen}
                   ariaExpanded={menuOpen}
+                  iconOnly
                 />
               ) : null}
             </div>
@@ -2532,6 +2579,7 @@ function OverlayButton({
   active,
   ariaExpanded,
   ariaPressed,
+  iconOnly,
 }: {
   icon: ReactNode;
   label: string;
@@ -2541,24 +2589,28 @@ function OverlayButton({
   active?: boolean;
   ariaExpanded?: boolean;
   ariaPressed?: boolean;
+  iconOnly?: boolean;
 }) {
   return (
     <button
       type="button"
-      className="ps-overlay__btn"
+      className={cn("ps-overlay__btn", iconOnly ? "ps-overlay__btn--icon" : "")}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       data-active={active ? "true" : undefined}
       aria-expanded={ariaExpanded}
       aria-pressed={ariaPressed}
+      aria-label={iconOnly ? label : undefined}
     >
       <span className="ps-overlay__btn-icon" aria-hidden>
         {icon}
       </span>
-      <span className="ps-overlay__btn-text">
-        <span className="ps-overlay__btn-label">{label}</span>
-        {subtleLabel ? <span className="ps-overlay__btn-meta">{subtleLabel}</span> : null}
-      </span>
+      {iconOnly ? null : (
+        <span className="ps-overlay__btn-text">
+          <span className="ps-overlay__btn-label">{label}</span>
+          {subtleLabel ? <span className="ps-overlay__btn-meta">{subtleLabel}</span> : null}
+        </span>
+      )}
     </button>
   );
 }
@@ -2889,9 +2941,7 @@ function NavigationArea({
                 </button>
               );
             })
-          ) : (
-            <p className="text-sm opacity-75">No outgoing links.</p>
-          )}
+          ) : null}
         </div>
 
         {showRightArrow ? (
@@ -2964,9 +3014,7 @@ function NodeContent({
       allowMarkdown={allowMarkdown}
       className="ps-player__prose"
     />
-  ) : (
-    <p className="text-sm opacity-70">No content.</p>
-  );
+  ) : null;
 
   return <div className="space-y-3">{prose}</div>;
 }
