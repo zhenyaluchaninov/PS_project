@@ -96,7 +96,8 @@ const applyNodePropsUpdate = (
   state: EditorState,
   nodeId: number,
   updater: PropsUpdater,
-  errorTitle: string
+  errorTitle: string,
+  options?: PropPathOptions
 ) => {
   if (state.readOnly) return {};
   if (!state.adventure) return {};
@@ -119,6 +120,7 @@ const applyNodePropsUpdate = (
     return {};
   }
   if (!rawResult.changed && !propsResult.changed) return {};
+  const isTransient = Boolean(options?.transient);
   const nextNodes = [...state.adventure.nodes];
   nextNodes[nodeIndex] = {
     ...node,
@@ -126,18 +128,22 @@ const applyNodePropsUpdate = (
     props: propsResult.props,
     changed: true,
   };
-  return {
+  const nextState: Partial<EditorState> = {
     adventure: { ...state.adventure, nodes: nextNodes },
-    dirty: true,
-    undoStack: pushHistory(state),
   };
+  if (!isTransient) {
+    nextState.dirty = true;
+    nextState.undoStack = pushHistory(state);
+  }
+  return nextState;
 };
 
 const applyLinkPropsUpdate = (
   state: EditorState,
   linkId: number,
   updater: PropsUpdater,
-  errorTitle: string
+  errorTitle: string,
+  options?: PropPathOptions
 ) => {
   if (state.readOnly) return {};
   if (!state.adventure) return {};
@@ -153,23 +159,28 @@ const applyLinkPropsUpdate = (
     return {};
   }
   if (!propsResult.changed) return {};
+  const isTransient = Boolean(options?.transient);
   const nextLinks = [...state.adventure.links];
   nextLinks[linkIndex] = {
     ...link,
     props: propsResult.props,
     changed: true,
   };
-  return {
+  const nextState: Partial<EditorState> = {
     adventure: { ...state.adventure, links: nextLinks },
-    dirty: true,
-    undoStack: pushHistory(state),
   };
+  if (!isTransient) {
+    nextState.dirty = true;
+    nextState.undoStack = pushHistory(state);
+  }
+  return nextState;
 };
 
 const applyAdventurePropsUpdate = (
   state: EditorState,
   updater: PropsUpdater,
-  errorTitle: string
+  errorTitle: string,
+  options?: PropPathOptions
 ) => {
   if (state.readOnly) return {};
   if (!state.adventure) return {};
@@ -181,10 +192,14 @@ const applyAdventurePropsUpdate = (
     return {};
   }
   if (!propsResult.changed) return {};
-  return {
+  const isTransient = Boolean(options?.transient);
+  const nextState: Partial<EditorState> = {
     adventure: { ...state.adventure, props: propsResult.props },
-    dirty: true,
   };
+  if (!isTransient) {
+    nextState.dirty = true;
+  }
+  return nextState;
 };
 
 export const propsSlice: EditorSlice = (set) => ({
@@ -195,7 +210,8 @@ export const propsSlice: EditorSlice = (set) => ({
         state,
         nodeId,
         (props) => applyPropUpdates(props, updates, options),
-        "Node props invalid"
+        "Node props invalid",
+        options
       )
     );
   },
@@ -205,7 +221,8 @@ export const propsSlice: EditorSlice = (set) => ({
         state,
         nodeId,
         (props) => setAny(props, path, value, options),
-        "Node props invalid"
+        "Node props invalid",
+        options
       )
     );
   },
@@ -301,7 +318,8 @@ export const propsSlice: EditorSlice = (set) => ({
         state,
         linkId,
         (props) => applyPropUpdates(props, updates, options),
-        "Link props invalid"
+        "Link props invalid",
+        options
       )
     );
   },
@@ -311,7 +329,8 @@ export const propsSlice: EditorSlice = (set) => ({
         state,
         linkId,
         (props) => setAny(props, path, value, options),
-        "Link props invalid"
+        "Link props invalid",
+        options
       )
     );
   },
@@ -321,7 +340,8 @@ export const propsSlice: EditorSlice = (set) => ({
       applyAdventurePropsUpdate(
         state,
         (props) => applyPropUpdates(props, updates, options),
-        "Adventure props invalid"
+        "Adventure props invalid",
+        options
       )
     );
   },
@@ -330,7 +350,8 @@ export const propsSlice: EditorSlice = (set) => ({
       applyAdventurePropsUpdate(
         state,
         (props) => setAny(props, path, value, options),
-        "Adventure props invalid"
+        "Adventure props invalid",
+        options
       )
     );
   },

@@ -5,6 +5,7 @@ export type PropPathMode = "flat" | "nested";
 export type PropPathOptions = {
   mode?: PropPathMode;
   removeIfEmpty?: boolean;
+  transient?: boolean;
 };
 
 export type StringArraySelectOptions = PropPathOptions & {

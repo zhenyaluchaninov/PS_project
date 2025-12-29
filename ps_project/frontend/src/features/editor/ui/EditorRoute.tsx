@@ -7,6 +7,7 @@ import {
   selectEditorDirty,
   selectEditorError,
   selectEditorFocusNodeId,
+  selectEditorInteractionLockCount,
   selectEditorMenuShortcutPickIndex,
   selectEditorReadOnly,
   selectEditorSaveError,
@@ -54,6 +55,7 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   const selectionToolActive = useEditorStore(selectEditorSelectionToolActive);
   const focusNodeId = useEditorStore(selectEditorFocusNodeId);
   const menuShortcutPickIndex = useEditorStore(selectEditorMenuShortcutPickIndex);
+  const interactionLockCount = useEditorStore(selectEditorInteractionLockCount);
   const loadByEditSlug = useEditorStore((s) => s.loadByEditSlug);
   const setSelection = useEditorStore((s) => s.setSelection);
   const clearSelection = useEditorStore((s) => s.clearSelection);
@@ -69,6 +71,7 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
     useEditorAutosave(editSlug);
   const selectedNodeId =
     selectedNodeIds.length === 1 ? selectedNodeIds[0] : null;
+  const interactionLocked = interactionLockCount > 0;
   const previewPath = `/testa/${editSlug}`;
   const previewFromPath =
     selectedNodeId != null ? `${previewPath}?nodeId=${selectedNodeId}` : "";
@@ -383,6 +386,7 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
               onCreateLink={addLink}
               onCreateNodeWithLink={addNodeWithLink}
               readOnly={readOnly}
+              interactionLocked={interactionLocked}
             />
           }
           sidePanel={

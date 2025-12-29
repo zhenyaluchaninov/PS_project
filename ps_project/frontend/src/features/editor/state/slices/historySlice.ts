@@ -22,6 +22,12 @@ export const pushHistory = (state: EditorState): EditorHistoryEntry[] => {
 
 export const historySlice: EditorSlice = (set) => ({
   undoStack: [],
+  pushHistorySnapshot: () => {
+    set((state) => {
+      if (state.readOnly || !state.adventure) return {};
+      return { undoStack: pushHistory(state) };
+    });
+  },
   undo: () => {
     set((state) => {
       if (state.readOnly) return {};

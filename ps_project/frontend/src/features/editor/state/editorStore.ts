@@ -33,6 +33,10 @@ export const selectEditorStatus = (state: EditorState) => state.status;
 export const selectEditorAdventure = (state: EditorState) => state.adventure;
 export const selectEditorError = (state: EditorState) => state.error;
 export const selectEditorDirty = (state: EditorState) => state.dirty;
+export const selectEditorLiveUpdateCount = (state: EditorState) =>
+  state.liveUpdateCount;
+export const selectEditorInteractionLockCount = (state: EditorState) =>
+  state.interactionLockCount;
 export const selectEditorSaveStatus = (state: EditorState) => state.saveStatus;
 export const selectEditorSaveError = (state: EditorState) => state.saveError;
 export const selectEditorReadOnly = (state: EditorState) => state.readOnly;

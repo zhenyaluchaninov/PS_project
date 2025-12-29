@@ -62,6 +62,7 @@ type GraphCanvasProps = {
     position: { x: number; y: number }
   ) => { nodeId: number; linkId: number } | null;
   readOnly?: boolean;
+  interactionLocked?: boolean;
   className?: string;
 };
 
@@ -93,6 +94,7 @@ export function GraphCanvas({
   onCreateLink,
   onCreateNodeWithLink,
   readOnly = false,
+  interactionLocked = false,
   className,
 }: GraphCanvasProps) {
   const [previewTrace, setPreviewTrace] = useState<PreviewPlayTrace>({
@@ -437,20 +439,21 @@ export function GraphCanvas({
       ref={containerRef}
     >
       <ReactFlow
+        className={cn(interactionLocked && "pointer-events-none")}
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
-        nodesDraggable={!pickActive && !readOnly}
-        nodesConnectable={!readOnly}
+        nodesDraggable={!pickActive && !readOnly && !interactionLocked}
+        nodesConnectable={!readOnly && !interactionLocked}
         edgesReconnectable={false}
-        elementsSelectable={!pickActive}
-        selectionOnDrag={!pickActive && selectionToolActive}
-        selectNodesOnDrag={!pickActive && selectionToolActive}
+        elementsSelectable={!pickActive && !interactionLocked}
+        selectionOnDrag={!pickActive && selectionToolActive && !interactionLocked}
+        selectNodesOnDrag={!pickActive && selectionToolActive && !interactionLocked}
         selectionKeyCode={null}
-        panOnDrag={selectionToolActive ? [1, 2] : true}
+        panOnDrag={interactionLocked ? false : selectionToolActive ? [1, 2] : true}
         multiSelectionKeyCode={["Control", "Shift"]}
         deleteKeyCode={null}
         onInit={handleInit}

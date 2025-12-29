@@ -147,6 +147,20 @@
   backdrop-filter: blur(8px) saturate(115%);
 }
 
+.ps-player[data-live-scrub="true"] .ps-nav[data-nav-placement="bottom"],
+.ps-player[data-live-scrub="true"] .ps-overlay__btn,
+.ps-player[data-live-scrub="true"] .ps-overlay__panel {
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.ps-player[data-live-scrub="true"] .ps-overlay__btn,
+.ps-player[data-live-scrub="true"] .ps-overlay__panel,
+.ps-player[data-live-scrub="true"] .ps-overlay__toggle,
+.ps-player[data-live-scrub="true"] .ps-nav__arrow {
+  transition: none;
+}
+
 .ps-player--nav-bottom .ps-player__card {
   padding-bottom: calc(clamp(24px, 5vw, 40px) + env(safe-area-inset-bottom, 0px));
 }
@@ -214,6 +228,13 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.ps-overlay__group--left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  align-items: flex-start;
 }
 
 .ps-overlay__group--right {

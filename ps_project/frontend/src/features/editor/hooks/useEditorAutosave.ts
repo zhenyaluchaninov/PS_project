@@ -6,6 +6,7 @@ import { toastError } from "@/features/ui-core/toast";
 import {
   selectEditorAdventure,
   selectEditorDirty,
+  selectEditorLiveUpdateCount,
   selectEditorReadOnly,
   selectEditorSaveStatus,
   selectEditorStatus,
@@ -84,6 +85,7 @@ export const useEditorAutosave = (editSlug: string) => {
   const status = useEditorStore(selectEditorStatus);
   const adventure = useEditorStore(selectEditorAdventure);
   const dirty = useEditorStore(selectEditorDirty);
+  const liveUpdateCount = useEditorStore(selectEditorLiveUpdateCount);
   const saveStatus = useEditorStore(selectEditorSaveStatus);
   const readOnly = useEditorStore(selectEditorReadOnly);
   const setSaveStatus = useEditorStore((s) => s.setSaveStatus);
@@ -296,6 +298,13 @@ export const useEditorAutosave = (editSlug: string) => {
   useEffect(() => {
     if (status !== "ready" || !adventure || !editSlug) return;
     if (readOnly || saveStatus === "locked") return;
+    if (liveUpdateCount > 0) {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      return;
+    }
     if (!dirty) {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
@@ -336,6 +345,7 @@ export const useEditorAutosave = (editSlug: string) => {
     saveStatus,
     setSaveStatus,
     status,
+    liveUpdateCount,
   ]);
 
   useEffect(() => {

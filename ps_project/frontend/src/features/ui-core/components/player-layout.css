@@ -129,6 +129,11 @@
   color: inherit;
 }
 
+.ps-player[data-live-scrub="true"] .ps-player__card {
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
 .ps-player__card > * + * {
   margin-top: clamp(14px, 1.2vw, 20px);
 }

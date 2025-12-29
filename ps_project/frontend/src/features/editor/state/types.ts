@@ -63,6 +63,8 @@ export type EditorState = {
   adventure?: AdventureModel;
   editVersion?: number;
   dirty: boolean;
+  liveUpdateCount: number;
+  interactionLockCount: number;
   saveStatus: EditorSaveStatus;
   saveError?: string | null;
   readOnly: boolean;
@@ -81,6 +83,10 @@ export type EditorState = {
   reset: () => void;
   markDirty: () => void;
   clearDirty: () => void;
+  beginLiveUpdate: () => void;
+  endLiveUpdate: () => void;
+  beginInteractionLock: () => void;
+  endInteractionLock: () => void;
   setSaveStatus: (status: EditorSaveStatus, error?: string | null) => void;
   setSaveError: (error?: string | null) => void;
   setReadOnly: (readOnly: boolean) => void;
@@ -171,6 +177,7 @@ export type EditorState = {
   copySelection: () => void;
   pasteClipboard: (target: { x: number; y: number }) => number[];
   undo: () => void;
+  pushHistorySnapshot: () => void;
   removeSelection: (nodeIds: number[], linkIds: number[]) => void;
   removeNodes: (nodeIds: number[]) => void;
   removeLinks: (linkIds: number[]) => void;

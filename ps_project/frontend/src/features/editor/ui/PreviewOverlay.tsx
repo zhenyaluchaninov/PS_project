@@ -13,6 +13,7 @@ import type { AdventureModel, NodeModel } from "@/domain/models";
 import { PlayerRuntime, StaticPlayerPreview } from "@/features/player/ui/PlayerRuntime";
 import { createPlayerStore } from "@/features/player/state/playerStore";
 import { cn } from "@/lib/utils";
+import { setPreviewRoot } from "./previewLiveStyles";
 
 type PreviewOverlayProps = {
   adventure: AdventureModel;
@@ -61,6 +62,7 @@ export function PreviewOverlay({
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [previewMode, setPreviewMode] = useState<"static" | "play">("static");
   const lastFloatingRef = useRef({ position: DEFAULT_POSITION, size: DEFAULT_SIZE });
+  const previewRootContainerRef = useRef<HTMLDivElement | null>(null);
 
   const nodeLabel = selectedNode ? `Node #${selectedNode.nodeId}` : "No node selected";
   const playEnabled = Boolean(selectedNode);
@@ -70,6 +72,26 @@ export function PreviewOverlay({
       setPreviewMode("static");
     }
   }, [previewMode, selectedNode]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setPreviewRoot(null);
+      return;
+    }
+    let cancelled = false;
+    const updateRoot = () => {
+      if (cancelled) return;
+      const container = previewRootContainerRef.current;
+      const root = container?.querySelector<HTMLElement>(".ps-player") ?? null;
+      setPreviewRoot(root);
+    };
+    const rafId = requestAnimationFrame(updateRoot);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+      setPreviewRoot(null);
+    };
+  }, [adventure, isOpen, previewMode, selectedNode]);
 
   const clampPosition = useCallback(
     (nextPosition: { x: number; y: number }, nextSize = size) => {
@@ -434,6 +456,7 @@ export function PreviewOverlay({
         >
           {selectedNode ? (
             <div
+              ref={previewRootContainerRef}
               className="absolute"
               style={{
                 width: PREVIEW_WIDTH,

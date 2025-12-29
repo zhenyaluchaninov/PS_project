@@ -2488,7 +2488,7 @@ function PlayerOverlay({
       {showLeftGroup || showRightGroup ? (
         <div className="ps-overlay__bar">
           {showLeftGroup ? (
-            <div className="ps-overlay__group">
+            <div className="ps-overlay__group ps-overlay__group--left">
               {showBackButton ? (
                 <OverlayButton
                   label="Back"

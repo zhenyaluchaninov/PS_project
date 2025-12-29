@@ -11,9 +11,15 @@ import {
 import { Button } from "@/features/ui-core/primitives/button";
 import { uploadMedia, deleteMedia } from "@/features/state/api/media";
 import { toastError } from "@/features/ui-core/toast";
+import { hexToRgba } from "@/features/ui-core/props/props";
 import { cn } from "@/lib/utils";
 import { getFontMeta } from "@/lib/fonts";
 import { selectEditorReadOnly, useEditorStore } from "@/features/editor/state/editorStore";
+import {
+  applyPreviewOverrides,
+  beginPreviewOverride,
+  endPreviewOverride,
+} from "@/features/editor/ui/previewLiveStyles";
 import type { EditorNodeInspectorTab } from "../../state/types";
 import {
   ChevronDown,
@@ -36,6 +42,7 @@ import {
 } from "../constants";
 import type { BulkDraft, BulkDraftEntry, BulkEditConfig } from "../types";
 import { BulkField } from "./BulkField";
+import { ColorPickerPopover } from "./ColorPickerPopover";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { InspectorShell } from "./InspectorShell";
 import { RichTextEditor } from "./RichTextEditor";
@@ -457,6 +464,13 @@ export function NodeInspectorPanel({
   bulk,
 }: NodeInspectorPanelProps) {
   const readOnly = useEditorStore(selectEditorReadOnly);
+  const setNodePropPath = useEditorStore((s) => s.setNodePropPath);
+  const markDirty = useEditorStore((s) => s.markDirty);
+  const pushHistorySnapshot = useEditorStore((s) => s.pushHistorySnapshot);
+  const beginLiveUpdate = useEditorStore((s) => s.beginLiveUpdate);
+  const endLiveUpdate = useEditorStore((s) => s.endLiveUpdate);
+  const beginInteractionLock = useEditorStore((s) => s.beginInteractionLock);
+  const endInteractionLock = useEditorStore((s) => s.endInteractionLock);
   const bulkDraft = bulk?.draft ?? {};
   const bulkActive = bulk?.active ?? false;
   const stagedCount = Object.keys(bulkDraft).length;
@@ -539,6 +553,130 @@ export function NodeInspectorPanel({
       return;
     }
     onNodePropChange(path, value);
+  };
+  const stageBulkPropChange = (path: string, value: unknown) => {
+    if (!bulkActive) return;
+    stageBulkChange({
+      path,
+      op: "set",
+      value,
+      kind: "propPath",
+    });
+  };
+  const handleNodePropLiveChange = (path: string, value: unknown) => {
+    if (readOnly) return;
+    if (bulkActive) {
+      stageBulkPropChange(path, value);
+      return;
+    }
+    setNodePropPath(node.nodeId, path, value, { transient: true });
+  };
+  const handleNodePropCommit = (path: string, value: unknown) => {
+    if (readOnly) return;
+    if (bulkActive) {
+      stageBulkPropChange(path, value);
+      return;
+    }
+    markDirty();
+  };
+  const previewCommitRef = useRef(false);
+  const handlePreviewInteractionStart = () => {
+    if (readOnly || bulkActive) return;
+    previewCommitRef.current = false;
+    beginPreviewOverride();
+    handleLiveInteractionStart();
+  };
+  const handlePreviewInteractionEnd = () => {
+    if (readOnly || bulkActive) return;
+    handleLiveInteractionEnd();
+    queueMicrotask(() => {
+      endPreviewOverride({ restore: !previewCommitRef.current });
+      previewCommitRef.current = false;
+    });
+  };
+  const handlePreviewCommit = (path: string, value: unknown) => {
+    if (readOnly) return;
+    previewCommitRef.current = true;
+    if (bulkActive) {
+      stageBulkPropChange(path, value);
+      return;
+    }
+    setNodePropPath(node.nodeId, path, value, { transient: true });
+    markDirty();
+  };
+  const handleColorScrubStart = () => {
+    if (readOnly || bulkActive) return;
+    beginInteractionLock();
+  };
+  const handleColorScrubEnd = () => {
+    if (readOnly || bulkActive) return;
+    endInteractionLock();
+  };
+  const handlePreviewColorLiveChange = (
+    path: string,
+    color: string,
+    alpha?: number
+  ) => {
+    if (readOnly || bulkActive) return;
+    const vars: Record<string, string> = {};
+    let backgroundColor: string | undefined;
+    let textColor: string | undefined;
+    let overlayColor: string | null | undefined;
+    const resolvedAlpha =
+      alpha === undefined ? undefined : clampAlpha(alpha);
+    const withAlpha =
+      resolvedAlpha === undefined ? color : hexToRgba(color, resolvedAlpha);
+
+    switch (path) {
+      case "color_background":
+        vars["--background"] = color;
+        vars["--bg"] = color;
+        vars["--player-bg"] = color;
+        backgroundColor = color;
+        break;
+      case "color_foreground":
+        vars["--foreground"] = withAlpha;
+        vars["--player-foreground"] = withAlpha;
+        overlayColor = withAlpha;
+        break;
+      case "color_text":
+        vars["--text"] = withAlpha;
+        vars["--player-text"] = withAlpha;
+        textColor = withAlpha;
+        break;
+      case "color_textbackground":
+        vars["--surface"] = withAlpha;
+        vars["--player-text-bg"] = withAlpha;
+        break;
+      case "color_buttonbackground":
+        vars["--accent"] = withAlpha;
+        vars["--accent-strong"] = withAlpha;
+        vars["--player-accent"] = withAlpha;
+        vars["--player-button-bg"] = withAlpha;
+        break;
+      case "color_buttontext":
+        vars["--muted"] = withAlpha;
+        vars["--player-button-text"] = withAlpha;
+        break;
+      default:
+        return;
+    }
+
+    applyPreviewOverrides({
+      vars,
+      backgroundColor,
+      textColor,
+      overlayColor,
+    });
+  };
+  const handleLiveInteractionStart = () => {
+    if (readOnly || bulkActive) return;
+    pushHistorySnapshot();
+    beginLiveUpdate();
+  };
+  const handleLiveInteractionEnd = () => {
+    if (readOnly || bulkActive) return;
+    endLiveUpdate();
   };
   const handleNodePropsChange = (updates: Record<string, unknown>) => {
     if (readOnly) return;
@@ -1332,12 +1470,28 @@ export function NodeInspectorPanel({
                             label="Text"
                             colorValue={sceneColors.text}
                             alphaValue={sceneColors.textAlpha}
-                            onColorChange={(value) =>
-                              handleNodePropChange("color_text", value)
+                            onColorLiveChange={(value) =>
+                              handlePreviewColorLiveChange(
+                                "color_text",
+                                value,
+                                sceneColors.textAlpha
+                              )
                             }
-                            onAlphaChange={(value) =>
-                              handleNodePropChange("alpha_text", String(value))
+                            onColorCommit={(value) =>
+                              handlePreviewCommit("color_text", value)
                             }
+                            onAlphaLiveChange={(value) =>
+                              handleNodePropLiveChange("alpha_text", String(value))
+                            }
+                            onAlphaCommit={(value) =>
+                              handleNodePropCommit("alpha_text", String(value))
+                            }
+                            onColorInteractionStart={handlePreviewInteractionStart}
+                            onColorInteractionEnd={handlePreviewInteractionEnd}
+                            onAlphaInteractionStart={handleLiveInteractionStart}
+                            onAlphaInteractionEnd={handleLiveInteractionEnd}
+                            onColorScrubStart={handleColorScrubStart}
+                            onColorScrubEnd={handleColorScrubEnd}
                           />
                         </BulkField>
                         <BulkField
@@ -1356,15 +1510,34 @@ export function NodeInspectorPanel({
                             label="Text background"
                             colorValue={sceneColors.textBackground}
                             alphaValue={sceneColors.textBackgroundAlpha}
-                            onColorChange={(value) =>
-                              handleNodePropChange("color_textbackground", value)
+                            onColorLiveChange={(value) =>
+                              handlePreviewColorLiveChange(
+                                "color_textbackground",
+                                value,
+                                sceneColors.textBackgroundAlpha
+                              )
                             }
-                            onAlphaChange={(value) =>
-                              handleNodePropChange(
+                            onColorCommit={(value) =>
+                              handlePreviewCommit("color_textbackground", value)
+                            }
+                            onAlphaLiveChange={(value) =>
+                              handleNodePropLiveChange(
                                 "alpha_textbackground",
                                 String(value)
                               )
                             }
+                            onAlphaCommit={(value) =>
+                              handleNodePropCommit(
+                                "alpha_textbackground",
+                                String(value)
+                              )
+                            }
+                            onColorInteractionStart={handlePreviewInteractionStart}
+                            onColorInteractionEnd={handlePreviewInteractionEnd}
+                            onAlphaInteractionStart={handleLiveInteractionStart}
+                            onAlphaInteractionEnd={handleLiveInteractionEnd}
+                            onColorScrubStart={handleColorScrubStart}
+                            onColorScrubEnd={handleColorScrubEnd}
                           />
                         </BulkField>
                       </div>
@@ -1788,9 +1961,19 @@ export function NodeInspectorPanel({
                       <ColorOnlyField
                         label="Background"
                         value={sceneColors.background}
-                        onChange={(value) =>
-                          handleNodePropChange("color_background", value)
+                        onLiveChange={(value) =>
+                          handlePreviewColorLiveChange(
+                            "color_background",
+                            value
+                          )
                         }
+                        onCommit={(value) =>
+                          handlePreviewCommit("color_background", value)
+                        }
+                        onInteractionStart={handlePreviewInteractionStart}
+                        onInteractionEnd={handlePreviewInteractionEnd}
+                        onScrubStart={handleColorScrubStart}
+                        onScrubEnd={handleColorScrubEnd}
                       />
                     </BulkField>
                     <BulkField
@@ -1806,12 +1989,34 @@ export function NodeInspectorPanel({
                         label="Foreground overlay"
                         colorValue={sceneColors.foreground}
                         alphaValue={sceneColors.foregroundAlpha}
-                        onColorChange={(value) =>
-                          handleNodePropChange("color_foreground", value)
+                        onColorLiveChange={(value) =>
+                          handlePreviewColorLiveChange(
+                            "color_foreground",
+                            value,
+                            sceneColors.foregroundAlpha
+                          )
                         }
-                        onAlphaChange={(value) =>
-                          handleNodePropChange("alpha_foreground", String(value))
+                        onColorCommit={(value) =>
+                          handlePreviewCommit("color_foreground", value)
                         }
+                        onAlphaLiveChange={(value) =>
+                          handleNodePropLiveChange(
+                            "alpha_foreground",
+                            String(value)
+                          )
+                        }
+                        onAlphaCommit={(value) =>
+                          handleNodePropCommit(
+                            "alpha_foreground",
+                            String(value)
+                          )
+                        }
+                        onColorInteractionStart={handlePreviewInteractionStart}
+                        onColorInteractionEnd={handlePreviewInteractionEnd}
+                        onAlphaInteractionStart={handleLiveInteractionStart}
+                        onAlphaInteractionEnd={handleLiveInteractionEnd}
+                        onColorScrubStart={handleColorScrubStart}
+                        onColorScrubEnd={handleColorScrubEnd}
                       />
                     </BulkField>
                     <BulkField
@@ -1840,9 +2045,14 @@ export function NodeInspectorPanel({
                         max={BLUR_MAX}
                         step={1}
                         allowBeyondMax
-                        onChange={(next) =>
-                          handleNodePropChange("color_blur", String(next))
+                        onLiveChange={(next) =>
+                          handleNodePropLiveChange("color_blur", String(next))
                         }
+                        onCommit={(next) =>
+                          handleNodePropCommit("color_blur", String(next))
+                        }
+                        onInteractionStart={handleLiveInteractionStart}
+                        onInteractionEnd={handleLiveInteractionEnd}
                       />
                     </BulkField>
                   </div>
@@ -2068,9 +2278,14 @@ export function NodeInspectorPanel({
                         min={AUDIO_VOLUME_MIN}
                         max={AUDIO_VOLUME_MAX}
                         step={1}
-                        onChange={(next) =>
-                          handleNodePropChange("audio_volume", String(next))
+                        onLiveChange={(next) =>
+                          handleNodePropLiveChange("audio_volume", String(next))
                         }
+                        onCommit={(next) =>
+                          handleNodePropCommit("audio_volume", String(next))
+                        }
+                        onInteractionStart={handleLiveInteractionStart}
+                        onInteractionEnd={handleLiveInteractionEnd}
                       />
                     </BulkField>
                   </div>
@@ -2127,12 +2342,34 @@ export function NodeInspectorPanel({
                       label="Button text"
                       colorValue={sceneColors.buttonText}
                       alphaValue={sceneColors.buttonTextAlpha}
-                      onColorChange={(value) =>
-                        handleNodePropChange("color_buttontext", value)
+                      onColorLiveChange={(value) =>
+                        handlePreviewColorLiveChange(
+                          "color_buttontext",
+                          value,
+                          sceneColors.buttonTextAlpha
+                        )
                       }
-                      onAlphaChange={(value) =>
-                        handleNodePropChange("alpha_buttontext", String(value))
+                      onColorCommit={(value) =>
+                        handlePreviewCommit("color_buttontext", value)
                       }
+                      onAlphaLiveChange={(value) =>
+                        handleNodePropLiveChange(
+                          "alpha_buttontext",
+                          String(value)
+                        )
+                      }
+                      onAlphaCommit={(value) =>
+                        handleNodePropCommit(
+                          "alpha_buttontext",
+                          String(value)
+                        )
+                      }
+                      onColorInteractionStart={handlePreviewInteractionStart}
+                      onColorInteractionEnd={handlePreviewInteractionEnd}
+                      onAlphaInteractionStart={handleLiveInteractionStart}
+                      onAlphaInteractionEnd={handleLiveInteractionEnd}
+                      onColorScrubStart={handleColorScrubStart}
+                      onColorScrubEnd={handleColorScrubEnd}
                     />
                   </BulkField>
                   <BulkField
@@ -2151,15 +2388,34 @@ export function NodeInspectorPanel({
                       label="Button background"
                       colorValue={sceneColors.buttonBackground}
                       alphaValue={sceneColors.buttonBackgroundAlpha}
-                      onColorChange={(value) =>
-                        handleNodePropChange("color_buttonbackground", value)
+                      onColorLiveChange={(value) =>
+                        handlePreviewColorLiveChange(
+                          "color_buttonbackground",
+                          value,
+                          sceneColors.buttonBackgroundAlpha
+                        )
                       }
-                      onAlphaChange={(value) =>
-                        handleNodePropChange(
+                      onColorCommit={(value) =>
+                        handlePreviewCommit("color_buttonbackground", value)
+                      }
+                      onAlphaLiveChange={(value) =>
+                        handleNodePropLiveChange(
                           "alpha_buttonbackground",
                           String(value)
                         )
                       }
+                      onAlphaCommit={(value) =>
+                        handleNodePropCommit(
+                          "alpha_buttonbackground",
+                          String(value)
+                        )
+                      }
+                      onColorInteractionStart={handlePreviewInteractionStart}
+                      onColorInteractionEnd={handlePreviewInteractionEnd}
+                      onAlphaInteractionStart={handleLiveInteractionStart}
+                      onAlphaInteractionEnd={handleLiveInteractionEnd}
+                      onColorScrubStart={handleColorScrubStart}
+                      onColorScrubEnd={handleColorScrubEnd}
                     />
                   </BulkField>
                   <BulkField
@@ -2174,11 +2430,18 @@ export function NodeInspectorPanel({
                       min={NAV_TEXT_SIZE_MIN}
                       max={NAV_TEXT_SIZE_MAX}
                       step={1}
-                      onChange={(next) =>
-                        handleNodePropChange("playerNavigation_textSize", [
+                      onLiveChange={(next) =>
+                        handleNodePropLiveChange("playerNavigation_textSize", [
                           String(next),
                         ])
                       }
+                      onCommit={(next) =>
+                        handleNodePropCommit("playerNavigation_textSize", [
+                          String(next),
+                        ])
+                      }
+                      onInteractionStart={handleLiveInteractionStart}
+                      onInteractionEnd={handleLiveInteractionEnd}
                     />
                   </BulkField>
                 </div>
@@ -2259,15 +2522,30 @@ export function NodeInspectorPanel({
                       label="Condition color"
                       colorValue={conditionsColor}
                       alphaValue={conditionsAlpha}
-                      onColorChange={(value) =>
-                        handleNodePropChange("color_nodeconditions", value)
+                      onColorLiveChange={(value) =>
+                        handleNodePropLiveChange("color_nodeconditions", value)
                       }
-                      onAlphaChange={(value) =>
-                        handleNodePropChange(
+                      onColorCommit={(value) =>
+                        handleNodePropCommit("color_nodeconditions", value)
+                      }
+                      onAlphaLiveChange={(value) =>
+                        handleNodePropLiveChange(
                           "alpha_nodeconditions",
                           String(value)
                         )
                       }
+                      onAlphaCommit={(value) =>
+                        handleNodePropCommit(
+                          "alpha_nodeconditions",
+                          String(value)
+                        )
+                      }
+                      onColorInteractionStart={handleLiveInteractionStart}
+                      onColorInteractionEnd={handleLiveInteractionEnd}
+                      onAlphaInteractionStart={handleLiveInteractionStart}
+                      onAlphaInteractionEnd={handleLiveInteractionEnd}
+                      onColorScrubStart={handleColorScrubStart}
+                      onColorScrubEnd={handleColorScrubEnd}
                     />
                   </BulkField>
                 </div>
@@ -2317,9 +2595,6 @@ export function NodeInspectorPanel({
 }
 
 
-const colorInputClasses =
-  "h-8 w-12 cursor-pointer rounded-md bg-transparent p-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]";
-
 const rangeInputClasses = cn(
   "h-1 w-full cursor-pointer appearance-none bg-transparent",
   "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]",
@@ -2341,11 +2616,21 @@ const rangeInputClasses = cn(
 function ColorOnlyField({
   label,
   value,
-  onChange,
+  onLiveChange,
+  onCommit,
+  onInteractionStart,
+  onInteractionEnd,
+  onScrubStart,
+  onScrubEnd,
 }: {
   label: string;
   value: string;
-  onChange: (value: string) => void;
+  onLiveChange?: (value: string) => void;
+  onCommit: (value: string) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
+  onScrubStart?: () => void;
+  onScrubEnd?: () => void;
 }) {
   return (
     <div className="space-y-2">
@@ -2353,12 +2638,15 @@ function ColorOnlyField({
         <span className="text-sm font-medium text-[var(--text-secondary)]">
           {label}
         </span>
-        <input
-          type="color"
+        <ColorPickerPopover
           value={value}
-          onChange={(event) => onChange(event.target.value)}
-          aria-label={`${label} color`}
-          className={colorInputClasses}
+          onLiveChange={onLiveChange}
+          onCommit={onCommit}
+          onInteractionStart={onInteractionStart}
+          onInteractionEnd={onInteractionEnd}
+          onScrubStart={onScrubStart}
+          onScrubEnd={onScrubEnd}
+          ariaLabel={`${label} color`}
         />
       </div>
     </div>
@@ -2369,16 +2657,127 @@ function ColorAlphaField({
   label,
   colorValue,
   alphaValue,
-  onColorChange,
-  onAlphaChange,
+  onColorLiveChange,
+  onColorCommit,
+  onAlphaLiveChange,
+  onAlphaCommit,
+  onColorInteractionStart,
+  onColorInteractionEnd,
+  onAlphaInteractionStart,
+  onAlphaInteractionEnd,
+  onColorScrubStart,
+  onColorScrubEnd,
 }: {
   label: string;
   colorValue: string;
   alphaValue: number;
-  onColorChange: (value: string) => void;
-  onAlphaChange: (value: number) => void;
+  onColorLiveChange?: (value: string) => void;
+  onColorCommit: (value: string) => void;
+  onAlphaLiveChange?: (value: number) => void;
+  onAlphaCommit: (value: number) => void;
+  onColorInteractionStart?: () => void;
+  onColorInteractionEnd?: () => void;
+  onAlphaInteractionStart?: () => void;
+  onAlphaInteractionEnd?: () => void;
+  onColorScrubStart?: () => void;
+  onColorScrubEnd?: () => void;
 }) {
   const clampedAlpha = clampAlpha(alphaValue);
+  const [draftAlpha, setDraftAlpha] = useState(clampedAlpha);
+  const [draftAlphaInput, setDraftAlphaInput] = useState(
+    String(clampedAlpha)
+  );
+  const alphaInteractingRef = useRef(false);
+  const alphaInteractionStartedRef = useRef(false);
+  const alphaInitialRef = useRef(clampedAlpha);
+  const alphaLatestRef = useRef(clampedAlpha);
+  const alphaRafRef = useRef<number | null>(null);
+  const alphaInteractionEndRef = useRef(onAlphaInteractionEnd);
+
+  useEffect(() => {
+    alphaInteractionEndRef.current = onAlphaInteractionEnd;
+  }, [onAlphaInteractionEnd]);
+
+  useEffect(() => {
+    if (!alphaInteractingRef.current) {
+      setDraftAlpha(clampedAlpha);
+      setDraftAlphaInput(String(clampedAlpha));
+      alphaInitialRef.current = clampedAlpha;
+      alphaLatestRef.current = clampedAlpha;
+    }
+  }, [clampedAlpha]);
+
+  useEffect(
+    () => () => {
+      if (alphaRafRef.current !== null) {
+        cancelAnimationFrame(alphaRafRef.current);
+        alphaRafRef.current = null;
+      }
+      if (alphaInteractionStartedRef.current) {
+        alphaInteractionEndRef.current?.();
+        alphaInteractionStartedRef.current = false;
+      }
+    },
+    []
+  );
+
+  const beginAlphaInteraction = () => {
+    if (alphaInteractingRef.current) return;
+    alphaInteractingRef.current = true;
+    alphaInteractionStartedRef.current = false;
+    alphaInitialRef.current = clampedAlpha;
+    alphaLatestRef.current = clampedAlpha;
+  };
+
+  const maybeStartAlphaInteraction = (nextValue: number) => {
+    if (alphaInteractionStartedRef.current) return;
+    if (nextValue === alphaInitialRef.current) return;
+    alphaInteractionStartedRef.current = true;
+    onAlphaInteractionStart?.();
+  };
+
+  const scheduleAlphaLiveChange = (nextValue: number) => {
+    alphaLatestRef.current = nextValue;
+    if (!onAlphaLiveChange) return;
+    if (alphaRafRef.current !== null) return;
+    alphaRafRef.current = requestAnimationFrame(() => {
+      alphaRafRef.current = null;
+      onAlphaLiveChange?.(alphaLatestRef.current);
+    });
+  };
+
+  const flushAlphaLiveChange = (nextValue: number) => {
+    if (alphaRafRef.current !== null) {
+      cancelAnimationFrame(alphaRafRef.current);
+      alphaRafRef.current = null;
+    }
+    alphaLatestRef.current = nextValue;
+    onAlphaLiveChange?.(nextValue);
+  };
+
+  const commitAlpha = (nextValue: number) => {
+    if (!alphaInteractingRef.current) return;
+    const normalized = clampAlpha(nextValue);
+    setDraftAlpha(normalized);
+    setDraftAlphaInput(String(normalized));
+    flushAlphaLiveChange(normalized);
+    const changed = normalized !== alphaInitialRef.current;
+    alphaInteractingRef.current = false;
+    if (alphaInteractionStartedRef.current) {
+      onAlphaInteractionEnd?.();
+      alphaInteractionStartedRef.current = false;
+    }
+    if (changed) {
+      onAlphaCommit(normalized);
+    }
+  };
+
+  const parseAlphaInput = (input: string) => {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
 
   return (
     <div className="space-y-2">
@@ -2386,12 +2785,15 @@ function ColorAlphaField({
         <span className="text-sm font-medium text-[var(--text-secondary)]">
           {label}
         </span>
-        <input
-          type="color"
+        <ColorPickerPopover
           value={colorValue}
-          onChange={(event) => onColorChange(event.target.value)}
-          aria-label={`${label} color`}
-          className={colorInputClasses}
+          onLiveChange={onColorLiveChange}
+          onCommit={onColorCommit}
+          onInteractionStart={onColorInteractionStart}
+          onInteractionEnd={onColorInteractionEnd}
+          onScrubStart={onColorScrubStart}
+          onScrubEnd={onColorScrubEnd}
+          ariaLabel={`${label} color`}
         />
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
@@ -2401,11 +2803,29 @@ function ColorAlphaField({
             type="range"
             min={0}
             max={100}
-            value={clampedAlpha}
+            value={clampAlpha(draftAlpha)}
+            onFocus={beginAlphaInteraction}
+            onPointerDown={(event) => {
+              beginAlphaInteraction();
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerUp={(event) => {
+              const next = Number(event.currentTarget.value);
+              if (!Number.isFinite(next)) return;
+              commitAlpha(next);
+            }}
+            onPointerCancel={() => commitAlpha(draftAlpha)}
+            onLostPointerCapture={() => commitAlpha(draftAlpha)}
+            onBlur={() => commitAlpha(draftAlpha)}
             onChange={(event) => {
               const next = Number(event.target.value);
               if (!Number.isFinite(next)) return;
-              onAlphaChange(clampAlpha(next));
+              const normalized = clampAlpha(next);
+              beginAlphaInteraction();
+              maybeStartAlphaInteraction(normalized);
+              setDraftAlpha(normalized);
+              setDraftAlphaInput(String(normalized));
+              scheduleAlphaLiveChange(normalized);
             }}
             aria-label={`${label} opacity`}
             className={rangeInputClasses}
@@ -2415,11 +2835,27 @@ function ColorAlphaField({
           type="number"
           min={0}
           max={100}
-          value={clampedAlpha}
+          value={draftAlphaInput}
+          onFocus={beginAlphaInteraction}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            const parsed = parseAlphaInput(draftAlphaInput);
+            commitAlpha(parsed ?? draftAlpha);
+          }}
+          onBlur={() => {
+            const parsed = parseAlphaInput(draftAlphaInput);
+            commitAlpha(parsed ?? draftAlpha);
+          }}
           onChange={(event) => {
-            const next = Number(event.target.value);
-            if (!Number.isFinite(next)) return;
-            onAlphaChange(clampAlpha(next));
+            const nextInput = event.target.value;
+            setDraftAlphaInput(nextInput);
+            const parsed = parseAlphaInput(nextInput);
+            if (parsed === null) return;
+            const normalized = clampAlpha(parsed);
+            beginAlphaInteraction();
+            maybeStartAlphaInteraction(normalized);
+            setDraftAlpha(normalized);
+            scheduleAlphaLiveChange(normalized);
           }}
           aria-label={`${label} opacity value`}
           className="w-16 rounded-md border border-[var(--border)] bg-transparent px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
@@ -2435,7 +2871,10 @@ function RangeField({
   min,
   max,
   step,
-  onChange,
+  onLiveChange,
+  onCommit,
+  onInteractionStart,
+  onInteractionEnd,
   allowBeyondMax = false,
 }: {
   label: string;
@@ -2443,10 +2882,124 @@ function RangeField({
   min: number;
   max: number;
   step: number;
-  onChange: (value: number) => void;
+  onLiveChange?: (value: number) => void;
+  onCommit: (value: number) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
   allowBeyondMax?: boolean;
 }) {
-  const sliderValue = clampNumber(value, min, max);
+  const normalizedValue = allowBeyondMax
+    ? Math.max(min, value)
+    : clampNumber(value, min, max);
+  const [draftValue, setDraftValue] = useState(normalizedValue);
+  const [draftInput, setDraftInput] = useState(String(normalizedValue));
+  const isInteractingRef = useRef(false);
+  const interactionStartedRef = useRef(false);
+  const initialValueRef = useRef(normalizedValue);
+  const rafRef = useRef<number | null>(null);
+  const pendingLiveValueRef = useRef<number | null>(null);
+  const interactionEndRef = useRef(onInteractionEnd);
+
+  useEffect(() => {
+    if (!isInteractingRef.current) {
+      setDraftValue(normalizedValue);
+      setDraftInput(String(normalizedValue));
+      initialValueRef.current = normalizedValue;
+    }
+  }, [normalizedValue]);
+
+  useEffect(() => {
+    interactionEndRef.current = onInteractionEnd;
+  }, [onInteractionEnd]);
+
+  useEffect(
+    () => () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      if (interactionStartedRef.current) {
+        interactionEndRef.current?.();
+        interactionStartedRef.current = false;
+      }
+    },
+    []
+  );
+
+  const normalizeValue = (raw: number) =>
+    allowBeyondMax ? Math.max(min, raw) : clampNumber(raw, min, max);
+
+  const parseDraftInput = (input: string) => {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const beginInteraction = () => {
+    if (isInteractingRef.current) return;
+    isInteractingRef.current = true;
+    interactionStartedRef.current = false;
+    initialValueRef.current = normalizedValue;
+  };
+
+  const maybeStartInteraction = (nextValue: number) => {
+    if (interactionStartedRef.current) return;
+    if (nextValue === initialValueRef.current) return;
+    interactionStartedRef.current = true;
+    onInteractionStart?.();
+  };
+
+  const scheduleLiveChange = (nextValue: number) => {
+    pendingLiveValueRef.current = nextValue;
+    if (!onLiveChange) return;
+    if (rafRef.current !== null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const pending = pendingLiveValueRef.current;
+      if (pending === null) return;
+      onLiveChange?.(pending);
+    });
+  };
+
+  const flushLiveChange = (nextValue: number) => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    pendingLiveValueRef.current = nextValue;
+    onLiveChange?.(nextValue);
+  };
+
+  const commitValue = (raw: number | null) => {
+    if (!isInteractingRef.current) return;
+    if (raw === null) {
+      setDraftValue(normalizedValue);
+      setDraftInput(String(normalizedValue));
+      flushLiveChange(normalizedValue);
+      isInteractingRef.current = false;
+      if (interactionStartedRef.current) {
+        onInteractionEnd?.();
+        interactionStartedRef.current = false;
+      }
+      return;
+    }
+    const nextValue = normalizeValue(raw);
+    setDraftValue(nextValue);
+    setDraftInput(String(nextValue));
+    flushLiveChange(nextValue);
+    const changed = nextValue !== initialValueRef.current;
+    isInteractingRef.current = false;
+    if (interactionStartedRef.current) {
+      onInteractionEnd?.();
+      interactionStartedRef.current = false;
+    }
+    if (changed) {
+      onCommit(nextValue);
+    }
+  };
+
+  const sliderValue = clampNumber(draftValue, min, max);
 
   return (
     <div className="space-y-2">
@@ -2462,10 +3015,27 @@ function RangeField({
           max={max}
           step={step}
           value={sliderValue}
+          onFocus={beginInteraction}
+          onPointerDown={(event) => {
+            beginInteraction();
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerUp={(event) => {
+            const next = Number(event.currentTarget.value);
+            commitValue(Number.isFinite(next) ? next : null);
+          }}
+          onPointerCancel={() => commitValue(draftValue)}
+          onLostPointerCapture={() => commitValue(draftValue)}
+          onBlur={() => commitValue(draftValue)}
           onChange={(event) => {
             const next = Number(event.target.value);
             if (!Number.isFinite(next)) return;
-            onChange(clampNumber(next, min, max));
+            const normalized = normalizeValue(next);
+            beginInteraction();
+            maybeStartInteraction(normalized);
+            setDraftValue(normalized);
+            setDraftInput(String(normalized));
+            scheduleLiveChange(normalized);
           }}
           aria-label={label}
           className={rangeInputClasses}
@@ -2475,14 +3045,27 @@ function RangeField({
           min={min}
           max={allowBeyondMax ? undefined : max}
           step={step}
-          value={value}
+          value={draftInput}
+          onFocus={beginInteraction}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            const parsed = parseDraftInput(draftInput);
+            commitValue(parsed ?? draftValue);
+          }}
+          onBlur={() => {
+            const parsed = parseDraftInput(draftInput);
+            commitValue(parsed ?? draftValue);
+          }}
           onChange={(event) => {
-            const next = Number(event.target.value);
-            if (!Number.isFinite(next)) return;
-            const normalized = allowBeyondMax
-              ? Math.max(min, next)
-              : clampNumber(next, min, max);
-            onChange(normalized);
+            const nextInput = event.target.value;
+            setDraftInput(nextInput);
+            const parsed = parseDraftInput(nextInput);
+            if (parsed === null) return;
+            const normalized = normalizeValue(parsed);
+            beginInteraction();
+            maybeStartInteraction(normalized);
+            setDraftValue(normalized);
+            scheduleLiveChange(normalized);
           }}
           aria-label={`${label} value`}
           className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"

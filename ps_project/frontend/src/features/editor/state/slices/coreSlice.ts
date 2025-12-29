@@ -15,6 +15,8 @@ type ResetState = Pick<
   | "adventure"
   | "editVersion"
   | "dirty"
+  | "liveUpdateCount"
+  | "interactionLockCount"
   | "saveStatus"
   | "saveError"
   | "readOnly"
@@ -38,6 +40,8 @@ const createResetState = (): ResetState => ({
   adventure: undefined,
   editVersion: undefined,
   dirty: false,
+  liveUpdateCount: 0,
+  interactionLockCount: 0,
   saveStatus: "idle",
   saveError: null,
   readOnly: false,
@@ -59,6 +63,18 @@ export const coreSlice: EditorSlice = (set, get) => ({
   reset: () => set(createResetState()),
   markDirty: () => set({ dirty: true }),
   clearDirty: () => set({ dirty: false }),
+  beginLiveUpdate: () =>
+    set((state) => ({ liveUpdateCount: state.liveUpdateCount + 1 })),
+  endLiveUpdate: () =>
+    set((state) => ({
+      liveUpdateCount: Math.max(0, state.liveUpdateCount - 1),
+    })),
+  beginInteractionLock: () =>
+    set((state) => ({ interactionLockCount: state.interactionLockCount + 1 })),
+  endInteractionLock: () =>
+    set((state) => ({
+      interactionLockCount: Math.max(0, state.interactionLockCount - 1),
+    })),
   setSaveStatus: (saveStatus, error) =>
     set({
       saveStatus,
