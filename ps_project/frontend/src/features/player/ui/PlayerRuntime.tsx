@@ -414,10 +414,16 @@ const normalizeAudioVolume = (value: unknown): number => {
   const primary = Array.isArray(value) ? value[0] : value;
   const numeric = Number(primary);
   if (!Number.isFinite(numeric)) return 1;
-  if (numeric > 1.0001) {
+  const hasDecimal =
+    typeof primary === "string" ? primary.includes(".") : !Number.isInteger(numeric);
+  // Sliders emit integers (0-100). Treat integers as percentage values.
+  if (numeric >= 0 && numeric <= 1 && hasDecimal) {
+    return clampVolume(numeric);
+  }
+  if (numeric >= 0 && numeric <= 100) {
     return clampVolume(numeric / 100);
   }
-  return clampVolume(numeric);
+  return clampVolume(numeric / 100);
 };
 
 const coerceSeconds = (value: unknown): number | null => {

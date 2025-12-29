@@ -48,10 +48,16 @@ export const defaultCssVars = {
 
 const normalizeAlpha = (alpha?: string | number) => {
   if (alpha === undefined || alpha === null) return 1;
-  const numeric = typeof alpha === "string" ? Number(alpha) : alpha;
+  const raw = alpha;
+  const numeric = typeof raw === "string" ? Number(raw) : raw;
   if (Number.isNaN(numeric)) return 1;
-  // Legacy values are often 0-100, but sometimes 0-255. Clamp to 0-1.
-  if (numeric > 1 && numeric <= 100) {
+  const hasDecimal =
+    typeof raw === "string" ? raw.includes(".") : !Number.isInteger(raw);
+  // Sliders emit integers (0-100). Treat integers as percentage values.
+  if (numeric >= 0 && numeric <= 1 && hasDecimal) {
+    return Math.min(Math.max(numeric, 0), 1);
+  }
+  if (numeric >= 0 && numeric <= 100) {
     return Math.min(Math.max(numeric, 0), 100) / 100;
   }
   if (numeric > 100) {
