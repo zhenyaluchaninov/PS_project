@@ -711,6 +711,59 @@ const resolveNavigationLabel = (
   return label ? label : null;
 };
 
+const applyMediaOverscan = (root: HTMLElement) => {
+  const computed = window.getComputedStyle(root);
+  const blurValue = Number.parseFloat(
+    computed.getPropertyValue("--player-media-blur")
+  );
+  const blur = Number.isFinite(blurValue) ? blurValue : 0;
+  if (blur <= 0) {
+    root.style.setProperty("--player-media-scale-x", "1");
+    root.style.setProperty("--player-media-scale-y", "1");
+    return;
+  }
+
+  const rect = root.getBoundingClientRect();
+  const width = rect.width || 1;
+  const height = rect.height || 1;
+  const padding = blur * 2;
+  const scaleX = Math.max(1, 1 + (padding * 2) / width);
+  const scaleY = Math.max(1, 1 + (padding * 2) / height);
+
+  root.style.setProperty("--player-media-scale-x", scaleX.toFixed(4));
+  root.style.setProperty("--player-media-scale-y", scaleY.toFixed(4));
+};
+
+const useMediaOverscan = (
+  rootRef: MutableRefObject<HTMLElement | null>,
+  blurKey?: string | null
+) => {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof ResizeObserver === "undefined") return;
+
+    let frame = 0;
+    const schedule = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        applyMediaOverscan(root);
+      });
+    };
+
+    const observer = new ResizeObserver(schedule);
+    observer.observe(root);
+    schedule();
+
+    return () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+      }
+      observer.disconnect();
+    };
+  }, [rootRef, blurKey]);
+};
+
 const addPressedClass = (event: ReactPointerEvent<HTMLElement>) => {
   event.currentTarget.classList.add("btn-pressed");
 };
@@ -1156,6 +1209,7 @@ export function PlayerRuntime({
   );
 
   const { style: propsStyle, flags, dataProps, layout, media, typography } = propsResult;
+  useMediaOverscan(playerRootRef, media.filter);
   const animationSettings = useMemo(
     () => readLegacyAnimationSettings(adventure?.props, mergedNodeProps),
     [adventure?.props, mergedNodeProps]
@@ -2054,6 +2108,7 @@ export function StaticPlayerPreview({
   node: NodeModel;
   className?: string;
 }) {
+  const playerRootRef = useRef<HTMLDivElement | null>(null);
   const adventureProps = adventure.props as Record<string, unknown> | null | undefined;
   const mergedNodeProps = useMemo(
     () => ({
@@ -2073,6 +2128,7 @@ export function StaticPlayerPreview({
   );
 
   const { style: propsStyle, flags, dataProps, layout, media, typography } = propsResult;
+  useMediaOverscan(playerRootRef, media.filter);
   const legacyContent = useMemo(
     () => buildLegacyContent(node, mergedNodeProps),
     [node, mergedNodeProps]
@@ -2312,6 +2368,7 @@ export function StaticPlayerPreview({
       objectFit={media.objectFit}
       backgroundPosition={media.backgroundPosition}
       backgroundSize={media.backgroundSize}
+      rootRef={playerRootRef}
       dataProps={{
         background: dataProps.background,
         backgroundImage: dataProps.background_image,

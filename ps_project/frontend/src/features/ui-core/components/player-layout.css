@@ -47,6 +47,9 @@
   background-position: var(--player-bg-position, center center);
   filter: var(--player-media-filter, none);
   transition: opacity 200ms ease, background-image 280ms ease;
+  transform: scale(var(--player-media-scale-x, 1), var(--player-media-scale-y, 1));
+  transform-origin: center;
+  will-change: transform, filter;
 }
 
 .ps-player__video {
@@ -58,6 +61,9 @@
   filter: var(--player-media-filter, none);
   background: #000;
   pointer-events: none;
+  transform: scale(var(--player-media-scale-x, 1), var(--player-media-scale-y, 1));
+  transform-origin: center;
+  will-change: transform, filter;
 }
 
 .ps-player__video[data-interactive="true"] {

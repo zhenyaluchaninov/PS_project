@@ -347,6 +347,7 @@ export const buildPropsStyle = ({
   if (flags.grayscale) filterParts.push("grayscale(100%)");
   if (blur > 0) filterParts.push(`blur(${blur}px)`);
   const mediaFilter = filterParts.length ? filterParts.join(" ") : undefined;
+  styleVars["--player-media-blur"] = String(blur);
 
   const objectFit =
     dataProps.background?.includes("contain") ?? false ? "contain" : "cover";
