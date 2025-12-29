@@ -349,7 +349,7 @@ export function PreviewOverlay({
   if (!isOpen) {
     return (
       <div
-        className="absolute z-30"
+        className="absolute z-10"
         style={{ top: DEFAULT_POSITION.y, left: DEFAULT_POSITION.x }}
       >
         <button
@@ -365,7 +365,7 @@ export function PreviewOverlay({
   }
 
   return (
-    <div className="absolute z-30" style={panelStyle}>
+    <div className="absolute z-10" style={panelStyle}>
       <div
         className="relative h-full w-full overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text)] shadow-[0_18px_40px_-28px_rgba(0,0,0,0.85)]"
         onKeyDownCapture={handlePreviewKeyDown}
