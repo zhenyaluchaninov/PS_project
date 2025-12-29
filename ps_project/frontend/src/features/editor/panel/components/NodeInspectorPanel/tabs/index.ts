@@ -1,0 +1,5 @@
+export { ContentTab } from "./ContentTab";
+export { StyleTab } from "./StyleTab";
+export { ButtonsTab } from "./ButtonsTab";
+export { LogicTab } from "./LogicTab";
+export { InspectorTabs } from "./InspectorTabs";
