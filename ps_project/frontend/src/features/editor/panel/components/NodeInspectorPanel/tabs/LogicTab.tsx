@@ -10,6 +10,8 @@ export function LogicTab({
   chapterType,
   handleNodeTypeChange,
   hideVisitedEnabled,
+  nodeConditions,
+  conditionsBehavior,
   conditionsColor,
   conditionsAlpha,
   statisticsEnabled,
@@ -27,6 +29,8 @@ export function LogicTab({
   chapterType: string;
   handleNodeTypeChange: (chapterType: string) => void;
   hideVisitedEnabled: boolean;
+  nodeConditions: string[];
+  conditionsBehavior: string;
   conditionsColor: string;
   conditionsAlpha: number;
   statisticsEnabled: boolean;
@@ -66,11 +70,34 @@ export function LogicTab({
               <ToggleRow
                 label="Hide visited"
                 checked={hideVisitedEnabled}
-                onToggle={(next) =>
-                  handleNodePropChange("node_conditions", [
-                    next ? "hide_visited" : "",
-                  ])
+                onToggle={(next) => {
+                  const remaining = nodeConditions.filter(
+                    (token) =>
+                      token.trim().length > 0 &&
+                      token.toLowerCase() !== "hide_visited"
+                  );
+                  const nextConditions = next
+                    ? [...remaining, "hide_visited"]
+                    : remaining;
+                  handleNodePropChange("node_conditions", nextConditions);
+                }}
+              />
+            </BulkField>
+            <BulkField
+              active={isBulkFieldStaged("type_nodeconditions")}
+              onClear={() => clearBulkPaths("type_nodeconditions")}
+            >
+              <SelectField
+                label="Conditioned button behavior"
+                value={conditionsBehavior}
+                onChange={(value) =>
+                  handleNodePropChange("type_nodeconditions", [value])
                 }
+                options={[
+                  { value: "hide", label: "Hide button" },
+                  { value: "transparency", label: "Dim button" },
+                ]}
+                widthClassName="w-56"
               />
             </BulkField>
             <BulkField
@@ -128,20 +155,6 @@ export function LogicTab({
                 checked={statisticsEnabled}
                 onToggle={(next) =>
                   handleNodePropChange("node_statistics", [next ? "on" : ""])
-                }
-              />
-            </BulkField>
-            <BulkField
-              active={isBulkFieldStaged("node_conditions")}
-              onClear={() => clearBulkPaths("node_conditions")}
-            >
-              <ToggleRow
-                label="Node variable"
-                checked={hideVisitedEnabled}
-                onToggle={(next) =>
-                  handleNodePropChange("node_conditions", [
-                    next ? "hide_visited" : "",
-                  ])
                 }
               />
             </BulkField>

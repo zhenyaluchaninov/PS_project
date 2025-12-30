@@ -39,6 +39,8 @@ export const readStringArray = (value: unknown): string[] => {
   return [];
 };
 
+export type ConditionedBehavior = "hide" | "transparency";
+
 export type LegacyAnimationKind = "array" | "string" | "unknown";
 
 export const readNodePropValue = (
@@ -91,6 +93,24 @@ export const getLegacyAnimationKind = (
   if (Array.isArray(value)) return "array";
   if (typeof value === "string") return "string";
   return "unknown";
+};
+
+export const getNodeConditions = (
+  node: NodeModel,
+  draft?: BulkDraft
+): string[] => readStringArray(readNodePropValue(node, "node_conditions", draft));
+
+export const getConditionedBehavior = (
+  node: NodeModel,
+  draft?: BulkDraft
+): ConditionedBehavior => {
+  const tokens = readStringArray(
+    readNodePropValue(node, "type_nodeconditions", draft)
+  ).map((token) => token.toLowerCase());
+  const token = tokens[0] ?? "";
+  if (token.includes("hide")) return "hide";
+  if (token.includes("trans")) return "transparency";
+  return "transparency";
 };
 
 export const getAnimationDelay = (

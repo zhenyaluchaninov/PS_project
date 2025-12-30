@@ -251,6 +251,8 @@ export function NodeInspectorPanel({
     grayscaleEnabled,
     blurAmount,
     hideVisitedEnabled,
+    nodeConditions,
+    conditionsBehavior,
     statisticsEnabled,
     navTextSize,
     audioVolume,
@@ -411,6 +413,8 @@ export function NodeInspectorPanel({
           chapterType={chapterType}
           handleNodeTypeChange={handleNodeTypeChange}
           hideVisitedEnabled={hideVisitedEnabled}
+          nodeConditions={nodeConditions}
+          conditionsBehavior={conditionsBehavior}
           conditionsColor={conditionsColor}
           conditionsAlpha={conditionsAlpha}
           statisticsEnabled={statisticsEnabled}

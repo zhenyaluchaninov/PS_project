@@ -8,6 +8,7 @@ import {
   useRef,
   useCallback,
   type PointerEvent as ReactPointerEvent,
+  type CSSProperties,
   type ReactNode,
   type MutableRefObject,
 } from "react";
@@ -57,6 +58,10 @@ import {
   type NavPlacement,
   type NavStyle,
 } from "../utils/navigationUtils";
+import {
+  isLinkConditioned,
+  resolveConditionedStyle,
+} from "../utils/navigationConditions";
 import { buildNodeById, resolveNodeKind, type NodeKind } from "../utils/nodeUtils";
 import { useViewportDevice } from "./useViewportDevice";
 import { ScrollyTracker } from "./ScrollyTracker";
@@ -369,6 +374,8 @@ type NavigationButton = {
   disabled?: boolean;
   isBroken?: boolean;
   isCurrent?: boolean;
+  isConditioned?: boolean;
+  style?: CSSProperties;
 };
 
 type NavigationModel = {
@@ -635,14 +642,6 @@ const getVideoAudioSetting = (node?: NodeModel | null): "off" | "off_mobile" | "
   return value === "off" || value === "off_mobile" ? value : "";
 };
 
-const hasHideVisitedCondition = (node?: NodeModel | null): boolean => {
-  if (!node?.rawProps) return false;
-  const conditions = tokenize(
-    readRawProp(node.rawProps, ["node_conditions", "nodeConditions", "node-conditions"])
-  ).map((token) => token.toLowerCase());
-  return conditions.includes("hide_visited");
-};
-
 const isStatisticsEnabledForNode = (node?: NodeModel | null): boolean => {
   if (!node?.rawProps) return false;
   return booleanFromTokens(
@@ -778,6 +777,20 @@ const removePressedClass = (event: ReactPointerEvent<HTMLElement>) => {
   event.currentTarget.classList.remove("btn-pressed");
 };
 
+const buildConditionedButtonStyle = (
+  config: ReturnType<typeof resolveConditionedStyle>
+): CSSProperties | undefined => {
+  if (config.mode !== "dim") return undefined;
+  const style: CSSProperties = {};
+  if (config.opacity !== undefined) {
+    style.opacity = config.opacity;
+  }
+  if (config.backgroundColor) {
+    style.backgroundColor = config.backgroundColor;
+  }
+  return Object.keys(style).length > 0 ? style : undefined;
+};
+
 type PlayerRuntimeProps = {
   startNodeIdOverride?: number | null;
   playerStore?: PlayerStoreHook;
@@ -810,6 +823,13 @@ export function PlayerRuntime({
   const navigationLinks = useMemo(
     () => getNavigationLinksForNode(currentNodeId ?? null, adventure?.links ?? EMPTY_LINKS),
     [adventure?.links, currentNodeId]
+  );
+  const currentNodeProps = useMemo(
+    () => ({
+      ...parsePropsInput(currentNode?.rawProps),
+      ...parsePropsInput(currentNode?.props),
+    }),
+    [currentNode?.rawProps, currentNode?.props]
   );
 
   const adventureProps = adventure?.props as Record<string, unknown> | null | undefined;
@@ -1729,6 +1749,8 @@ export function PlayerRuntime({
     .trim();
 
   const navigationModel = useMemo<NavigationModel>(() => {
+    const conditionedConfig = resolveConditionedStyle(currentNodeProps);
+    const conditionedStyle = buildConditionedButtonStyle(conditionedConfig);
     // Preserve API ordering for deterministic fallback when no custom order is defined.
     const baseItems: NavItem[] = navigationLinks.map((link) => ({ kind: "link", link }));
     if (navigationConfig.showCurrent && currentNode) {
@@ -1744,22 +1766,43 @@ export function PlayerRuntime({
       (item) => (item.kind === "current" ? -1 : item.link.linkId)
     );
 
-    const shouldHideLink = (link: LinkModel) => {
+    const linkInfoCache = new Map<
+      number,
+      { targetNodeId: number | null; targetNode?: NodeModel; conditioned: boolean }
+    >();
+
+    const getLinkInfo = (link: LinkModel) => {
+      const cached = linkInfoCache.get(link.linkId);
+      if (cached) return cached;
       const targetNodeId = resolveTargetId(link);
       const targetNode = getNodeById(targetNodeId ?? null);
-      if (!targetNode) return false;
-      const visited = visitedNodes.has(targetNode.nodeId);
-      if (!visited) return false;
-      const nodeWantsHide = hasHideVisitedCondition(targetNode);
-      return nodeWantsHide || navigationConfig.hideVisited;
+      const conditioned = isLinkConditioned({
+        linkProps: link.props,
+        targetNode,
+        visitedNodes,
+      });
+      const info = { targetNodeId, targetNode, conditioned };
+      linkInfoCache.set(link.linkId, info);
+      return info;
+    };
+
+    const shouldHideLink = (link: LinkModel) => {
+      const info = getLinkInfo(link);
+      if (
+        navigationConfig.hideVisited &&
+        info.targetNodeId != null &&
+        visitedNodes.has(info.targetNodeId)
+      ) {
+        return true;
+      }
+      return info.conditioned && conditionedConfig.mode === "hide";
     };
 
     const firstUsableLink = orderedItems.find((item) => {
       if (item.kind !== "link") return false;
       if (shouldHideLink(item.link)) return false;
-      const targetNodeId = resolveTargetId(item.link);
-      const targetNode = getNodeById(targetNodeId ?? null);
-      return targetNodeId != null && Boolean(targetNode);
+      const info = getLinkInfo(item.link);
+      return info.targetNodeId != null && Boolean(info.targetNode);
     });
 
     if (navigationConfig.style === "noButtons") {
@@ -1772,20 +1815,21 @@ export function PlayerRuntime({
     }
 
     const buildButton = (link: LinkModel, fallbackIndex: number): NavigationButton => {
-      const targetNodeId = resolveTargetId(link);
-      const targetNode = getNodeById(targetNodeId ?? null);
+      const info = getLinkInfo(link);
       const label =
         resolveNavigationLabel(link, currentNodeId) ??
-        (targetNode?.title || `Continue ${fallbackIndex}`);
-      const isBroken = targetNodeId == null || !targetNode;
+        (info.targetNode?.title || `Continue ${fallbackIndex}`);
+      const isBroken = info.targetNodeId == null || !info.targetNode;
 
       return {
         key: String(link.linkId),
         label,
         linkId: link.linkId,
-        targetNodeId: targetNodeId ?? undefined,
+        targetNodeId: info.targetNodeId ?? undefined,
         disabled: isBroken,
         isBroken,
+        isConditioned: info.conditioned,
+        style: info.conditioned ? conditionedStyle : undefined,
       };
     };
 
@@ -1820,15 +1864,16 @@ export function PlayerRuntime({
           : undefined,
     };
   }, [
-    navigationLinks,
-    navigationConfig.showCurrent,
-    navigationConfig.orderedIds,
-    navigationConfig.style,
-    navigationConfig.hideVisited,
-    navigationConfig.skipCount,
     currentNode,
     currentNodeId,
+    currentNodeProps,
     getNodeById,
+    navigationConfig.hideVisited,
+    navigationConfig.orderedIds,
+    navigationConfig.showCurrent,
+    navigationConfig.skipCount,
+    navigationConfig.style,
+    navigationLinks,
     visitedNodes,
   ]);
 
@@ -2183,6 +2228,8 @@ export function StaticPlayerPreview({
   const visitedNodes = useMemo(() => new Set<number>(), []);
 
   const navigationModel = useMemo<NavigationModel>(() => {
+    const conditionedConfig = resolveConditionedStyle(mergedNodeProps);
+    const conditionedStyle = buildConditionedButtonStyle(conditionedConfig);
     const baseItems: NavItem[] = navigationLinks.map((link) => ({ kind: "link", link }));
     if (navigationConfig.showCurrent) {
       baseItems.push({ kind: "current" });
@@ -2197,22 +2244,43 @@ export function StaticPlayerPreview({
       (item) => (item.kind === "current" ? -1 : item.link.linkId)
     );
 
-    const shouldHideLink = (link: LinkModel) => {
+    const linkInfoCache = new Map<
+      number,
+      { targetNodeId: number | null; targetNode?: NodeModel; conditioned: boolean }
+    >();
+
+    const getLinkInfo = (link: LinkModel) => {
+      const cached = linkInfoCache.get(link.linkId);
+      if (cached) return cached;
       const targetNodeId = resolveTargetId(link);
       const targetNode = targetNodeId != null ? nodeById.get(targetNodeId) : undefined;
-      if (!targetNode) return false;
-      const visited = visitedNodes.has(targetNode.nodeId);
-      if (!visited) return false;
-      const nodeWantsHide = hasHideVisitedCondition(targetNode);
-      return nodeWantsHide || navigationConfig.hideVisited;
+      const conditioned = isLinkConditioned({
+        linkProps: link.props,
+        targetNode,
+        visitedNodes,
+      });
+      const info = { targetNodeId, targetNode, conditioned };
+      linkInfoCache.set(link.linkId, info);
+      return info;
+    };
+
+    const shouldHideLink = (link: LinkModel) => {
+      const info = getLinkInfo(link);
+      if (
+        navigationConfig.hideVisited &&
+        info.targetNodeId != null &&
+        visitedNodes.has(info.targetNodeId)
+      ) {
+        return true;
+      }
+      return info.conditioned && conditionedConfig.mode === "hide";
     };
 
     const firstUsableLink = orderedItems.find((item) => {
       if (item.kind !== "link") return false;
       if (shouldHideLink(item.link)) return false;
-      const targetNodeId = resolveTargetId(item.link);
-      const targetNode = targetNodeId != null ? nodeById.get(targetNodeId) : undefined;
-      return targetNodeId != null && Boolean(targetNode);
+      const info = getLinkInfo(item.link);
+      return info.targetNodeId != null && Boolean(info.targetNode);
     });
 
     if (navigationConfig.style === "noButtons") {
@@ -2226,20 +2294,21 @@ export function StaticPlayerPreview({
     }
 
     const buildButton = (link: LinkModel, fallbackIndex: number): NavigationButton => {
-      const targetNodeId = resolveTargetId(link);
-      const targetNode = targetNodeId != null ? nodeById.get(targetNodeId) : undefined;
+      const info = getLinkInfo(link);
       const label =
         resolveNavigationLabel(link, node.nodeId) ??
-        (targetNode?.title || `Continue ${fallbackIndex}`);
-      const isBroken = targetNodeId == null || !targetNode;
+        (info.targetNode?.title || `Continue ${fallbackIndex}`);
+      const isBroken = info.targetNodeId == null || !info.targetNode;
 
       return {
         key: String(link.linkId),
         label,
         linkId: link.linkId,
-        targetNodeId: targetNodeId ?? undefined,
+        targetNodeId: info.targetNodeId ?? undefined,
         disabled: isBroken,
         isBroken,
+        isConditioned: info.conditioned,
+        style: info.conditioned ? conditionedStyle : undefined,
       };
     };
 
@@ -2274,6 +2343,7 @@ export function StaticPlayerPreview({
           : undefined,
     };
   }, [
+    mergedNodeProps,
     navigationConfig.hideVisited,
     navigationConfig.orderedIds,
     navigationConfig.showCurrent,
@@ -2922,6 +2992,8 @@ function NavigationArea({
               "ps-player__choice ps-nav__choice",
               isDisabled ? "cursor-not-allowed opacity-60" : ""
             )}
+            data-conditioned={primaryButton.isConditioned ? "true" : undefined}
+            style={primaryButton.style}
             onClick={
               isDisabled || !primaryButton.linkId
                 ? undefined
@@ -2987,6 +3059,8 @@ function NavigationArea({
                     button.isCurrent ? "ps-nav__choice--current" : "",
                     isDisabled ? "cursor-not-allowed opacity-60" : ""
                   )}
+                  data-conditioned={button.isConditioned ? "true" : undefined}
+                  style={button.style}
                   onClick={
                     isDisabled || !button.linkId
                       ? undefined

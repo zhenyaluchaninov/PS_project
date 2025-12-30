@@ -20,15 +20,16 @@ import {
   getBlurAmount,
   getColorProp,
   getColorValue,
+  getConditionedBehavior,
   getFontToken,
   getGrayscaleEnabled,
   getLegacyAnimationKind,
   getLegacyAnimationValue,
-  getHideVisitedEnabled,
   getNavTextSize,
   getNavigationSettings,
   getNavigationStyle,
   getNodeChapterType,
+  getNodeConditions,
   getNumberProp,
   getOrderedLinkIds,
   getNavigationDelay,
@@ -80,7 +81,11 @@ export const useNodeProps = ({
   const backgroundFade = getBackgroundFade(node, bulkDraft);
   const grayscaleEnabled = getGrayscaleEnabled(node, bulkDraft);
   const blurAmount = getBlurAmount(node, bulkDraft);
-  const hideVisitedEnabled = getHideVisitedEnabled(node, bulkDraft);
+  const nodeConditions = getNodeConditions(node, bulkDraft);
+  const hideVisitedEnabled = nodeConditions.some(
+    (token) => token.toLowerCase() === "hide_visited"
+  );
+  const conditionsBehavior = getConditionedBehavior(node, bulkDraft);
   const statisticsEnabled = getStatisticsEnabled(node, bulkDraft);
   const navTextSize = getNavTextSize(node, bulkDraft);
   const audioVolume = getAudioVolume(node, bulkDraft);
@@ -288,6 +293,8 @@ export const useNodeProps = ({
     grayscaleEnabled,
     blurAmount,
     hideVisitedEnabled,
+    nodeConditions,
+    conditionsBehavior,
     statisticsEnabled,
     navTextSize,
     audioVolume,

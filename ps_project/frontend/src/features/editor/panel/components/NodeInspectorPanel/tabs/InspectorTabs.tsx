@@ -112,6 +112,8 @@ export function InspectorTabs({
   chapterType,
   handleNodeTypeChange,
   hideVisitedEnabled,
+  nodeConditions,
+  conditionsBehavior,
   conditionsColor,
   conditionsAlpha,
   statisticsEnabled,
@@ -222,6 +224,8 @@ export function InspectorTabs({
   chapterType: string;
   handleNodeTypeChange: (chapterType: string) => void;
   hideVisitedEnabled: boolean;
+  nodeConditions: string[];
+  conditionsBehavior: string;
   conditionsColor: string;
   conditionsAlpha: number;
   statisticsEnabled: boolean;
@@ -426,6 +430,8 @@ export function InspectorTabs({
           chapterType={chapterType}
           handleNodeTypeChange={handleNodeTypeChange}
           hideVisitedEnabled={hideVisitedEnabled}
+          nodeConditions={nodeConditions}
+          conditionsBehavior={conditionsBehavior}
           conditionsColor={conditionsColor}
           conditionsAlpha={conditionsAlpha}
           statisticsEnabled={statisticsEnabled}
