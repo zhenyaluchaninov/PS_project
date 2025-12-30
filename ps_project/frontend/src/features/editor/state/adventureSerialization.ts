@@ -36,7 +36,17 @@ const MENU_OPTION_KEYS = [
 ] as const;
 const LEGACY_CHAPTER_TYPE_DEFAULT = [""] as const;
 const LEGACY_CHAPTER_TYPE_ROOT_DEFAULT = ["start-node"] as const;
-const LEGACY_NAV_SETTINGS_DEFAULT: string[] = [];
+const LEGACY_NAV_SETTINGS_DEFAULT = ["button-rounded", "navigation-opaque"] as const;
+const LEGACY_NAV_ALIGNMENT_DEFAULT = ["align-center"] as const;
+const LEGACY_NAV_ALIGNMENT_TOKENS = new Set([
+  "align-left",
+  "align-center",
+  "align-right",
+  "space-between",
+  "stack-vertical",
+  "stack-vertical-left",
+  "stack-vertical-right",
+]);
 const LEGACY_VERTICAL_POSITION_DEFAULT = ["vertical-align-center"] as const;
 const LEGACY_SCROLL_SPEED_DEFAULT = ["0.5"] as const;
 
@@ -180,8 +190,10 @@ const coerceStringArray = (
 const ensureLegacyStringArray = (
   record: Record<string, unknown>,
   key: string,
-  fallback: string[]
+  fallback: readonly string[],
+  options: { allowEmpty?: boolean; validate?: (value: string[]) => boolean } = {}
 ): boolean => {
+  const allowEmpty = options.allowEmpty ?? true;
   if (!hasOwn(record, key) || record[key] == null) {
     record[key] = [...fallback];
     return true;
@@ -191,11 +203,17 @@ const ensureLegacyStringArray = (
     record[key] = [...fallback];
     return true;
   }
-  if (result.patched) {
-    record[key] = result.value;
+  if (!allowEmpty && result.value.length === 0) {
+    record[key] = [...fallback];
     return true;
   }
-  return false;
+  if (options.validate && !options.validate(result.value)) {
+    record[key] = [...fallback];
+    return true;
+  }
+  if (!result.patched) return false;
+  record[key] = result.value;
+  return true;
 };
 
 const parseNodePropsInput = (
@@ -234,16 +252,42 @@ const normalizeNodePropsForLegacy = (
     ? [...LEGACY_CHAPTER_TYPE_ROOT_DEFAULT]
     : [...LEGACY_CHAPTER_TYPE_DEFAULT];
 
-  if (ensureLegacyStringArray(nextProps, "settings_chapterType", chapterFallback)) {
+  if (
+    ensureLegacyStringArray(nextProps, "settings_chapterType", chapterFallback, {
+      allowEmpty: false,
+    })
+  ) {
     didPatch = true;
   }
-  if (ensureLegacyStringArray(nextProps, "playerNavigation.settings", LEGACY_NAV_SETTINGS_DEFAULT)) {
+  if (
+    ensureLegacyStringArray(nextProps, "playerNavigation.settings", LEGACY_NAV_SETTINGS_DEFAULT, {
+      allowEmpty: false,
+      validate: (value) => value.some((token) => token.trim().length > 0),
+    })
+  ) {
     didPatch = true;
   }
-  if (ensureLegacyStringArray(nextProps, "player.verticalPosition", LEGACY_VERTICAL_POSITION_DEFAULT)) {
+  if (
+    ensureLegacyStringArray(nextProps, "playerNavigation.alignment", LEGACY_NAV_ALIGNMENT_DEFAULT, {
+      allowEmpty: false,
+      validate: (value) =>
+        value.some((token) => LEGACY_NAV_ALIGNMENT_TOKENS.has(token.trim().toLowerCase())),
+    })
+  ) {
     didPatch = true;
   }
-  if (ensureLegacyStringArray(nextProps, "settings_scrollSpeed", LEGACY_SCROLL_SPEED_DEFAULT)) {
+  if (
+    ensureLegacyStringArray(nextProps, "player.verticalPosition", LEGACY_VERTICAL_POSITION_DEFAULT, {
+      allowEmpty: false,
+    })
+  ) {
+    didPatch = true;
+  }
+  if (
+    ensureLegacyStringArray(nextProps, "settings_scrollSpeed", LEGACY_SCROLL_SPEED_DEFAULT, {
+      allowEmpty: false,
+    })
+  ) {
     didPatch = true;
   }
 
