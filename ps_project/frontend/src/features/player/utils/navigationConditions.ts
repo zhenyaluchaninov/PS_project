@@ -7,10 +7,17 @@ export type ConditionedStyle = {
   backgroundColor?: string;
 };
 
+export type LinkConditionResult = {
+  conditioned: boolean;
+  linkConditionTriggered: boolean;
+  hideVisitedTriggered: boolean;
+};
+
 type LinkConditionInput = {
   linkProps?: PropsInput;
   targetNode?: NodeModel | null;
   visitedNodes: Set<number>;
+  checkLinkConditions?: boolean;
 };
 
 const DEFAULT_CONDITION_ALPHA = 40;
@@ -151,47 +158,60 @@ const parseAlphaPercent = (
   return Math.min(Math.max(numeric, 0), 100);
 };
 
-export const isLinkConditioned = ({
+export const getLinkConditionResult = ({
   linkProps,
   targetNode,
   visitedNodes,
-}: LinkConditionInput): boolean => {
+  checkLinkConditions = true,
+}: LinkConditionInput): LinkConditionResult => {
   const props = parsePropsInput(linkProps);
-  const positiveNodeList = readNodeIdList(props, [
-    "positiveNodeList",
-    "positive_node_list",
-    "positiveNodes",
-    "positive_nodes",
-  ]);
-  const negativeNodeList = readNodeIdList(props, [
-    "negativeNodeList",
-    "negative_node_list",
-    "negativeNodes",
-    "negative_nodes",
-  ]);
+  const positiveNodeList = checkLinkConditions
+    ? readNodeIdList(props, [
+        "positiveNodeList",
+        "positive_node_list",
+        "positiveNodes",
+        "positive_nodes",
+      ])
+    : [];
+  const negativeNodeList = checkLinkConditions
+    ? readNodeIdList(props, [
+        "negativeNodeList",
+        "negative_node_list",
+        "negativeNodes",
+        "negative_nodes",
+      ])
+    : [];
 
-  if (
+  const positiveTriggered =
+    checkLinkConditions &&
     positiveNodeList.length > 0 &&
-    positiveNodeList.some((nodeId) => !visitedNodes.has(nodeId))
-  ) {
-    return true;
-  }
-  if (
+    positiveNodeList.some((nodeId) => !visitedNodes.has(nodeId));
+  const negativeTriggered =
+    checkLinkConditions &&
     negativeNodeList.length > 0 &&
-    negativeNodeList.every((nodeId) => visitedNodes.has(nodeId))
-  ) {
-    return true;
-  }
+    negativeNodeList.every((nodeId) => visitedNodes.has(nodeId));
 
-  if (!targetNode) return false;
-  if (!visitedNodes.has(targetNode.nodeId)) return false;
+  const linkConditionTriggered = positiveTriggered || negativeTriggered;
 
-  const targetProps = {
-    ...parsePropsInput(targetNode.rawProps ?? undefined),
-    ...parsePropsInput(targetNode.props ?? undefined),
+  const targetVisited = Boolean(targetNode && visitedNodes.has(targetNode.nodeId));
+  const targetHideVisited =
+    Boolean(targetNode && targetVisited) &&
+    readNodeConditionTokens({
+      ...parsePropsInput(targetNode?.rawProps ?? undefined),
+      ...parsePropsInput(targetNode?.props ?? undefined),
+    }).includes("hide_visited");
+
+  const conditioned = linkConditionTriggered || targetHideVisited;
+
+  return {
+    conditioned,
+    linkConditionTriggered,
+    hideVisitedTriggered: targetHideVisited,
   };
-  return readNodeConditionTokens(targetProps).includes("hide_visited");
 };
+
+export const isLinkConditioned = (input: LinkConditionInput): boolean =>
+  getLinkConditionResult(input).conditioned;
 
 export const resolveConditionedStyle = (
   input?: PropsInput,

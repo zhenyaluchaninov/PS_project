@@ -1,7 +1,7 @@
 import type { LinkModel, NodeModel } from "@/domain/models";
 import type { buildNavigationConfig } from "@/features/player/utils/navigationUtils";
 import {
-  isLinkConditioned,
+  getLinkConditionResult,
   resolveConditionedStyle,
   resolveLinkConditionBehaviorOverride,
 } from "@/features/player/utils/navigationConditions";
@@ -95,13 +95,25 @@ export const buildNavigationModel = ({
     if (cached) return cached;
     const targetNodeId = resolveTargetId(link);
     const targetNode = getNodeById(targetNodeId ?? null);
-    const conditioned = isLinkConditioned({
+    const isForwardDirection =
+      currentNodeId == null ||
+      link.fromNodeId === currentNodeId ||
+      link.source === currentNodeId;
+    const conditionResult = getLinkConditionResult({
       linkProps: link.props,
       targetNode,
       visitedNodes,
+      checkLinkConditions: isForwardDirection,
     });
-    const overrideMode = resolveLinkConditionBehaviorOverride(link.props);
-    const info = { targetNodeId, targetNode, conditioned, overrideMode };
+    const overrideMode = conditionResult.linkConditionTriggered
+      ? resolveLinkConditionBehaviorOverride(link.props)
+      : null;
+    const info = {
+      targetNodeId,
+      targetNode,
+      conditioned: conditionResult.conditioned,
+      overrideMode,
+    };
     linkInfoCache.set(link.linkId, info);
     return info;
   };

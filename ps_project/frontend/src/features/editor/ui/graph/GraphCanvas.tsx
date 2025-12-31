@@ -480,6 +480,9 @@ export function GraphCanvas({
       <div className="absolute inset-y-0 left-0 z-20">
         <EditorToolStrip adventure={adventure} />
       </div>
+      <div className="pointer-events-none absolute right-3 top-3 z-10 select-none text-[10px] font-semibold text-[var(--muted)]">
+        Designed by Yauheni Luchaninau
+      </div>
       <div className="absolute bottom-3 left-[60px] z-10">
         <ShortcutHud />
       </div>
