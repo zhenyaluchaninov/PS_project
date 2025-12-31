@@ -114,6 +114,42 @@ a {
   background: var(--border-light);
 }
 
+.ps-editor-graph .react-flow__controls {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.ps-editor-graph .react-flow__controls-button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.ps-editor-graph .react-flow__controls-button + .react-flow__controls-button {
+  border-top: 1px solid var(--border);
+}
+
+.ps-editor-graph .react-flow__controls-button:hover {
+  background: var(--bg-hover);
+}
+
+.ps-editor-graph .react-flow__controls-button:disabled {
+  opacity: 0.5;
+}
+
+.ps-editor-graph .react-flow__controls-button svg {
+  stroke: currentColor;
+}
+
+.ps-editor-graph .react-flow__attribution {
+  display: none;
+}
+
 .ps-color-picker {
   width: 220px;
   height: 160px;

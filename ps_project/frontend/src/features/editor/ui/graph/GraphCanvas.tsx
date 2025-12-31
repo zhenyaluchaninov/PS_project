@@ -433,7 +433,7 @@ export function GraphCanvas({
   return (
     <div
       className={cn(
-        "relative h-full w-full overflow-hidden bg-[var(--editor-graph-bg)]",
+        "ps-editor-graph relative h-full w-full overflow-hidden bg-[var(--editor-graph-bg)]",
         className
       )}
       ref={containerRef}
