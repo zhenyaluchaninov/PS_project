@@ -2,7 +2,7 @@ import { NAV_TEXT_SIZE_MAX, NAV_TEXT_SIZE_MIN } from "../constants";
 import { BulkField } from "../../BulkField";
 import { CollapsibleSection } from "../../CollapsibleSection";
 import type { SceneColors } from "../hooks/useNodeProps";
-import { ColorAlphaField, RangeField, ReorderList } from "../fields";
+import { ColorAlphaField, RangeField, ReorderList, SelectField } from "../fields";
 
 export function ButtonsTab({
   readOnly,
@@ -15,6 +15,9 @@ export function ButtonsTab({
   choicesDisabledReason,
   sceneColors,
   navTextSize,
+  conditionsBehavior,
+  conditionsColor,
+  conditionsAlpha,
   handlePreviewColorLiveChange,
   handlePreviewCommit,
   handleNodePropLiveChange,
@@ -36,6 +39,9 @@ export function ButtonsTab({
   choicesDisabledReason?: string;
   sceneColors: SceneColors;
   navTextSize: number;
+  conditionsBehavior: string;
+  conditionsColor: string;
+  conditionsAlpha: number;
   handlePreviewColorLiveChange: (
     path: string,
     color: string,
@@ -185,6 +191,72 @@ export function ButtonsTab({
                 }
                 onInteractionStart={handleLiveInteractionStart}
                 onInteractionEnd={handleLiveInteractionEnd}
+              />
+            </BulkField>
+          </div>
+        </CollapsibleSection>
+        <CollapsibleSection
+          title="Conditioned appearance"
+          sectionKey="editor.node.buttons.conditioned"
+        >
+          <p className="mb-3 text-xs text-[var(--muted)]">
+            How buttons look when their target is hidden or link conditions aren't met
+          </p>
+          <div className="space-y-4">
+            <BulkField
+              active={isBulkFieldStaged("type_nodeconditions")}
+              onClear={() => clearBulkPaths("type_nodeconditions")}
+            >
+              <SelectField
+                label="Conditioned button behavior"
+                value={conditionsBehavior}
+                onChange={(value) =>
+                  handleNodePropChange("type_nodeconditions", [value])
+                }
+                options={[
+                  { value: "hide", label: "Hide button" },
+                  { value: "transparency", label: "Dim button" },
+                ]}
+                widthClassName="w-56"
+              />
+            </BulkField>
+            <BulkField
+              active={isBulkFieldStaged([
+                "color_nodeconditions",
+                "alpha_nodeconditions",
+              ])}
+              onClear={() =>
+                clearBulkPaths(["color_nodeconditions", "alpha_nodeconditions"])
+              }
+            >
+              <ColorAlphaField
+                label="Condition color"
+                colorValue={conditionsColor}
+                alphaValue={conditionsAlpha}
+                onColorLiveChange={(value) =>
+                  handleNodePropLiveChange("color_nodeconditions", value)
+                }
+                onColorCommit={(value) =>
+                  handleNodePropCommit("color_nodeconditions", value)
+                }
+                onAlphaLiveChange={(value) =>
+                  handleNodePropLiveChange(
+                    "alpha_nodeconditions",
+                    String(value)
+                  )
+                }
+                onAlphaCommit={(value) =>
+                  handleNodePropCommit(
+                    "alpha_nodeconditions",
+                    String(value)
+                  )
+                }
+                onColorInteractionStart={handleLiveInteractionStart}
+                onColorInteractionEnd={handleLiveInteractionEnd}
+                onAlphaInteractionStart={handleLiveInteractionStart}
+                onAlphaInteractionEnd={handleLiveInteractionEnd}
+                onColorScrubStart={handleColorScrubStart}
+                onColorScrubEnd={handleColorScrubEnd}
               />
             </BulkField>
           </div>

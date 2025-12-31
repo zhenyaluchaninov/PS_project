@@ -1,7 +1,7 @@
 import { chapterTypeOptions, BULK_NODE_TYPE_PATH } from "../../../constants";
 import { BulkField } from "../../BulkField";
 import { CollapsibleSection } from "../../CollapsibleSection";
-import { ColorAlphaField, SelectField, ToggleRow } from "../fields";
+import { SelectField, ToggleRow } from "../fields";
 
 export function LogicTab({
   readOnly,
@@ -11,17 +11,8 @@ export function LogicTab({
   handleNodeTypeChange,
   hideVisitedEnabled,
   nodeConditions,
-  conditionsBehavior,
-  conditionsColor,
-  conditionsAlpha,
   statisticsEnabled,
   handleNodePropChange,
-  handleNodePropLiveChange,
-  handleNodePropCommit,
-  handleLiveInteractionStart,
-  handleLiveInteractionEnd,
-  handleColorScrubStart,
-  handleColorScrubEnd,
 }: {
   readOnly: boolean;
   isBulkFieldStaged: (paths: string | string[]) => boolean;
@@ -30,17 +21,8 @@ export function LogicTab({
   handleNodeTypeChange: (chapterType: string) => void;
   hideVisitedEnabled: boolean;
   nodeConditions: string[];
-  conditionsBehavior: string;
-  conditionsColor: string;
-  conditionsAlpha: number;
   statisticsEnabled: boolean;
   handleNodePropChange: (path: string, value: unknown) => void;
-  handleNodePropLiveChange: (path: string, value: unknown) => void;
-  handleNodePropCommit: (path: string, value: unknown) => void;
-  handleLiveInteractionStart: () => void;
-  handleLiveInteractionEnd: () => void;
-  handleColorScrubStart: () => void;
-  handleColorScrubEnd: () => void;
 }) {
   return (
     <fieldset disabled={readOnly} className="space-y-4">
@@ -81,62 +63,6 @@ export function LogicTab({
                     : remaining;
                   handleNodePropChange("node_conditions", nextConditions);
                 }}
-              />
-            </BulkField>
-            <BulkField
-              active={isBulkFieldStaged("type_nodeconditions")}
-              onClear={() => clearBulkPaths("type_nodeconditions")}
-            >
-              <SelectField
-                label="Conditioned button behavior"
-                value={conditionsBehavior}
-                onChange={(value) =>
-                  handleNodePropChange("type_nodeconditions", [value])
-                }
-                options={[
-                  { value: "hide", label: "Hide button" },
-                  { value: "transparency", label: "Dim button" },
-                ]}
-                widthClassName="w-56"
-              />
-            </BulkField>
-            <BulkField
-              active={isBulkFieldStaged([
-                "color_nodeconditions",
-                "alpha_nodeconditions",
-              ])}
-              onClear={() =>
-                clearBulkPaths(["color_nodeconditions", "alpha_nodeconditions"])
-              }
-            >
-              <ColorAlphaField
-                label="Condition color"
-                colorValue={conditionsColor}
-                alphaValue={conditionsAlpha}
-                onColorLiveChange={(value) =>
-                  handleNodePropLiveChange("color_nodeconditions", value)
-                }
-                onColorCommit={(value) =>
-                  handleNodePropCommit("color_nodeconditions", value)
-                }
-                onAlphaLiveChange={(value) =>
-                  handleNodePropLiveChange(
-                    "alpha_nodeconditions",
-                    String(value)
-                  )
-                }
-                onAlphaCommit={(value) =>
-                  handleNodePropCommit(
-                    "alpha_nodeconditions",
-                    String(value)
-                  )
-                }
-                onColorInteractionStart={handleLiveInteractionStart}
-                onColorInteractionEnd={handleLiveInteractionEnd}
-                onAlphaInteractionStart={handleLiveInteractionStart}
-                onAlphaInteractionEnd={handleLiveInteractionEnd}
-                onColorScrubStart={handleColorScrubStart}
-                onColorScrubEnd={handleColorScrubEnd}
               />
             </BulkField>
           </div>

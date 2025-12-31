@@ -123,24 +123,14 @@ function hasStatisticsFlag(rawProps: Record<string, unknown> | null): boolean {
 
 function hasNodeVariableFlag(rawProps: Record<string, unknown> | null): boolean {
   if (!rawProps) return false;
-  const directKeys = [
-    "node_conditions",
-    "nodeConditions",
-    "node_condition",
-    "nodeCondition",
-    "node_variable",
-    "nodeVariable",
-  ];
+  const directKeys = ["node_conditions", "nodeConditions", "node_condition", "nodeCondition"];
   for (const key of directKeys) {
-    if (isFlagEnabled(rawProps[key])) return true;
+    const entries = readStringArray(rawProps[key]).map((entry) => entry.toLowerCase());
+    if (entries.includes("hide_visited")) return true;
   }
-  for (const [key, value] of Object.entries(rawProps)) {
-    if (/node.*condition/i.test(key) && isFlagEnabled(value)) {
-      return true;
-    }
-    if (/node.*variable/i.test(key) && isFlagEnabled(value)) {
-      return true;
-    }
+  const legacyKeys = ["node_variable", "nodeVariable"];
+  for (const key of legacyKeys) {
+    if (isFlagEnabled(rawProps[key])) return true;
   }
   return false;
 }
@@ -174,9 +164,6 @@ export function buildGraphNodes(
 
     if (hasStatistics) {
       badges.push({ key: "stats", label: "STAT", tone: "flag" });
-    }
-    if (hasNodeVariable) {
-      badges.push({ key: "node-variable", label: "VAR", tone: "flag" });
     }
     if (hasText) {
       badges.push({ key: "text", label: "Text", tone: "media" });

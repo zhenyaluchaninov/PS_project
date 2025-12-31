@@ -16,6 +16,7 @@ type LinkInspectorPanelProps = {
 export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
   const updateLinkFields = useEditorStore((s) => s.updateLinkFields);
   const updateLinkProps = useEditorStore((s) => s.updateLinkProps);
+  const setLinkPropPath = useEditorStore((s) => s.setLinkPropPath);
   const swapLinkDirection = useEditorStore((s) => s.swapLinkDirection);
   const removeLinks = useEditorStore((s) => s.removeLinks);
   const readOnly = useEditorStore(selectEditorReadOnly);
@@ -48,6 +49,17 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
     "negativeNodes",
     "negative_nodes",
   ]);
+  const hasConditions = positiveNodes.length > 0 || negativeNodes.length > 0;
+  const conditionBehaviorOverride = useMemo(() => {
+    if (!link.props) return "";
+    const raw =
+      link.props.conditionBehavior ?? link.props.condition_behavior ?? "";
+    if (typeof raw !== "string") return "";
+    const token = raw.trim().toLowerCase();
+    if (token === "hide") return "hide";
+    if (token === "dim" || token === "transparency") return "dim";
+    return "";
+  }, [link.props]);
   const [positiveInput, setPositiveInput] = useState("");
   const [negativeInput, setNegativeInput] = useState("");
   const handleAddCondition = (
@@ -193,6 +205,33 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
               }
               resolveLabel={resolveNodeLabel}
             />
+            {hasConditions ? (
+              <div className="space-y-2 border-t border-[var(--border)] pt-3">
+                <label className="text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                  Condition behavior
+                </label>
+                <select
+                  value={conditionBehaviorOverride}
+                  onChange={(event) =>
+                    setLinkPropPath(
+                      link.linkId,
+                      "conditionBehavior",
+                      event.target.value,
+                      { removeIfEmpty: true }
+                    )
+                  }
+                  disabled={readOnly}
+                  className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
+                >
+                  <option value="">Use node default</option>
+                  <option value="hide">Hide button</option>
+                  <option value="dim">Dim button</option>
+                </select>
+                <p className="text-xs text-[var(--muted)]">
+                  Overrides the node's default conditioned appearance for this link only
+                </p>
+              </div>
+            ) : null}
           </CollapsibleSection>
         </div>
         <Button

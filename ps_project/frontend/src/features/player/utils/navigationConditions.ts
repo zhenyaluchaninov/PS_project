@@ -195,7 +195,7 @@ export const isLinkConditioned = ({
 
 export const resolveConditionedStyle = (
   input?: PropsInput,
-  options?: { defaultOpacity?: number }
+  options?: { defaultOpacity?: number; modeOverride?: ConditionedStyle["mode"] }
 ): ConditionedStyle => {
   const props = parsePropsInput(input);
   const typeToken =
@@ -206,8 +206,12 @@ export const resolveConditionedStyle = (
         "type-nodeconditions",
       ])
     )[0]?.toLowerCase() ?? "";
-  const mode = typeToken.includes("hide") ? "hide" : "dim";
-  const shouldApplyOpacity = typeToken.includes("trans") || typeToken === "";
+  const defaultMode = typeToken.includes("hide") ? "hide" : "dim";
+  const mode = options?.modeOverride ?? defaultMode;
+  const shouldApplyOpacity =
+    typeToken.includes("trans") ||
+    typeToken === "" ||
+    options?.modeOverride === "dim";
   const alphaValue = parseAlphaPercent(
     readRawProp(props, [
       "alpha_nodeconditions",
@@ -227,6 +231,21 @@ export const resolveConditionedStyle = (
   return {
     mode,
     opacity: shouldApplyOpacity ? alphaValue / 100 : undefined,
-    backgroundColor: mode === "dim" ? backgroundColor ?? undefined : undefined,
+    backgroundColor: backgroundColor ?? undefined,
   };
+};
+
+export const resolveLinkConditionBehaviorOverride = (
+  input?: PropsInput
+): ConditionedStyle["mode"] | null => {
+  const props = parsePropsInput(input);
+  const raw = readRawProp(props, [
+    "conditionBehavior",
+    "condition_behavior",
+    "condition-behavior",
+  ]);
+  const token = pickFirstString(raw)?.toLowerCase() ?? "";
+  if (token === "hide") return "hide";
+  if (token === "dim" || token === "transparency") return "dim";
+  return null;
 };

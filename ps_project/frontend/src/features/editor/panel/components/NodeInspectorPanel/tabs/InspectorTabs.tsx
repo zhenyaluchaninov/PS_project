@@ -409,6 +409,9 @@ export function InspectorTabs({
           choicesDisabledReason={choicesDisabledReason}
           sceneColors={sceneColors}
           navTextSize={navTextSize}
+          conditionsBehavior={conditionsBehavior}
+          conditionsColor={conditionsColor}
+          conditionsAlpha={conditionsAlpha}
           handlePreviewColorLiveChange={handlePreviewColorLiveChange}
           handlePreviewCommit={handlePreviewCommit}
           handleNodePropLiveChange={handleNodePropLiveChange}
@@ -431,17 +434,8 @@ export function InspectorTabs({
           handleNodeTypeChange={handleNodeTypeChange}
           hideVisitedEnabled={hideVisitedEnabled}
           nodeConditions={nodeConditions}
-          conditionsBehavior={conditionsBehavior}
-          conditionsColor={conditionsColor}
-          conditionsAlpha={conditionsAlpha}
           statisticsEnabled={statisticsEnabled}
           handleNodePropChange={handleNodePropChange}
-          handleNodePropLiveChange={handleNodePropLiveChange}
-          handleNodePropCommit={handleNodePropCommit}
-          handleLiveInteractionStart={handleLiveInteractionStart}
-          handleLiveInteractionEnd={handleLiveInteractionEnd}
-          handleColorScrubStart={handleColorScrubStart}
-          handleColorScrubEnd={handleColorScrubEnd}
         />
       </TabsContent>
     </Tabs>

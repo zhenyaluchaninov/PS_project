@@ -3,9 +3,10 @@ import {
   BarChart3,
   BookOpen,
   Bookmark,
+  EyeOff,
+  Eye,
   ExternalLink,
   FileText,
-  FunctionSquare,
   Film,
   Headphones,
   Image as ImageIcon,
@@ -47,7 +48,6 @@ const badgeIcons: Record<string, LucideIcon> = {
   audio: Music,
   text: Type,
   stats: BarChart3,
-  "node-variable": FunctionSquare,
 };
 
 export function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
@@ -198,9 +198,14 @@ export function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
           </button>
           <button
             type="button"
-            aria-label="Node variable"
+            aria-label="Hide when visited"
             aria-pressed={nodeVariableEnabled}
-            title={disabledReason ?? "Node variable"}
+            title={
+              disabledReason ??
+              (nodeVariableEnabled
+                ? "Hidden when visited (click to disable)"
+                : "Hide when visited (click to enable)")
+            }
             disabled={controlsDisabled}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
@@ -209,7 +214,11 @@ export function AdventureNode({ data, selected }: NodeProps<GraphNode>) {
             }}
             className={iconButtonClass(nodeVariableEnabled)}
           >
-            <FunctionSquare className="h-4 w-4" aria-hidden="true" />
+            {nodeVariableEnabled ? (
+              <EyeOff className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Eye className="h-4 w-4" aria-hidden="true" />
+            )}
           </button>
         </div>
       </div>

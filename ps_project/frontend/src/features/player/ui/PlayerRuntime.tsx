@@ -61,6 +61,7 @@ import {
 import {
   isLinkConditioned,
   resolveConditionedStyle,
+  resolveLinkConditionBehaviorOverride,
 } from "../utils/navigationConditions";
 import { buildNodeById, resolveNodeKind, type NodeKind } from "../utils/nodeUtils";
 import { useViewportDevice } from "./useViewportDevice";
@@ -375,6 +376,7 @@ type NavigationButton = {
   isBroken?: boolean;
   isCurrent?: boolean;
   isConditioned?: boolean;
+  conditionedMode?: "hide" | "dim";
   style?: CSSProperties;
 };
 
@@ -1751,6 +1753,12 @@ export function PlayerRuntime({
   const navigationModel = useMemo<NavigationModel>(() => {
     const conditionedConfig = resolveConditionedStyle(currentNodeProps);
     const conditionedStyle = buildConditionedButtonStyle(conditionedConfig);
+    const conditionedDimStyle =
+      conditionedConfig.mode === "dim"
+        ? conditionedStyle
+        : buildConditionedButtonStyle(
+            resolveConditionedStyle(currentNodeProps, { modeOverride: "dim" })
+          );
     // Preserve API ordering for deterministic fallback when no custom order is defined.
     const baseItems: NavItem[] = navigationLinks.map((link) => ({ kind: "link", link }));
     if (navigationConfig.showCurrent && currentNode) {
@@ -1768,7 +1776,12 @@ export function PlayerRuntime({
 
     const linkInfoCache = new Map<
       number,
-      { targetNodeId: number | null; targetNode?: NodeModel; conditioned: boolean }
+      {
+        targetNodeId: number | null;
+        targetNode?: NodeModel;
+        conditioned: boolean;
+        overrideMode: "hide" | "dim" | null;
+      }
     >();
 
     const getLinkInfo = (link: LinkModel) => {
@@ -1781,9 +1794,17 @@ export function PlayerRuntime({
         targetNode,
         visitedNodes,
       });
-      const info = { targetNodeId, targetNode, conditioned };
+      const overrideMode = resolveLinkConditionBehaviorOverride(link.props);
+      const info = { targetNodeId, targetNode, conditioned, overrideMode };
       linkInfoCache.set(link.linkId, info);
       return info;
+    };
+
+    const resolveConditionedMode = (
+      info: ReturnType<typeof getLinkInfo>
+    ): "hide" | "dim" | null => {
+      if (!info.conditioned) return null;
+      return info.overrideMode ?? conditionedConfig.mode;
     };
 
     const shouldHideLink = (link: LinkModel) => {
@@ -1795,7 +1816,8 @@ export function PlayerRuntime({
       ) {
         return true;
       }
-      return info.conditioned && conditionedConfig.mode === "hide";
+      const conditionedMode = resolveConditionedMode(info);
+      return conditionedMode === "hide";
     };
 
     const firstUsableLink = orderedItems.find((item) => {
@@ -1820,6 +1842,7 @@ export function PlayerRuntime({
         resolveNavigationLabel(link, currentNodeId) ??
         (info.targetNode?.title || `Continue ${fallbackIndex}`);
       const isBroken = info.targetNodeId == null || !info.targetNode;
+      const conditionedMode = resolveConditionedMode(info);
 
       return {
         key: String(link.linkId),
@@ -1829,7 +1852,11 @@ export function PlayerRuntime({
         disabled: isBroken,
         isBroken,
         isConditioned: info.conditioned,
-        style: info.conditioned ? conditionedStyle : undefined,
+        conditionedMode: conditionedMode ?? undefined,
+        style:
+          info.conditioned && conditionedMode === "dim"
+            ? conditionedDimStyle
+            : undefined,
       };
     };
 
@@ -1856,8 +1883,12 @@ export function PlayerRuntime({
       buttons.push(buildButton(link, buttons.length + 1));
     });
 
+    const visibleButtons = buttons.filter(
+      (button) => button.conditionedMode !== "hide"
+    );
+
     return {
-      buttons,
+      buttons: visibleButtons,
       primaryLinkId:
         firstUsableLink && firstUsableLink.kind === "link"
           ? firstUsableLink.link.linkId
@@ -2230,6 +2261,12 @@ export function StaticPlayerPreview({
   const navigationModel = useMemo<NavigationModel>(() => {
     const conditionedConfig = resolveConditionedStyle(mergedNodeProps);
     const conditionedStyle = buildConditionedButtonStyle(conditionedConfig);
+    const conditionedDimStyle =
+      conditionedConfig.mode === "dim"
+        ? conditionedStyle
+        : buildConditionedButtonStyle(
+            resolveConditionedStyle(mergedNodeProps, { modeOverride: "dim" })
+          );
     const baseItems: NavItem[] = navigationLinks.map((link) => ({ kind: "link", link }));
     if (navigationConfig.showCurrent) {
       baseItems.push({ kind: "current" });
@@ -2246,7 +2283,12 @@ export function StaticPlayerPreview({
 
     const linkInfoCache = new Map<
       number,
-      { targetNodeId: number | null; targetNode?: NodeModel; conditioned: boolean }
+      {
+        targetNodeId: number | null;
+        targetNode?: NodeModel;
+        conditioned: boolean;
+        overrideMode: "hide" | "dim" | null;
+      }
     >();
 
     const getLinkInfo = (link: LinkModel) => {
@@ -2259,9 +2301,17 @@ export function StaticPlayerPreview({
         targetNode,
         visitedNodes,
       });
-      const info = { targetNodeId, targetNode, conditioned };
+      const overrideMode = resolveLinkConditionBehaviorOverride(link.props);
+      const info = { targetNodeId, targetNode, conditioned, overrideMode };
       linkInfoCache.set(link.linkId, info);
       return info;
+    };
+
+    const resolveConditionedMode = (
+      info: ReturnType<typeof getLinkInfo>
+    ): "hide" | "dim" | null => {
+      if (!info.conditioned) return null;
+      return info.overrideMode ?? conditionedConfig.mode;
     };
 
     const shouldHideLink = (link: LinkModel) => {
@@ -2273,7 +2323,8 @@ export function StaticPlayerPreview({
       ) {
         return true;
       }
-      return info.conditioned && conditionedConfig.mode === "hide";
+      const conditionedMode = resolveConditionedMode(info);
+      return conditionedMode === "hide";
     };
 
     const firstUsableLink = orderedItems.find((item) => {
@@ -2299,6 +2350,7 @@ export function StaticPlayerPreview({
         resolveNavigationLabel(link, node.nodeId) ??
         (info.targetNode?.title || `Continue ${fallbackIndex}`);
       const isBroken = info.targetNodeId == null || !info.targetNode;
+      const conditionedMode = resolveConditionedMode(info);
 
       return {
         key: String(link.linkId),
@@ -2308,7 +2360,11 @@ export function StaticPlayerPreview({
         disabled: isBroken,
         isBroken,
         isConditioned: info.conditioned,
-        style: info.conditioned ? conditionedStyle : undefined,
+        conditionedMode: conditionedMode ?? undefined,
+        style:
+          info.conditioned && conditionedMode === "dim"
+            ? conditionedDimStyle
+            : undefined,
       };
     };
 
@@ -2335,8 +2391,12 @@ export function StaticPlayerPreview({
       buttons.push(buildButton(link, buttons.length + 1));
     });
 
+    const visibleButtons = buttons.filter(
+      (button) => button.conditionedMode !== "hide"
+    );
+
     return {
-      buttons,
+      buttons: visibleButtons,
       primaryLinkId:
         firstUsableLink && firstUsableLink.kind === "link"
           ? firstUsableLink.link.linkId
