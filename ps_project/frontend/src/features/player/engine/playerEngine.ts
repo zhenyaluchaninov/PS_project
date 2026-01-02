@@ -38,6 +38,13 @@ export type EnterNodeDecision =
 
 export type ClickDecision =
   | { type: "move"; nodeId: number; linkId: number }
+  | {
+      type: "open-reference";
+      linkId: number;
+      targetNodeId: number;
+      url: string;
+      openInNewTab: boolean;
+    }
   | { type: "error"; error: EngineError };
 
 const firstString = (value: unknown): string | null => {
@@ -252,6 +259,27 @@ export const decideOnClick = (
     return {
       type: "error",
       error: { title: "Broken link", description: "The target node is missing." },
+    };
+  }
+
+  const targetKind = resolveNodeKind(targetNode);
+  if (targetKind === "reference" || targetKind === "reference-tab") {
+    const url = resolveReferenceUrl(targetNode);
+    if (!url) {
+      return {
+        type: "error",
+        error: {
+          title: "Missing link",
+          description: "No URL found for this reference node.",
+        },
+      };
+    }
+    return {
+      type: "open-reference",
+      linkId: link.linkId,
+      targetNodeId: targetNode.nodeId,
+      url,
+      openInNewTab: targetKind === "reference-tab",
     };
   }
 

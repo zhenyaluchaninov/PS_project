@@ -358,6 +358,25 @@ const createPlayerState: StateCreator<PlayerState> = (set, get) => {
       return false;
     }
 
+    if (decision.type === "open-reference") {
+      // Reference nodes behave like external links; we do not enter them or mark as visited.
+      if (typeof window === "undefined") {
+        toastError("Missing link", "Unable to open links outside the browser.");
+        return false;
+      }
+      if (decision.openInNewTab) {
+        window.open(decision.url, "_blank", "noopener,noreferrer");
+      } else {
+        window.location.assign(decision.url);
+      }
+      if (isDev) {
+        console.log(
+          `[player] opened reference link ${decision.linkId} -> ${decision.targetNodeId}`
+        );
+      }
+      return true;
+    }
+
     const success = navigateToNode(decision.nodeId, {
       chosenLinkId: decision.linkId,
     });
