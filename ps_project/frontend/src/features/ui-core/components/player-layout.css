@@ -129,6 +129,13 @@
   color: inherit;
 }
 
+.ps-player[data-high-contrast="true"] .ps-player__card {
+  background: #000000;
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
 .ps-player[data-live-scrub="true"] .ps-player__card {
   backdrop-filter: none;
   box-shadow: none;
@@ -188,6 +195,13 @@
   color: var(--player-button-text, inherit);
   font-size: var(--player-nav-text-size, inherit);
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.ps-player[data-high-contrast="true"] .ps-player__choice {
+  background: #000000;
+  background-color: #000000;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.65);
 }
 
 .ps-player__choice:hover {

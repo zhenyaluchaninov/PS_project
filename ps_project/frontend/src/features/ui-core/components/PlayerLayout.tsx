@@ -24,6 +24,7 @@ type PlayerLayoutProps = {
   backgroundPosition?: string;
   backgroundSize?: string;
   overlayColor?: string | null;
+  highContrast?: boolean;
   dataProps?: {
     background?: string;
     backgroundImage?: string;
@@ -52,6 +53,7 @@ export function PlayerLayout({
   backgroundPosition,
   backgroundSize,
   overlayColor,
+  highContrast = false,
   dataProps,
   layout,
   className,
@@ -96,6 +98,7 @@ export function PlayerLayout({
       data-props={dataProps?.player || undefined}
       data-align={layout?.verticalAlign ?? "center"}
       data-hide-bg={hideBackground ? "true" : undefined}
+      data-high-contrast={highContrast ? "true" : undefined}
       style={rootStyle}
       ref={rootRef}
     >

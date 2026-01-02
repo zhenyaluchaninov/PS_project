@@ -200,6 +200,7 @@ export function StaticPlayerPreview({
       className={playerClassName}
       style={propsStyle}
       overlayColor={flags.hideBackground ? null : typography.overlayColor ?? undefined}
+      highContrast={flags.highContrast}
       backgroundImage={backgroundImage}
       backgroundVideo={backgroundVideo}
       hideBackground={flags.hideBackground}

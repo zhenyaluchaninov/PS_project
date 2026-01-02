@@ -242,12 +242,18 @@ const mapColors = (
   if (overrides.highContrast) {
     styleVars["--background"] = "#000000";
     styleVars["--bg"] = "#000000";
+    styleVars["--surface"] = "#000000";
     styleVars["--text"] = "#ffffff";
+    styleVars["--muted"] = "#ffffff";
     styleVars["--foreground"] = "#ffffff";
     styleVars["--accent"] = "#ffffff";
     styleVars["--accent-strong"] = "#ffffff";
     styleVars["--player-bg"] = "#000000";
     styleVars["--player-text"] = "#ffffff";
+    styleVars["--player-text-bg"] = "#000000";
+    styleVars["--player-button-bg"] = "#000000";
+    styleVars["--player-button-text"] = "#ffffff";
+    styleVars["--player-accent"] = "#ffffff";
     style.backgroundColor = "#000000";
     style.color = "#ffffff";
     return { style, styleVars, overlayColor: undefined };
