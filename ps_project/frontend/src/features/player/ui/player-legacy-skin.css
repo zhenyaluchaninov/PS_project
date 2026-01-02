@@ -8,11 +8,6 @@
   justify-content: flex-start;
 }
 
-.ps-player--legacy-skin[data-align="center"] .ps-player__outer,
-.ps-player--legacy-skin[data-align="bottom"] .ps-player__outer {
-  justify-content: flex-start;
-}
-
 .ps-player--legacy-skin .ps-player__body {
   display: grid;
   grid-template-rows: 1fr auto;
@@ -208,6 +203,7 @@
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.4rem 0.5rem;
   margin-top: 0.35rem;
 }

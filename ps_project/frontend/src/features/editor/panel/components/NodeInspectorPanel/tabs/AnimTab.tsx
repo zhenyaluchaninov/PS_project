@@ -1,3 +1,4 @@
+import { useEffect, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { BulkField } from "../../BulkField";
 import { CollapsibleSection } from "../../CollapsibleSection";
 import { SelectField } from "../fields";
@@ -10,6 +11,95 @@ export type AnimMixedState = {
   delay: boolean;
   navigationDelay: boolean;
   backgroundFade: boolean;
+};
+
+type NumericDraftState = {
+  draft: string;
+  handleChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  handleBlur: () => void;
+  handleFocus: () => void;
+  handleKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+};
+
+const clampNumericDraft = (raw: string) => {
+  const next = Number(raw);
+  if (!Number.isFinite(next)) return null;
+  return String(Math.max(0, next));
+};
+
+const useNumericDraft = ({
+  value,
+  isMixed,
+  onCommit,
+}: {
+  value: number;
+  isMixed: boolean;
+  onCommit: (next: string) => void;
+}): NumericDraftState => {
+  const [draft, setDraft] = useState(isMixed ? "" : String(value));
+  const [committed, setCommitted] = useState(isMixed ? "" : String(value));
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    const nextCommitted = isMixed ? "" : String(value);
+    setCommitted(nextCommitted);
+    if (!isEditing) {
+      setDraft(nextCommitted);
+    }
+  }, [value, isMixed, isEditing]);
+
+  const commitIfValid = (raw: string) => {
+    const clamped = clampNumericDraft(raw);
+    if (clamped === null) return;
+    onCommit(clamped);
+    setCommitted(clamped);
+  };
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const raw = event.target.value;
+    setDraft(raw);
+    if (!raw.trim()) return;
+    commitIfValid(raw);
+  };
+
+  const finalizeDraft = () => {
+    setIsEditing(false);
+    if (!draft.trim()) {
+      setDraft(committed);
+      return;
+    }
+    const clamped = clampNumericDraft(draft);
+    if (clamped === null) {
+      setDraft(committed);
+      return;
+    }
+    if (clamped !== committed) {
+      onCommit(clamped);
+      setCommitted(clamped);
+    }
+    setDraft(clamped);
+  };
+
+  const handleBlur = () => {
+    finalizeDraft();
+  };
+
+  const handleFocus = () => {
+    setIsEditing(true);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+    finalizeDraft();
+  };
+
+  return {
+    draft,
+    handleChange,
+    handleBlur,
+    handleFocus,
+    handleKeyDown,
+  };
 };
 
 export function AnimTab({
@@ -53,6 +143,21 @@ export function AnimTab({
     bulkActive &&
     !isBulkFieldStaged("animation_backgroundfade") &&
     Boolean(animMixed?.backgroundFade);
+  const delayDraft = useNumericDraft({
+    value: animationDelay,
+    isMixed: isDelayMixed,
+    onCommit: (next) => handleNodePropChange("animation_delay", next),
+  });
+  const navigationDelayDraft = useNumericDraft({
+    value: navigationDelay,
+    isMixed: isNavigationDelayMixed,
+    onCommit: (next) => handleNodePropChange("playerNavigation_delay", next),
+  });
+  const backgroundFadeDraft = useNumericDraft({
+    value: backgroundFade,
+    isMixed: isBackgroundFadeMixed,
+    onCommit: (next) => handleNodePropChange("animation_backgroundfade", next),
+  });
   const needsLegacyOption =
     !isModeMixed &&
     animationMode.trim() !== "" &&
@@ -104,18 +209,12 @@ export function AnimTab({
                   type="number"
                   min={0}
                   step={0.1}
-                  value={isDelayMixed ? "" : String(animationDelay)}
+                  value={delayDraft.draft}
                   placeholder={isDelayMixed ? "Mixed" : undefined}
-                  onChange={(event) => {
-                    const raw = event.target.value;
-                    if (!raw.trim()) return;
-                    const next = Number(raw);
-                    if (!Number.isFinite(next)) return;
-                    handleNodePropChange(
-                      "animation_delay",
-                      String(Math.max(0, next))
-                    );
-                  }}
+                  onChange={delayDraft.handleChange}
+                  onFocus={delayDraft.handleFocus}
+                  onBlur={delayDraft.handleBlur}
+                  onKeyDown={delayDraft.handleKeyDown}
                   className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
                 />
               </div>
@@ -139,18 +238,12 @@ export function AnimTab({
                 type="number"
                 min={0}
                 step={0.1}
-                value={isNavigationDelayMixed ? "" : String(navigationDelay)}
+                value={navigationDelayDraft.draft}
                 placeholder={isNavigationDelayMixed ? "Mixed" : undefined}
-                onChange={(event) => {
-                  const raw = event.target.value;
-                  if (!raw.trim()) return;
-                  const next = Number(raw);
-                  if (!Number.isFinite(next)) return;
-                  handleNodePropChange(
-                    "playerNavigation_delay",
-                    String(Math.max(0, next))
-                  );
-                }}
+                onChange={navigationDelayDraft.handleChange}
+                onFocus={navigationDelayDraft.handleFocus}
+                onBlur={navigationDelayDraft.handleBlur}
+                onKeyDown={navigationDelayDraft.handleKeyDown}
                 className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
               />
             </div>
@@ -173,18 +266,12 @@ export function AnimTab({
                 type="number"
                 min={0}
                 step={0.1}
-                value={isBackgroundFadeMixed ? "" : String(backgroundFade)}
+                value={backgroundFadeDraft.draft}
                 placeholder={isBackgroundFadeMixed ? "Mixed" : undefined}
-                onChange={(event) => {
-                  const raw = event.target.value;
-                  if (!raw.trim()) return;
-                  const next = Number(raw);
-                  if (!Number.isFinite(next)) return;
-                  handleNodePropChange(
-                    "animation_backgroundfade",
-                    String(Math.max(0, next))
-                  );
-                }}
+                onChange={backgroundFadeDraft.handleChange}
+                onFocus={backgroundFadeDraft.handleFocus}
+                onBlur={backgroundFadeDraft.handleBlur}
+                onKeyDown={backgroundFadeDraft.handleKeyDown}
                 className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-muted)]"
               />
             </div>
