@@ -22,7 +22,7 @@ export type EditorSelection =
   | { type: "node"; nodeId: number }
   | { type: "link"; linkId: number };
 
-export type EditorToolPanel = "search" | null;
+export type EditorToolPanel = "search" | "diagnostics" | null;
 
 export type EditorNodeInspectorTab =
   | "content"
