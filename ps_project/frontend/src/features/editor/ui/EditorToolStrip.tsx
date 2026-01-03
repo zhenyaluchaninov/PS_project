@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertOctagon,
   AlertTriangle,
-  BarChart3,
   Check,
   ChevronDown,
   ChevronRight,
   MousePointer2,
+  PieChart,
   Search,
   Stethoscope,
   X,
@@ -36,10 +36,10 @@ type DiagnosticsEntry = {
 type DiagnosticsStats = {
   totalNodes: number;
   totalLinks: number;
-  nodesWithImages: number;
-  nodesWithVideo: number;
-  nodesWithAudio: number;
-  nodesWithSubtitles: number;
+  uniqueImages: number;
+  uniqueVideos: number;
+  uniqueAudio: number;
+  uniqueSubtitles: number;
   linksWithConditions: number;
 };
 
@@ -183,20 +183,21 @@ const computeDiagnostics = (adventure: AdventureModel): DiagnosticsState => {
     });
   });
 
-  let nodesWithImages = 0;
-  let nodesWithVideo = 0;
-  let nodesWithAudio = 0;
-  let nodesWithSubtitles = 0;
+  const uniqueImages = new Set<string>();
+  const uniqueVideos = new Set<string>();
+  const uniqueAudio = new Set<string>();
+  const uniqueSubtitles = new Set<string>();
 
   nodes.forEach((node) => {
-    const imageUrl =
+    const rawImageUrl =
       typeof node.image?.url === "string" ? node.image.url.trim() : "";
+    const imageUrl = rawImageUrl.split(/[?#]/)[0]?.trim() ?? "";
     const hasImage = imageUrl.length > 0;
     const isVideo = hasImage && imageUrl.toLowerCase().endsWith(".mp4");
     if (isVideo) {
-      nodesWithVideo += 1;
+      uniqueVideos.add(imageUrl.toLowerCase());
     } else if (hasImage) {
-      nodesWithImages += 1;
+      uniqueImages.add(imageUrl.toLowerCase());
     }
 
     const props = parseRecord(node.rawProps ?? node.props);
@@ -206,12 +207,18 @@ const computeDiagnostics = (adventure: AdventureModel): DiagnosticsState => {
       "audio_url_alt",
       "audioUrlAlt",
     ]);
+    const normalizedAudio = audioUrl?.split(/[?#]/)[0]?.trim() ?? "";
     const subtitlesUrl = getPropString(props, [
       "subtitles_url",
       "subtitlesUrl",
     ]);
-    if (audioUrl) nodesWithAudio += 1;
-    if (subtitlesUrl) nodesWithSubtitles += 1;
+    const normalizedSubtitles = subtitlesUrl?.split(/[?#]/)[0]?.trim() ?? "";
+    if (normalizedAudio) {
+      uniqueAudio.add(normalizedAudio.toLowerCase());
+    }
+    if (normalizedSubtitles) {
+      uniqueSubtitles.add(normalizedSubtitles.toLowerCase());
+    }
   });
 
   let linksWithConditions = 0;
@@ -228,10 +235,10 @@ const computeDiagnostics = (adventure: AdventureModel): DiagnosticsState => {
     stats: {
       totalNodes: nodes.length,
       totalLinks: links.length,
-      nodesWithImages,
-      nodesWithVideo,
-      nodesWithAudio,
-      nodesWithSubtitles,
+      uniqueImages: uniqueImages.size,
+      uniqueVideos: uniqueVideos.size,
+      uniqueAudio: uniqueAudio.size,
+      uniqueSubtitles: uniqueSubtitles.size,
       linksWithConditions,
     },
   };
@@ -557,7 +564,7 @@ export function EditorToolStrip({ adventure }: EditorToolStripProps) {
             </div>
             <div className="border-t border-[var(--border)] px-3 py-3">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-                <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" />
+                <PieChart className="h-3.5 w-3.5" aria-hidden="true" />
                 Statistics
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[var(--text)]">
@@ -570,22 +577,20 @@ export function EditorToolStrip({ adventure }: EditorToolStripProps) {
                   <span className="font-semibold">{diagnostics.stats.totalLinks}</span>
                 </div>
                 <div className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1">
-                  <span className="text-[var(--muted)]">Images</span>
-                  <span className="font-semibold">{diagnostics.stats.nodesWithImages}</span>
+                  <span className="text-[var(--muted)]">Unique images</span>
+                  <span className="font-semibold">{diagnostics.stats.uniqueImages}</span>
                 </div>
                 <div className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1">
-                  <span className="text-[var(--muted)]">Videos</span>
-                  <span className="font-semibold">{diagnostics.stats.nodesWithVideo}</span>
+                  <span className="text-[var(--muted)]">Unique videos</span>
+                  <span className="font-semibold">{diagnostics.stats.uniqueVideos}</span>
                 </div>
                 <div className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1">
-                  <span className="text-[var(--muted)]">Audio</span>
-                  <span className="font-semibold">{diagnostics.stats.nodesWithAudio}</span>
+                  <span className="text-[var(--muted)]">Unique audio</span>
+                  <span className="font-semibold">{diagnostics.stats.uniqueAudio}</span>
                 </div>
                 <div className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1">
-                  <span className="text-[var(--muted)]">Subtitles</span>
-                  <span className="font-semibold">
-                    {diagnostics.stats.nodesWithSubtitles}
-                  </span>
+                  <span className="text-[var(--muted)]">Unique subtitles</span>
+                  <span className="font-semibold">{diagnostics.stats.uniqueSubtitles}</span>
                 </div>
                 <div className="col-span-2 flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1">
                   <span className="text-[var(--muted)]">Conditional links</span>
