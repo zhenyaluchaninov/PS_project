@@ -6,13 +6,11 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type ReactNode,
 } from "react";
 import { Crosshair, Loader2, Trash2, Upload } from "lucide-react";
 import type { AdventureModel, CategoryModel } from "@/domain/models";
 import { loadCategories } from "@/features/state/api";
 import { deleteMedia, uploadMedia } from "@/features/state/api/media";
-import { LabelValue } from "@/features/ui-core/LabelValue";
 import { toastError } from "@/features/ui-core/toast";
 import {
   selectEditorMenuShortcutPickIndex,
@@ -856,14 +854,6 @@ export function AdventureInspectorPanel({
           </div>
         </CollapsibleSection>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <StatCard label="Nodes" value={adventure.nodes.length} />
-        <StatCard label="Links" value={adventure.links.length} />
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <InfoCard label="Edit slug" value={adventure.slug || "n/a"} />
-        <InfoCard label="View slug" value={adventure.viewSlug || "n/a"} />
-      </div>
     </InspectorShell>
   );
 }
@@ -910,45 +900,5 @@ function ToggleRow({
         />
       </span>
     </label>
-  );
-}
-
-function InfoCard({
-  label,
-  value,
-  className,
-}: {
-  label: string;
-  value: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2",
-        className
-      )}
-    >
-      <LabelValue label={label} value={value} className="gap-1" />
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: ReactNode;
-}) {
-  return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-3">
-      <p className="text-[10px] font-medium uppercase tracking-[0.15em] text-[var(--muted)]">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-semibold text-[var(--text)]">
-        {value}
-      </p>
-    </div>
   );
 }

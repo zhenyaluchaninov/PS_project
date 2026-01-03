@@ -114,6 +114,28 @@ a {
   background: var(--border-light);
 }
 
+.ps-tabs-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.ps-tabs-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.ps-tabs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ps-tabs-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+.ps-tabs-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--border-light);
+}
+
 .ps-editor-graph .react-flow__controls {
   background: var(--bg-secondary);
   border: 1px solid var(--border);

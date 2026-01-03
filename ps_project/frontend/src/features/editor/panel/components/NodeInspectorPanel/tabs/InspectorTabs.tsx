@@ -245,7 +245,7 @@ export function InspectorTabs({
     >
       <TabsList
         ref={tabListRef}
-        className="w-full flex-nowrap justify-start overflow-x-auto overflow-y-hidden"
+        className="ps-tabs-scroll w-full flex-nowrap justify-start overflow-x-auto overflow-y-hidden"
         onWheel={(event) => {
           const list = tabListRef.current;
           if (!list) return;
