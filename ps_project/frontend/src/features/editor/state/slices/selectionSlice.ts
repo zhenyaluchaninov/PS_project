@@ -4,7 +4,7 @@ import type { EditorSelection, EditorState } from "../types";
 type EditorSlice = StateCreator<EditorState, [], [], Partial<EditorState>>;
 
 const normalizeSelectionIds = (ids: number[]): number[] =>
-  [...new Set(ids)].sort((a, b) => a - b);
+  Array.from(new Set(ids)).sort((a, b) => a - b);
 
 const arraysEqual = (a: number[], b: number[]): boolean => {
   if (a.length !== b.length) return false;

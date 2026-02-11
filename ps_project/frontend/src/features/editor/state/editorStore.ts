@@ -18,16 +18,19 @@ export type {
   EditorToolPanel,
 } from "./types";
 
-export const useEditorStore = create<EditorState>()((...args) => ({
-  ...coreSlice(...args),
-  ...adventureOpsSlice(...args),
-  ...selectionSlice(...args),
-  ...nodeOpsSlice(...args),
-  ...linkOpsSlice(...args),
-  ...propsSlice(...args),
-  ...clipboardSlice(...args),
-  ...historySlice(...args),
-}));
+export const useEditorStore = create<EditorState>()(
+  (...args) =>
+    ({
+      ...coreSlice(...args),
+      ...adventureOpsSlice(...args),
+      ...selectionSlice(...args),
+      ...nodeOpsSlice(...args),
+      ...linkOpsSlice(...args),
+      ...propsSlice(...args),
+      ...clipboardSlice(...args),
+      ...historySlice(...args),
+    }) as EditorState
+);
 
 export const selectEditorStatus = (state: EditorState) => state.status;
 export const selectEditorAdventure = (state: EditorState) => state.adventure;

@@ -6,13 +6,13 @@ import {
   selectEditorReadOnly,
   useEditorStore,
 } from "@/features/editor/state/editorStore";
-import type { EditorNodeInspectorTab } from "../../state/types";
+import type { EditorNodeInspectorTab } from "../../../state/types";
 import {
   BULK_NODE_TEXT_PATH,
   BULK_NODE_TITLE_PATH,
   BULK_NODE_TYPE_PATH,
 } from "../../constants";
-import type { BulkDraftEntry, BulkEditConfig } from "../types";
+import type { BulkDraftEntry, BulkEditConfig } from "../../types";
 import { InspectorShell } from "../InspectorShell";
 import { BulkEditBanner } from "./BulkEditBanner";
 import {

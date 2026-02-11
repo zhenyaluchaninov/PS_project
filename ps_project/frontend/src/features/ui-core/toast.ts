@@ -3,6 +3,7 @@
 import { toast, type ExternalToast } from "sonner";
 
 type ToastOptions = ExternalToast | undefined;
+type PromiseToastOptions = Omit<ExternalToast, "description"> | undefined;
 
 export const toastSuccess = (
   title: string,
@@ -35,5 +36,5 @@ export const toastPromise = <T>(
     success: string | ((data: T) => string);
     error: string | ((error: unknown) => string);
   },
-  options?: ExternalToast
-) => toast.promise(promise, messages, options);
+  options?: PromiseToastOptions
+) => toast.promise(promise, { ...options, ...messages });

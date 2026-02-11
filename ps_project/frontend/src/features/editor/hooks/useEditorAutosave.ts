@@ -323,7 +323,7 @@ export const useEditorAutosave = (editSlug: string) => {
       lastDirtyRef.current = dirty;
       return;
     }
-    if (!lastDirtyRef.current && saveStatus !== "saving" && saveStatus !== "error") {
+    if (!lastDirtyRef.current && saveStatus !== "saving") {
       setSaveStatus("dirty");
     }
     if (debounceRef.current) {

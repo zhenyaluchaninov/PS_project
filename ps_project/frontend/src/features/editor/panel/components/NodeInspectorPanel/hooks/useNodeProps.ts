@@ -1,6 +1,6 @@
 import type { NodeModel } from "@/domain/models";
 import { getFontMeta } from "@/lib/fonts";
-import type { BulkDraft } from "../../types";
+import type { BulkDraft } from "../../../types";
 import {
   CONDITIONS_ALPHA_DEFAULT,
   CONDITIONS_COLOR_DEFAULT,

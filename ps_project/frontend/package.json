@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:editor:static": "next build",
+    "stage:editor:static": "node -e \"const fs=require('fs');const path=require('path');const source=path.resolve('out');const target=path.resolve('..','backend','web','next-editor');if(!fs.existsSync(source)){throw new Error('Missing frontend/out. Run npm run build:editor:static first.');}fs.rmSync(target,{recursive:true,force:true});fs.mkdirSync(target,{recursive:true});fs.cpSync(source,target,{recursive:true});console.log('Staged static editor assets to '+target);\"",
+    "build:editor:deploy": "npm run build:editor:static && npm run stage:editor:static",
     "start": "next start",
     "lint": "next lint",
     "validate:fixtures": "tsx src/dev/validate-fixtures.ts",
@@ -47,8 +50,10 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/sanitize-html": "^2.16.0",
     "eslint": "^8",
     "eslint-config-next": "14.2.3",
     "postcss": "^8",

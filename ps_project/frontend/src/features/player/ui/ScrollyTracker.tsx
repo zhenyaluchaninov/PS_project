@@ -67,7 +67,7 @@ export function ScrollyTracker({
         container.getBoundingClientRect();
       const rootCenter = rootBounds.top + rootBounds.height / 2;
 
-      let best: { nodeId: number; distance: number } | null = null;
+      const candidates: Array<{ nodeId: number; distance: number }> = [];
       visible.forEach((entry) => {
         const target = entry.target as HTMLElement;
         const nodeIdRaw = target.getAttribute("data-node-id");
@@ -76,12 +76,13 @@ export function ScrollyTracker({
         const rect = entry.boundingClientRect;
         const targetCenter = rect.top + rect.height / 2;
         const distance = Math.abs(targetCenter - rootCenter);
-        if (!best || distance < best.distance) {
-          best = { nodeId, distance };
-        }
+        candidates.push({ nodeId, distance });
       });
 
-      if (!best) return;
+      if (!candidates.length) return;
+      const best = candidates.reduce((currentBest, entry) =>
+        entry.distance < currentBest.distance ? entry : currentBest
+      );
       if (lastViewportActiveRef.current === best.nodeId) return;
       lastViewportActiveRef.current = best.nodeId;
       onViewportActiveChange(best.nodeId);

@@ -13,6 +13,11 @@ import (
 	"projektps/store"
 )
 
+const (
+	nextEditorStaticRoot = "./web/next-editor"
+	nextEditorIndexFile  = "./web/next-editor/nyredigera/index.html"
+)
+
 // Router encapsulates an instance of the gorilla mux router in the Handler instance
 type Router struct {
 	Handler http.Handler
@@ -38,6 +43,9 @@ func NewRouter(store store.Store, version string, imgurbearer string, environmen
 	router.HandleFunc("/engagera/{id:[A-Z,a-z,0-9]+}", web.PlayerHandler).Methods("GET")
 	router.HandleFunc("/testa/{id:[A-Z,a-z,0-9]+}", web.PlayerHandlerPreview).Methods("GET")
 	router.HandleFunc("/redigera/{id:[A-Z,a-z,0-9]+}", web.EditorHandler).Methods("GET")
+	router.HandleFunc("/nyredigera", redirectToAdmin).Methods("GET")
+	router.HandleFunc("/nyredigera/", redirectToAdmin).Methods("GET")
+	router.HandleFunc("/nyredigera/{slug:[A-Z,a-z,0-9,_,-]+}", serveNextEditorIndex).Methods("GET")
 
 	// Hook up websocket upgrade route
 	// router.HandleFunc("/ws", socket.WebsocketHandler).Methods("GET")
@@ -106,6 +114,7 @@ func NewRouter(store store.Store, version string, imgurbearer string, environmen
 	apirouter.HandleFunc("/media/{adventure:[a-z,0-9]+}/{hash:[^/]+}", api.DeleteMedia).Methods("DELETE")
 
 	// Hook up static file server routes
+	router.PathPrefix("/_next/").Handler(http.FileServer(http.Dir(nextEditorStaticRoot)))
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./web"))))
 	router.PathPrefix("/upload/").Handler(http.StripPrefix("/upload/", http.FileServer(http.Dir("./upload"))))
 	router.PathPrefix("/admin/").Handler(http.StripPrefix("/admin/", http.FileServer(http.Dir("./web/admin"))))
@@ -139,4 +148,12 @@ func CORSControlMiddleware(h http.Handler) http.Handler {
 		fmt.Println("Origin - ", r.Header.Get("Origin"))
 		h.ServeHTTP(w, r)
 	})
+}
+
+func redirectToAdmin(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/admin/", http.StatusSeeOther)
+}
+
+func serveNextEditorIndex(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, nextEditorIndexFile)
 }

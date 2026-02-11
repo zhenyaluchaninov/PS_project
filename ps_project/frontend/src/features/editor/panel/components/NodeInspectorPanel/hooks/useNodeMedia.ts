@@ -2,7 +2,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 import type { NodeModel } from "@/domain/models";
 import { uploadMedia, deleteMedia } from "@/features/state/api/media";
 import { toastError } from "@/features/ui-core/toast";
-import type { BulkDraft } from "../../types";
+import type { BulkDraft } from "../../../types";
 import {
   getMediaBasename,
   getMediaLabel,

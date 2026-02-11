@@ -56,9 +56,9 @@ const applyPending = () => {
     pendingText = undefined;
   }
   if (pendingVars.size) {
-    for (const [key, value] of pendingVars) {
+    pendingVars.forEach((value, key) => {
       root.style.setProperty(key, value);
-    }
+    });
     pendingVars.clear();
   }
   if (pendingOverlay !== undefined) {

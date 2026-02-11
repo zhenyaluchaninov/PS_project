@@ -430,29 +430,29 @@ export const buildPropsStyle = ({
     ]
   );
 
-  const cssVarsApplied = Object.entries(styleVars).reduce<CSSProperties>(
+  const cssVarsApplied = Object.entries(styleVars).reduce<Record<string, string>>(
     (acc, [key, value]) => {
-      acc[key as keyof CSSProperties] = value;
+      acc[key] = value;
       return acc;
     },
     {}
   );
 
   const combinedStyle: CSSProperties = {
-    ...cssVarsApplied,
+    ...(cssVarsApplied as CSSProperties),
     ...style,
     ...(fontFamily ? { fontFamily: `${fontFamily}, var(--font-sans), sans-serif` } : {}),
     fontSize: baseFontSize,
   };
 
   if (textShadow) {
-    combinedStyle["--player-text-shadow" as keyof CSSProperties] = textShadow;
+    (combinedStyle as Record<string, string>)["--player-text-shadow"] = textShadow;
   }
   if (mediaFilter) {
-    combinedStyle["--player-media-filter" as keyof CSSProperties] = mediaFilter;
+    (combinedStyle as Record<string, string>)["--player-media-filter"] = mediaFilter;
   }
   if (baseFontSize) {
-    combinedStyle["--player-base-size" as keyof CSSProperties] = baseFontSize;
+    (combinedStyle as Record<string, string>)["--player-base-size"] = baseFontSize;
   }
 
   return {
@@ -475,15 +475,9 @@ export const buildPropsStyle = ({
     typography: {
       textShadow,
       fontFamily,
-      textBackground:
-        (cssVarsApplied["--player-text-bg" as keyof CSSProperties] as string) ??
-        undefined,
-      textColor:
-        (cssVarsApplied["--player-text" as keyof CSSProperties] as string) ??
-        undefined,
-      accentColor:
-        (cssVarsApplied["--player-accent" as keyof CSSProperties] as string) ??
-        undefined,
+      textBackground: styleVars["--player-text-bg"],
+      textColor: styleVars["--player-text"],
+      accentColor: styleVars["--player-accent"],
       overlayColor,
     },
   };

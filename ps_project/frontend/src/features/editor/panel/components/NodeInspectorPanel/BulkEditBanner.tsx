@@ -1,5 +1,5 @@
 import { Button } from "@/features/ui-core/primitives/button";
-import type { BulkEditConfig } from "../types";
+import type { BulkEditConfig } from "../../types";
 
 export function BulkEditBanner({
   bulk,

@@ -6,6 +6,8 @@
 node_modules
 upload
 web/admin
+frontend/out
+backend/web/next-editor
 
 # Binaries for programs and plugins
 textaventyr

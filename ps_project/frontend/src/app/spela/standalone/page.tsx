@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import type { AdventureModel } from "@/domain/models";
 import { parseAdventureDto } from "@/domain/mappers";
 import { PlayerRuntime } from "@/features/player/ui/PlayerRuntime";
@@ -33,7 +32,6 @@ const getDefaultStartNodeId = (adventure?: AdventureModel | null) => {
 };
 
 export default function StandalonePlayerPage() {
-  const searchParams = useSearchParams();
   const status = usePlayerStore(selectPlayerStatus);
   const adventure = usePlayerStore(selectPlayerAdventure);
   const mode = usePlayerStore(selectPlayerMode);
@@ -43,11 +41,17 @@ export default function StandalonePlayerPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [queryString, setQueryString] = useState("");
 
   useEffect(() => {
     reset();
     return () => reset();
   }, [reset]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setQueryString(window.location.search);
+  }, []);
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -94,10 +98,15 @@ export default function StandalonePlayerPage() {
   }, []);
 
   const showPlayer = status === "ready" && Boolean(adventure) && mode === "standalone";
-  const nodeIdOverride = useMemo(
-    () => readNumberParam(searchParams, "nodeId") ?? readNumberParam(searchParams, "nodeid"),
-    [searchParams]
-  );
+  const nodeIdOverride = useMemo(() => {
+    const searchParams = queryString
+      ? new URLSearchParams(queryString)
+      : null;
+    return (
+      readNumberParam(searchParams, "nodeId") ??
+      readNumberParam(searchParams, "nodeid")
+    );
+  }, [queryString]);
   const startNodeId = useMemo(() => {
     const defaultStart = getDefaultStartNodeId(adventure);
     if (!nodeIdOverride || !adventure?.nodes?.length) return defaultStart;

@@ -479,8 +479,9 @@ export function EditorToolStrip({ adventure }: EditorToolStripProps) {
                       <div className="border-t border-[var(--border)] px-3 py-2">
                         {criticalCount ? (
                           <div className="space-y-1">
-                            {diagnostics.critical.map((entry) =>
-                              entry.nodeId == null ? (
+                            {diagnostics.critical.map((entry) => {
+                              const nodeId = entry.nodeId;
+                              return nodeId == null ? (
                                 <div
                                   key={entry.id}
                                   className="rounded-md px-2 py-1 text-sm text-[var(--text)]"
@@ -491,13 +492,13 @@ export function EditorToolStrip({ adventure }: EditorToolStripProps) {
                                 <button
                                   key={entry.id}
                                   type="button"
-                                  onClick={() => setFocusNodeId(entry.nodeId)}
+                                  onClick={() => setFocusNodeId(nodeId)}
                                   className={issueRowClass}
                                 >
                                   {entry.label}
                                 </button>
-                              )
-                            )}
+                              );
+                            })}
                           </div>
                         ) : (
                           <div className="px-2 py-1 text-xs text-[var(--muted)]">
@@ -531,8 +532,9 @@ export function EditorToolStrip({ adventure }: EditorToolStripProps) {
                       <div className="border-t border-[var(--border)] px-3 py-2">
                         {warningCount ? (
                           <div className="space-y-1">
-                            {diagnostics.warnings.map((entry) =>
-                              entry.nodeId == null ? (
+                            {diagnostics.warnings.map((entry) => {
+                              const nodeId = entry.nodeId;
+                              return nodeId == null ? (
                                 <div
                                   key={entry.id}
                                   className="rounded-md px-2 py-1 text-sm text-[var(--text)]"
@@ -543,13 +545,13 @@ export function EditorToolStrip({ adventure }: EditorToolStripProps) {
                                 <button
                                   key={entry.id}
                                   type="button"
-                                  onClick={() => setFocusNodeId(entry.nodeId)}
+                                  onClick={() => setFocusNodeId(nodeId)}
                                   className={issueRowClass}
                                 >
                                   {entry.label}
                                 </button>
-                              )
-                            )}
+                              );
+                            })}
                           </div>
                         ) : (
                           <div className="px-2 py-1 text-xs text-[var(--muted)]">

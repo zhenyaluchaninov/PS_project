@@ -14,7 +14,7 @@ export function Header() {
           <Link href="/spela/demo" className="hover:text-[var(--text)]">
             Play
           </Link>
-          <Link href="/redigera/demo" className="hover:text-[var(--text)]">
+          <Link href="/nyredigera/demo" className="hover:text-[var(--text)]">
             Edit
           </Link>
         </nav>

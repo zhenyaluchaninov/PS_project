@@ -6,7 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type MouseEvent,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
 import {
   Background,
@@ -19,6 +19,7 @@ import {
   type DefaultEdgeOptions,
   type Edge,
   type OnConnectStartParams,
+  type OnConnectEnd,
   type ReactFlowInstance,
 } from "@xyflow/react";
 import type { AdventureModel } from "@/domain/models";
@@ -248,8 +249,8 @@ export function GraphCanvas({
     [readOnly]
   );
 
-  const handleConnectEnd = useCallback(
-    (event: MouseEvent | TouchEvent) => {
+  const handleConnectEnd: OnConnectEnd = useCallback(
+    (event) => {
       if (readOnly) return;
       const sourceId = connectingNodeIdRef.current;
       connectingNodeIdRef.current = null;
@@ -260,7 +261,9 @@ export function GraphCanvas({
       }
       const instance = reactFlowRef.current;
       if (!instance) return;
-      const clientPosition = getEventClientPosition(event);
+      const clientPosition = getEventClientPosition(
+        event as ReactMouseEvent | TouchEvent
+      );
       if (!clientPosition) return;
       const position = instance.screenToFlowPosition(clientPosition);
       onCreateNodeWithLink(sourceId, position);
@@ -302,7 +305,7 @@ export function GraphCanvas({
   );
 
   const handleNodeClick = useCallback(
-    (event: MouseEvent, node: GraphNode) => {
+    (event: ReactMouseEvent, node: GraphNode) => {
       if (!pickActive || !onMenuShortcutPick) return;
       event.preventDefault();
       event.stopPropagation();
@@ -370,15 +373,24 @@ export function GraphCanvas({
       let changed = false;
       const next = current.map((edge) => {
         const linkId = toNumericId(edge.data?.linkId ?? edge.id);
+        if (linkId == null) return edge;
         const nextPlayState: PlayTraceState =
-          linkId != null && currentLinkId != null && linkId === currentLinkId
+          currentLinkId != null && linkId === currentLinkId
             ? "current"
-            : linkId != null && linkIdSet.has(linkId)
+            : linkIdSet.has(linkId)
               ? "visited"
               : null;
         if (edge.data?.playState === nextPlayState) return edge;
         changed = true;
-        return { ...edge, data: { ...edge.data, playState: nextPlayState } };
+        return {
+          ...edge,
+          data: {
+            linkId,
+            isBidirectional: edge.data?.isBidirectional ?? false,
+            hasConditions: edge.data?.hasConditions ?? false,
+            playState: nextPlayState,
+          },
+        };
       });
       return changed ? next : current;
     });

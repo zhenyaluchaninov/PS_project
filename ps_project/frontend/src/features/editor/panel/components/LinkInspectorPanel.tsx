@@ -234,7 +234,7 @@ export function LinkInspectorPanel({ link }: LinkInspectorPanelProps) {
                   <option value="dim">Dim button</option>
                 </select>
                 <p className="text-xs text-[var(--muted)]">
-                  Overrides the node's default conditioned appearance for this link only
+                  Overrides the node&apos;s default conditioned appearance for this link only
                 </p>
               </div>
             ) : null}

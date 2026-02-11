@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { API_BASE_URL, resolveApiUrl } from "@/features/state/api/client";
+import { getRuntimeApiBaseUrl, resolveApiUrl } from "@/features/state/api/client";
 import { PageShell } from "@/features/ui-core/PageShell";
 import { Panel } from "@/features/ui-core/Panel";
 import {
@@ -39,7 +39,7 @@ export function PlayerRoute({ slug, mode = "play" }: PlayerRouteProps) {
   }
 
   if (status === "error" && error) {
-    const apiBase = API_BASE_URL || "relative via Next rewrite (/api)";
+    const apiBase = getRuntimeApiBaseUrl() || "same-origin (/api)";
     const attemptedUrl = error.url ?? resolveApiUrl(`/api/adventure/${slug}`);
     const detail =
       typeof error.details === "string"

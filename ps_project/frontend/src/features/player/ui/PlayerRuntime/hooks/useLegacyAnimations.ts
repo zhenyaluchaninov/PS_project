@@ -50,12 +50,8 @@ export const useLegacyAnimations = ({
       setPrefersReducedMotion(media.matches);
     };
     update();
-    if ("addEventListener" in media) {
-      media.addEventListener("change", update);
-      return () => media.removeEventListener("change", update);
-    }
-    media.addListener(update);
-    return () => media.removeListener(update);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
   }, []);
 
   const shouldAnimateLegacy =
@@ -107,7 +103,10 @@ export const useLegacyAnimations = ({
     }
 
     const fadeKeyframes = [{ opacity: 0 }, { opacity: 1 }];
-    const baseOptions = { fill: "both", duration: 1000 };
+    const baseOptions: KeyframeAnimationOptions = {
+      fill: "both",
+      duration: 1000,
+    };
     const { animationDelay, paragraphDelay, navigationDelay, backgroundFadeSeconds } =
       animationSettings;
 

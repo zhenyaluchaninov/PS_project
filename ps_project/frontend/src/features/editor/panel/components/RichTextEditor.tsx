@@ -230,7 +230,7 @@ export function RichTextEditor({
     if (!editor) return;
     const nextValue = value ?? "";
     if (nextValue === lastHtmlRef.current) return;
-    editor.commands.setContent(nextValue, false);
+    editor.commands.setContent(nextValue, { emitUpdate: false });
     lastHtmlRef.current = nextValue;
   }, [editor, value]);
 

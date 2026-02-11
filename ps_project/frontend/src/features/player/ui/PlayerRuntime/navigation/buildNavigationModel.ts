@@ -110,7 +110,7 @@ export const buildNavigationModel = ({
       : null;
     const info = {
       targetNodeId,
-      targetNode,
+      targetNode: targetNode ?? undefined,
       conditioned: conditionResult.conditioned,
       overrideMode,
     };

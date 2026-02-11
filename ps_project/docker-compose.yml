@@ -54,8 +54,7 @@ services:
     env_file:
       - ./.env
     environment:
-      BACKEND_URL: http://backend:${DOCKER_APP_PORT:-8080}
-      API_BASE_URL: http://backend:${DOCKER_APP_PORT:-8080}
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:${DOCKER_APP_PUBLISHED_PORT:-8080}
     depends_on:
       backend:
         condition: service_started

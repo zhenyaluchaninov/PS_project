@@ -45,6 +45,7 @@ export type AudioDebugSnapshot = {
     requested?: string | null;
     resolved?: string | null;
     status: "idle" | "playing" | "paused" | "stopped" | "error";
+    volume?: number;
     fromCache?: boolean;
   };
   preload: Array<{ url: string; status: "pending" | "loaded" | "hit" | "error" }>;

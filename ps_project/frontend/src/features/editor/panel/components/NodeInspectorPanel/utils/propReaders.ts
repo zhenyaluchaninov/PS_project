@@ -1,5 +1,5 @@
 import type { NodeModel } from "@/domain/models";
-import type { BulkDraft } from "../../types";
+import type { BulkDraft } from "../../../types";
 import { BULK_NODE_TYPE_PATH } from "../../../constants";
 import {
   ANIMATION_DELAY_DEFAULT,

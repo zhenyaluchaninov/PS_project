@@ -22,15 +22,26 @@ export type RequestOptions = Omit<RequestInit, "body"> & {
 };
 
 export const API_BASE_URL =
-  process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? "";
 
-export function resolveApiUrl(path: string, baseUrl = API_BASE_URL) {
-  const normalizedBase = baseUrl.replace(/\/+$/, "");
-  const normalizedPath = path.replace(/^\/+/, "");
-  if (!normalizedBase) {
-    return `/${normalizedPath}`;
-  }
-  return `${normalizedBase}/${normalizedPath}`;
+function normalizeBaseUrl(baseUrl: string) {
+  return baseUrl.trim().replace(/\/+$/, "");
+}
+
+export function getRuntimeApiBaseUrl(baseUrl = API_BASE_URL) {
+  const normalizedBase = normalizeBaseUrl(baseUrl);
+  if (normalizedBase) return normalizedBase;
+  if (!isBrowser()) return "";
+  return normalizeBaseUrl(window.location.origin);
+}
+
+export function resolveApiUrl(path: string, baseUrl?: string) {
+  if (/^https?:\/\//i.test(path)) return path;
+
+  const normalizedPath = `/${path.replace(/^\/+/, "")}`;
+  const resolvedBase = getRuntimeApiBaseUrl(baseUrl ?? API_BASE_URL);
+  if (!resolvedBase) return normalizedPath;
+  return `${resolvedBase}${normalizedPath}`;
 }
 
 function getAuthToken(): string | undefined {

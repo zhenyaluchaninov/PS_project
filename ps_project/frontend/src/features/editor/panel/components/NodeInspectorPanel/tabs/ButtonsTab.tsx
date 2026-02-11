@@ -200,7 +200,7 @@ export function ButtonsTab({
           sectionKey="editor.node.buttons.conditioned"
         >
           <p className="mb-3 text-xs text-[var(--muted)]">
-            How buttons look when their target is hidden or link conditions aren't met
+            How buttons look when their target is hidden or link conditions aren&apos;t met
           </p>
           <div className="space-y-4">
             <BulkField

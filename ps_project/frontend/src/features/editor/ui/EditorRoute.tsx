@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { API_BASE_URL, resolveApiUrl } from "@/features/state/api/client";
+import { getRuntimeApiBaseUrl, resolveApiUrl } from "@/features/state/api/client";
 import {
   selectEditorAdventure,
   selectEditorDirty,
@@ -262,7 +262,7 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
   }
 
   if (status === "error" && error) {
-    const apiBase = API_BASE_URL || "relative via Next rewrite (/api)";
+    const apiBase = getRuntimeApiBaseUrl() || "same-origin (/api)";
     const attemptedUrl =
       error.url ?? resolveApiUrl(`/api/adventure/${editSlug}/edit`);
     const detail =
@@ -405,4 +405,3 @@ export function EditorRoute({ editSlug }: EditorRouteProps) {
 
   return null;
 }
-

@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type KeyboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { HexColorPicker } from "react-colorful";
 import { cn } from "@/lib/utils";
@@ -139,7 +139,7 @@ export const ColorPickerPopover = memo(function ColorPickerPopover({
       }
       closePopoverRef.current();
     };
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       closePopoverRef.current();
@@ -310,7 +310,7 @@ export const ColorPickerPopover = memo(function ColorPickerPopover({
     scheduleLiveChange(parsed.value);
   };
 
-  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+  const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Escape") {
       event.preventDefault();
       closePopover();

@@ -5,7 +5,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/features/ui-core/primitives/tabs";
-import type { EditorNodeInspectorTab } from "../../state/types";
+import type { EditorNodeInspectorTab } from "../../../../state/types";
 import { tabOptions } from "../../../constants";
 import type { SceneColors } from "../hooks/useNodeProps";
 import type { SelectFieldOption } from "../fields";

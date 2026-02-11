@@ -24,7 +24,7 @@ export default function PublicHomePage() {
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <p className="text-sm font-semibold text-foreground">Editor</p>
           <p className="text-sm text-muted">
-            Editor-only surface lives under `/redigera/[slug]` with a dedicated
+            Editor-only surface lives under `/nyredigera/[slug]` with a dedicated
             layout.
           </p>
         </div>

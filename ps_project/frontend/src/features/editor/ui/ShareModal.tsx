@@ -106,7 +106,7 @@ export function ShareModal({
     () => (typeof window !== "undefined" ? window.location.origin : ""),
     []
   );
-  const editPath = `/redigera/${editSlug}`;
+  const editPath = `/nyredigera/${editSlug}`;
   const viewPath = viewSlug ? `/spela/${viewSlug}` : "";
   const editUrl = useMemo(
     () => buildAbsoluteUrl(origin, editPath),
